@@ -1,0 +1,722 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"math"
+	"math/rand"
+	"os"
+	"path/filepath"
+	"strconv"
+)
+
+type Taktik struct {
+	KaleciOyunKurma  string
+	GeridenOyunKurma string
+	OyunKurma        string
+	DriblingIzni     string
+	UzaktanSut       string
+	ErkenOrta        string
+}
+
+type Ozellikler struct {
+	Bitiricilik          int
+	UzaktanSut           int
+	OnSezi               int
+	Dribling             int
+	DuranToplar          int
+	Pas                  int
+	OrtaYapma            int
+	Teknik               int
+	IlkKontrol           int
+	Vizyon               int
+	Markaj               int
+	TopKapma             int
+	KafaVurusu           int
+	DefansifPozisyonAlma int
+	KararAlma            int
+	TopsuzAlan           int
+	Caliskanlik          int
+	Kararlilik           int
+	Cesaret              int
+	Liderlik             int
+	Sogukkanlilik        int
+	Konsantrasyon        int
+	TaktigeBaglilik      int
+	Ceviklik             int
+	Dayaniklilik         int
+	Denge                int
+	Guc                  int
+	Hiz                  int
+	Hizlanma             int
+	Ziplama              int
+	Refleks              int
+	Degaj                int
+	KarsiKarsiya         int
+}
+
+type Futbolcu struct {
+	Isim       string
+	Soyisim    string
+	Mevki      string
+	Yetenek    int
+	Potansiyel int
+	Profil     Ozellikler
+	Boy        int
+	Kilo       float64
+}
+
+type Olay struct {
+	Aksiyon string
+}
+
+type takim struct {
+	Kaleci      int
+	OrtaSaha    int
+	Defans      int
+	Hucum       int
+	OrtalamaGuc int
+	GolSayisi   int
+	Taktik      string
+	Kadro       []Futbolcu
+}
+
+func main() {
+
+	kacanMesajlar := []string{"TOP DİREKTE PATLADI", "KALE AĞZINDAN DIŞARIYA VURDU", "BUNU NASIL KAÇIRIR?", "TAKIM ARKADAŞLARINDAN ÖZÜR DİLİYOR", "TOP DİREĞİN YANINDAN DIŞARIYA GİDİYOR", "AZ FARKLA AUT", "DAĞLARA TAŞLARA", "REZİL BİR ŞUT"}
+	asistMesajlari := []string{"AKIL DOLU BİR PAS", "MÜTHİŞ SERVİS", "TEKTE OYNUYOR", "TOPUKLA BIRAKIYOR"}
+	golMesajlari := []string{"MÜTHİŞ BİR GOL", "KALECİ TOPU İZLEMEKTEN BAŞKA HİÇBİR ŞEY YAPAMADI", "AĞLARI DELİYOR", "TAM DOKSANA", "ÖRÜMCEK AĞLARINI AVLADI", "FİLELERİ HAVALANDIRIYOR", "ONA SADECE DOKUNMAK KALIYOR"}
+
+	var ilkTakim takim
+	var ikinciTakim takim
+	var hucumSansFaktoru int
+	var defansSansFaktoru int
+	var macRaporu []Olay
+	var toplamDefansGucu int
+	var toplamOrtaSahaGucu int
+	var toplamHucumGucu int
+	defansOyuncuSayisi := 0
+	ortaSahaOyuncuSayisi := 0
+	hucumOyuncuSayisi := 0
+	path, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Println("Kullanıcının home dizini bulunamadı.")
+	}
+
+	Ali := Futbolcu{
+		Isim:    "Ali",
+		Soyisim: "Yilmaz",
+		Mevki:   "Kaleci",
+		Yetenek: 85,
+	}
+	Veli := Futbolcu{
+		Isim:    "Veli",
+		Soyisim: "Bakir",
+		Mevki:   "SolBek",
+		Yetenek: 80,
+	}
+	Mehmet := Futbolcu{
+		Isim:    "Mehmet",
+		Soyisim: "Gunes",
+		Mevki:   "Stoper",
+		Yetenek: 70,
+	}
+	Alperen := Futbolcu{
+		Isim:    "Alperen",
+		Soyisim: "Celik",
+		Mevki:   "Stoper",
+		Yetenek: 85,
+	}
+	Poyraz := Futbolcu{
+		Isim:    "Poyraz",
+		Soyisim: "Demir",
+		Mevki:   "SagBek",
+		Yetenek: 80,
+	}
+	Metehan := Futbolcu{
+		Isim:    "Metehan",
+		Soyisim: "Kaya",
+		Mevki:   "OrtaSaha",
+		Yetenek: 70,
+	}
+	Cagan := Futbolcu{
+		Isim:    "Cagan",
+		Soyisim: "Yilmaz",
+		Mevki:   "OrtaSaha",
+		Yetenek: 85,
+	}
+	Goktug := Futbolcu{
+		Isim:    "Goktug",
+		Soyisim: "Sahin",
+		Mevki:   "OrtaSaha",
+		Yetenek: 80,
+	}
+	Aras := Futbolcu{
+		Isim:    "Aras",
+		Soyisim: "Aydin",
+		Mevki:   "SolKanat",
+		Yetenek: 70,
+	}
+	Cinar := Futbolcu{
+		Isim:    "Cinar",
+		Soyisim: "Ozturk",
+		Mevki:   "Forvet",
+		Yetenek: 85,
+	}
+	Bora := Futbolcu{
+		Isim:    "Bora",
+		Soyisim: "Yildirim",
+		Mevki:   "SagKanat",
+		Yetenek: 80,
+	}
+
+	ilkTakim.Kadro = append(ilkTakim.Kadro, Ali, Veli, Mehmet, Alperen, Poyraz, Metehan, Cagan, Goktug, Aras, Cinar, Bora)
+
+	Atlas := Futbolcu{
+		Isim:    "Atlas",
+		Soyisim: "Koc",
+		Mevki:   "Kaleci",
+		Yetenek: 85,
+	}
+	Kuzey := Futbolcu{
+		Isim:    "Kuzey",
+		Soyisim: "Cetin",
+		Mevki:   "SolBek",
+		Yetenek: 80,
+	}
+	Sarp := Futbolcu{
+		Isim:    "Sarp",
+		Soyisim: "Dogan",
+		Mevki:   "Stoper",
+		Yetenek: 70,
+	}
+	Doruk := Futbolcu{
+		Isim:    "Doruk",
+		Soyisim: "Sonmez",
+		Mevki:   "Stoper",
+		Yetenek: 85,
+	}
+	Eymen := Futbolcu{
+		Isim:    "Eymen",
+		Soyisim: "Keskin",
+		Mevki:   "SagBek",
+		Yetenek: 80,
+	}
+	Bartu := Futbolcu{
+		Isim:    "Bartu",
+		Soyisim: "Tekin",
+		Mevki:   "OrtaSaha",
+		Yetenek: 70,
+	}
+	Yigit := Futbolcu{
+		Isim:    "Yigit",
+		Soyisim: "Arslan",
+		Mevki:   "OrtaSaha",
+		Yetenek: 85,
+	}
+	Yagiz := Futbolcu{
+		Isim:    "Yagiz",
+		Soyisim: "Korkmaz",
+		Mevki:   "OrtaSaha",
+		Yetenek: 80,
+	}
+	Deniz := Futbolcu{
+		Isim:    "Deniz",
+		Soyisim: "Aksoy",
+		Mevki:   "SolKanat",
+		Yetenek: 70,
+	}
+	Efe := Futbolcu{
+		Isim:    "Efe",
+		Soyisim: "Ozkan",
+		Mevki:   "Forvet",
+		Yetenek: 85,
+	}
+	Utku := Futbolcu{
+		Isim:    "Utku",
+		Soyisim: "Erdem",
+		Mevki:   "SagKanat",
+		Yetenek: 80,
+	}
+
+	ikinciTakim.Kadro = append(ikinciTakim.Kadro, Atlas, Kuzey, Sarp, Doruk, Eymen, Bartu, Yigit, Yagiz, Deniz, Efe, Utku)
+
+	for i := range ilkTakim.Kadro {
+		if ilkTakim.Kadro[i].Mevki == "Kaleci" {
+			ilkTakim.Kaleci = (rand.Intn((ilkTakim.Kadro[i].Yetenek)/5) + 4)
+		}
+		if ilkTakim.Kadro[i].Mevki == "Stoper" || ilkTakim.Kadro[i].Mevki == "SolBek" || ilkTakim.Kadro[i].Mevki == "SagBek" {
+			toplamDefansGucu += ilkTakim.Kadro[i].Yetenek
+			defansOyuncuSayisi++
+		}
+		if ilkTakim.Kadro[i].Mevki == "OrtaSaha" {
+			toplamOrtaSahaGucu += ilkTakim.Kadro[i].Yetenek
+			ortaSahaOyuncuSayisi++
+		}
+		if ilkTakim.Kadro[i].Mevki == "Forvet" || ilkTakim.Kadro[i].Mevki == "SolKanat" || ilkTakim.Kadro[i].Mevki == "SagKanat" {
+			toplamHucumGucu += ilkTakim.Kadro[i].Yetenek
+			hucumOyuncuSayisi++
+		}
+	}
+	ilkTakim.Defans = toplamDefansGucu / defansOyuncuSayisi
+	ilkTakim.OrtaSaha = toplamOrtaSahaGucu / ortaSahaOyuncuSayisi
+	ilkTakim.Hucum = toplamHucumGucu / hucumOyuncuSayisi
+	toplamDefansGucu = 0
+	toplamOrtaSahaGucu = 0
+	toplamHucumGucu = 0
+	defansOyuncuSayisi = 0
+	ortaSahaOyuncuSayisi = 0
+	hucumOyuncuSayisi = 0
+	for i := range ikinciTakim.Kadro {
+		if ikinciTakim.Kadro[i].Mevki == "Kaleci" {
+			ikinciTakim.Kaleci = (rand.Intn((ikinciTakim.Kadro[i].Yetenek)/5) + 4)
+		}
+		if ikinciTakim.Kadro[i].Mevki == "Stoper" || ikinciTakim.Kadro[i].Mevki == "SolBek" || ikinciTakim.Kadro[i].Mevki == "SagBek" {
+			toplamDefansGucu += ikinciTakim.Kadro[i].Yetenek
+			defansOyuncuSayisi++
+		}
+		if ikinciTakim.Kadro[i].Mevki == "OrtaSaha" {
+			toplamOrtaSahaGucu += ikinciTakim.Kadro[i].Yetenek
+			ortaSahaOyuncuSayisi++
+		}
+		if ikinciTakim.Kadro[i].Mevki == "Forvet" || ikinciTakim.Kadro[i].Mevki == "SolKanat" || ikinciTakim.Kadro[i].Mevki == "SagKanat" {
+			toplamHucumGucu += ikinciTakim.Kadro[i].Yetenek
+			hucumOyuncuSayisi++
+		}
+	}
+	ikinciTakim.Defans = toplamDefansGucu / defansOyuncuSayisi
+	ikinciTakim.OrtaSaha = toplamOrtaSahaGucu / ortaSahaOyuncuSayisi
+	ikinciTakim.Hucum = toplamHucumGucu / hucumOyuncuSayisi
+	toplamDefansGucu = 0
+	toplamOrtaSahaGucu = 0
+	toplamHucumGucu = 0
+	defansOyuncuSayisi = 0
+	ortaSahaOyuncuSayisi = 0
+	hucumOyuncuSayisi = 0
+
+	ilkTakim.OrtalamaGuc = (ilkTakim.OrtaSaha + ilkTakim.Defans + ilkTakim.Hucum) / 3
+	ikinciTakim.OrtalamaGuc = (ikinciTakim.Defans + ikinciTakim.Hucum + ikinciTakim.OrtaSaha) / 3
+	ilkTakim.GolSayisi = 0
+	ikinciTakim.GolSayisi = 0
+
+	fark := math.Abs(float64(ilkTakim.OrtalamaGuc) - float64(ikinciTakim.OrtalamaGuc))
+
+	if fark > 5 {
+		hucumSansFaktoru = 20
+		defansSansFaktoru = 20
+	} else {
+		hucumSansFaktoru = 20
+		defansSansFaktoru = 30
+	}
+
+	ilkTakim.Taktik = "Defansif"
+	ikinciTakim.Taktik = "Ofansif"
+
+	switch ilkTakim.Taktik {
+	case "Defansif":
+		ilkTakim.Defans += 15
+		ilkTakim.OrtaSaha += 5
+		ilkTakim.Hucum -= 15
+	case "Ofansif":
+		ilkTakim.Defans -= 15
+		ilkTakim.OrtaSaha -= 10
+		ilkTakim.Hucum += 20
+	}
+	switch ikinciTakim.Taktik {
+	case "Defansif":
+		ikinciTakim.Defans += 15
+		ikinciTakim.OrtaSaha += 5
+		ikinciTakim.Hucum -= 15
+	case "Ofansif":
+		ikinciTakim.Defans -= 15
+		ikinciTakim.OrtaSaha -= 10
+		ikinciTakim.Hucum += 20
+	}
+
+	for i := 0; i <= 90; i++ {
+
+		tehlikeliAtakKontrolu := rand.Intn(100) + 1
+		golMesajiIndex := rand.Intn(len(golMesajlari))
+		asistMesajiIndex := rand.Intn(len(asistMesajlari))
+		kacanMesajIndex := rand.Intn(len(kacanMesajlar))
+
+		if tehlikeliAtakKontrolu > 15 {
+
+		} else {
+			toplamOrtaSaha := ilkTakim.OrtaSaha + ikinciTakim.OrtaSaha
+			topKimde := rand.Intn(toplamOrtaSaha)
+			if topKimde < ilkTakim.OrtaSaha {
+				anlikHucumGucu := ilkTakim.Hucum + rand.Intn(hucumSansFaktoru)
+				anlikDefansGucu := ikinciTakim.Defans + rand.Intn(defansSansFaktoru) + (ikinciTakim.Kaleci)
+
+				if anlikHucumGucu > anlikDefansGucu {
+					goluAtanKisi := rand.Intn(10) + 1
+					asistiYapanKisi := rand.Intn(11)
+					for {
+						if asistiYapanKisi != goluAtanKisi {
+							break
+						} else {
+							asistiYapanKisi = rand.Intn(11)
+						}
+					}
+					yasananAksiyon := Olay{
+						Aksiyon: fmt.Sprintf("%d. DAKİKA! %s'den %s... Topla buluşan %s ve %s!", i, ilkTakim.Kadro[asistiYapanKisi].Isim, asistMesajlari[asistMesajiIndex], ilkTakim.Kadro[goluAtanKisi].Isim, golMesajlari[golMesajiIndex]),
+					}
+					macRaporu = append(macRaporu, yasananAksiyon)
+					ilkTakim.GolSayisi += 1
+				} else if anlikHucumGucu == anlikDefansGucu {
+					sutuCekenKisi := rand.Intn(10) + 1
+					yasananAksiyon := Olay{
+						Aksiyon: fmt.Sprintf("%d. DAKİKA %s %s", i, ilkTakim.Kadro[sutuCekenKisi].Isim, kacanMesajlar[kacanMesajIndex]),
+					}
+					macRaporu = append(macRaporu, yasananAksiyon)
+				}
+			} else {
+				anlikHucumGucu := ikinciTakim.Hucum + rand.Intn(hucumSansFaktoru)
+				anlikDefansGucu := ilkTakim.Defans + rand.Intn(defansSansFaktoru) + (ilkTakim.Kaleci)
+
+				if anlikHucumGucu > anlikDefansGucu {
+					goluAtanKisi := rand.Intn(10) + 1
+					asistiYapanKisi := rand.Intn(11)
+					for {
+						if asistiYapanKisi != goluAtanKisi {
+							break
+						} else {
+							asistiYapanKisi = rand.Intn(11)
+						}
+					}
+					yasananAksiyon := Olay{
+						Aksiyon: fmt.Sprintf("%d. DAKİKA! %s'den %s... Topla buluşan %s ve %s!", i, ikinciTakim.Kadro[asistiYapanKisi].Isim, asistMesajlari[asistMesajiIndex], ikinciTakim.Kadro[goluAtanKisi].Isim, golMesajlari[golMesajiIndex]),
+					}
+					macRaporu = append(macRaporu, yasananAksiyon)
+					ikinciTakim.GolSayisi += 1
+				} else if anlikHucumGucu == anlikDefansGucu {
+					sutuCekenKisi := rand.Intn(10) + 1
+					yasananAksiyon := Olay{
+						Aksiyon: fmt.Sprintf("%d. DAKİKA %s %s", i, ikinciTakim.Kadro[sutuCekenKisi].Isim, kacanMesajlar[kacanMesajIndex]),
+					}
+					macRaporu = append(macRaporu, yasananAksiyon)
+				}
+			}
+		}
+		if i == 90 {
+			skor := strconv.Itoa(ilkTakim.GolSayisi) + "-" + strconv.Itoa(ikinciTakim.GolSayisi)
+			yasananAksiyon := Olay{
+				Aksiyon: fmt.Sprintf("90 DAKİKA SONA ERDİ %s", skor),
+			}
+			macRaporu = append(macRaporu, yasananAksiyon)
+		}
+	}
+	dondurulenListe, err := json.Marshal(macRaporu)
+	if err != nil {
+		fmt.Println("Liste marshal edilemedi")
+		return
+	}
+	yol := filepath.Join(path, ".macSonucu.json")
+	os.WriteFile(yol, dondurulenListe, 0644)
+}
+
+func KararVer(player Futbolcu, bolge int, takimTaktik Taktik) (aksiyon string) {
+
+	if bolge == 1 {
+		if player.Mevki == "Kaleci" {
+			degajPuani := player.Profil.Degaj + player.Profil.Teknik + player.Profil.Vizyon
+			kisaPasPuani := player.Profil.Pas + player.Profil.Sogukkanlilik + player.Profil.Cesaret
+			if takimTaktik.KaleciOyunKurma == "Kısa Pas" {
+				kisaPasPuani += 10
+			} else {
+				degajPuani += 10
+			}
+			toplamIhtimal := degajPuani + kisaPasPuani
+			yapilacakAksiyon := rand.Intn(toplamIhtimal)
+			if yapilacakAksiyon < degajPuani {
+				return "Degaj"
+			} else {
+				return "Kısa Pas"
+			}
+		} else if player.Mevki == "Stoper" {
+			uzunPasPuani := player.Profil.Pas + player.Profil.Teknik + player.Profil.Vizyon
+			kisaPasPuani := player.Profil.Pas + player.Profil.Sogukkanlilik + player.Profil.Cesaret + 5
+			driblingPuani := player.Profil.Dribling + player.Profil.Denge + player.Profil.Teknik + player.Profil.IlkKontrol - player.Profil.TaktigeBaglilik - 5
+			if takimTaktik.GeridenOyunKurma == "Kısa Pas" {
+				kisaPasPuani += 10
+			} else if takimTaktik.GeridenOyunKurma == "Uzun Pas" {
+				uzunPasPuani += 10
+			}
+			if takimTaktik.DriblingIzni == "Teşvik Et" {
+				driblingPuani += 5
+			} else if takimTaktik.DriblingIzni == "Vazgeçir" {
+				driblingPuani -= 10
+			}
+			toplamIhtimal := uzunPasPuani + kisaPasPuani + driblingPuani
+			yapilacakAksiyon := rand.Intn(toplamIhtimal)
+			if yapilacakAksiyon < uzunPasPuani {
+				return "Uzun Pas"
+			} else if yapilacakAksiyon < (uzunPasPuani + kisaPasPuani) {
+				return "Kısa Pas"
+			} else {
+				return "Dribling"
+			}
+		} else if player.Mevki == "OrtaSaha" || player.Mevki == "DefansifOrtaSaha" || player.Mevki == "OfansifOrtaSaha" {
+			uzunPasPuani := player.Profil.Pas + player.Profil.Teknik + player.Profil.Vizyon + 5
+			kisaPasPuani := player.Profil.Pas + player.Profil.Sogukkanlilik + player.Profil.Cesaret
+			driblingPuani := player.Profil.Dribling + player.Profil.Denge + player.Profil.Teknik + player.Profil.IlkKontrol - player.Profil.TaktigeBaglilik - 3
+			if driblingPuani <= 0 {
+				driblingPuani = 1
+			}
+			if takimTaktik.GeridenOyunKurma == "Kısa Pas" {
+				kisaPasPuani += 10
+			} else if takimTaktik.GeridenOyunKurma == "Uzun Pas" {
+				uzunPasPuani += 10
+			}
+			if takimTaktik.DriblingIzni == "Teşvik Et" {
+				driblingPuani += 7
+			} else if takimTaktik.DriblingIzni == "Vazgeçir" {
+				driblingPuani -= 7
+			}
+			toplamIhtimal := uzunPasPuani + kisaPasPuani + driblingPuani
+			yapilacakAksiyon := rand.Intn(toplamIhtimal)
+			if yapilacakAksiyon < uzunPasPuani {
+				return "Uzun Pas"
+			} else if yapilacakAksiyon < (uzunPasPuani + kisaPasPuani) {
+				return "Kısa Pas"
+			} else {
+				return "Dribling"
+			}
+		} else if player.Mevki == "SagKanat" || player.Mevki == "SolKanat" || player.Mevki == "SagBek" || player.Mevki == "SolBek" {
+			uzunPasPuani := player.Profil.Pas + player.Profil.Teknik + player.Profil.Vizyon + 3
+			kisaPasPuani := player.Profil.Pas + player.Profil.Sogukkanlilik + player.Profil.Cesaret
+			driblingPuani := player.Profil.Dribling + player.Profil.Denge + player.Profil.Teknik + player.Profil.IlkKontrol - player.Profil.TaktigeBaglilik + 5
+			if driblingPuani <= 0 {
+				driblingPuani = 1
+			}
+			if takimTaktik.GeridenOyunKurma == "Kısa Pas" {
+				kisaPasPuani += 10
+			} else if takimTaktik.GeridenOyunKurma == "Uzun Pas" {
+				uzunPasPuani += 10
+			}
+			if takimTaktik.DriblingIzni == "Teşvik Et" {
+				driblingPuani += 10
+			} else if takimTaktik.DriblingIzni == "Vazgeçir" {
+				driblingPuani -= 10
+			}
+			toplamIhtimal := uzunPasPuani + kisaPasPuani + driblingPuani
+			yapilacakAksiyon := rand.Intn(toplamIhtimal)
+			if yapilacakAksiyon < uzunPasPuani {
+				return "Uzun Pas"
+			} else if yapilacakAksiyon < (uzunPasPuani + kisaPasPuani) {
+				return "Kısa Pas"
+			} else {
+				return "Dribling"
+			}
+		} else {
+			uzunPasPuani := player.Profil.Pas + player.Profil.Teknik + player.Profil.Vizyon
+			kisaPasPuani := player.Profil.Pas + player.Profil.Sogukkanlilik + player.Profil.Cesaret
+			driblingPuani := player.Profil.Dribling + player.Profil.Denge + player.Profil.Teknik + player.Profil.IlkKontrol - player.Profil.TaktigeBaglilik
+			if driblingPuani <= 0 {
+				driblingPuani = 1
+			}
+			if takimTaktik.GeridenOyunKurma == "Kısa Pas" {
+				kisaPasPuani += 10
+			} else if takimTaktik.GeridenOyunKurma == "Uzun Pas" {
+				uzunPasPuani += 10
+			}
+			if takimTaktik.DriblingIzni == "Teşvik Et" {
+				driblingPuani += 10
+			} else if takimTaktik.DriblingIzni == "Vazgeçir" {
+				driblingPuani -= 10
+			}
+			toplamIhtimal := uzunPasPuani + kisaPasPuani + driblingPuani
+			yapilacakAksiyon := rand.Intn(toplamIhtimal)
+			if yapilacakAksiyon < uzunPasPuani {
+				return "Uzun Pas"
+			} else if yapilacakAksiyon < (uzunPasPuani + kisaPasPuani) {
+				return "Kısa Pas"
+			} else {
+				return "Dribling"
+			}
+		}
+	} else if bolge == 2 {
+		if player.Mevki == "Kaleci" {
+			degajPuani := player.Profil.Degaj + player.Profil.Teknik + player.Profil.Vizyon
+			kisaPasPuani := player.Profil.Pas + player.Profil.Sogukkanlilik + player.Profil.Cesaret
+			if takimTaktik.KaleciOyunKurma == "Kısa Pas" {
+				kisaPasPuani += 10
+			} else {
+				degajPuani += 10
+			}
+			toplamIhtimal := degajPuani + kisaPasPuani
+			yapilacakAksiyon := rand.Intn(toplamIhtimal)
+			if yapilacakAksiyon < degajPuani {
+				return "Degaj"
+			} else {
+				return "Kısa Pas"
+			}
+		} else if player.Mevki == "Stoper" {
+			uzunPasPuani := player.Profil.Pas + player.Profil.Teknik + player.Profil.Vizyon
+			kisaPasPuani := player.Profil.Pas + player.Profil.Sogukkanlilik + player.Profil.Cesaret + 5
+			driblingPuani := player.Profil.Dribling + player.Profil.Denge + player.Profil.Teknik + player.Profil.IlkKontrol - player.Profil.TaktigeBaglilik - 5
+			if takimTaktik.GeridenOyunKurma == "Kısa Pas" {
+				kisaPasPuani += 10
+			} else if takimTaktik.GeridenOyunKurma == "Uzun Pas" {
+				uzunPasPuani += 10
+			}
+			if takimTaktik.DriblingIzni == "Teşvik Et" {
+				driblingPuani += 5
+			} else if takimTaktik.DriblingIzni == "Vazgeçir" {
+				driblingPuani -= 10
+			}
+			toplamIhtimal := uzunPasPuani + kisaPasPuani + driblingPuani
+			yapilacakAksiyon := rand.Intn(toplamIhtimal)
+			if yapilacakAksiyon < uzunPasPuani {
+				return "Uzun Pas"
+			} else if yapilacakAksiyon < (uzunPasPuani + kisaPasPuani) {
+				return "Kısa Pas"
+			} else {
+				return "Dribling"
+			}
+		} else if player.Mevki == "OrtaSaha" || player.Mevki == "DefansifOrtaSaha" || player.Mevki == "OfansifOrtaSaha" {
+			dikinePasPuani := player.Profil.Pas + player.Profil.Teknik + player.Profil.Vizyon + 5
+			kisaPasPuani := player.Profil.Pas + player.Profil.Sogukkanlilik + player.Profil.Cesaret
+			driblingPuani := player.Profil.Dribling + player.Profil.Denge + player.Profil.Teknik + player.Profil.IlkKontrol - player.Profil.TaktigeBaglilik
+			uzaktanSutPuani := player.Profil.UzaktanSut + player.Profil.Bitiricilik + player.Profil.KararAlma + player.Profil.Teknik - player.Profil.TaktigeBaglilik - 5
+			if driblingPuani <= 0 {
+				driblingPuani = 1
+			}
+			if uzaktanSutPuani <= 0 {
+				uzaktanSutPuani = 1
+			}
+			if takimTaktik.OyunKurma == "Kısa Pas" {
+				kisaPasPuani += 10
+			} else if takimTaktik.OyunKurma == "Dikine Pas" {
+				dikinePasPuani += 10
+			}
+			if takimTaktik.DriblingIzni == "Teşvik Et" {
+				driblingPuani += 10
+			} else if takimTaktik.DriblingIzni == "Vazgeçir" {
+				driblingPuani -= 5
+			}
+			if takimTaktik.UzaktanSut == "Teşvik Et" {
+				uzaktanSutPuani += 5
+			} else if takimTaktik.UzaktanSut == "Vazgeçir" {
+				uzaktanSutPuani -= 10
+			}
+			toplamIhtimal := dikinePasPuani + kisaPasPuani + driblingPuani + uzaktanSutPuani
+			yapilacakAksiyon := rand.Intn(toplamIhtimal)
+			if yapilacakAksiyon < dikinePasPuani {
+				return "Dikine Pas"
+			} else if yapilacakAksiyon < (dikinePasPuani + kisaPasPuani) {
+				return "Kısa Pas"
+			} else if yapilacakAksiyon < (dikinePasPuani + kisaPasPuani + driblingPuani) {
+				return "Dribling"
+			} else {
+				return "Uzaktan Şut"
+			}
+		} else if player.Mevki == "SagKanat" || player.Mevki == "SolKanat" {
+			dikinePasPuani := player.Profil.Pas + player.Profil.Teknik + player.Profil.Vizyon + 3
+			kisaPasPuani := player.Profil.Pas + player.Profil.Sogukkanlilik + player.Profil.Cesaret
+			driblingPuani := player.Profil.Dribling + player.Profil.Denge + player.Profil.Teknik + player.Profil.IlkKontrol - player.Profil.TaktigeBaglilik + 3
+			uzaktanSutPuani := player.Profil.UzaktanSut + player.Profil.Bitiricilik + player.Profil.KararAlma + player.Profil.Teknik - player.Profil.TaktigeBaglilik - 3
+			if driblingPuani <= 0 {
+				driblingPuani = 1
+			}
+			if uzaktanSutPuani <= 0 {
+				uzaktanSutPuani = 1
+			}
+			if takimTaktik.OyunKurma == "Kısa Pas" {
+				kisaPasPuani += 10
+			} else if takimTaktik.OyunKurma == "Uzun Pas" {
+				dikinePasPuani += 10
+			}
+			if takimTaktik.DriblingIzni == "Teşvik Et" {
+				driblingPuani += 10
+			} else if takimTaktik.DriblingIzni == "Vazgeçir" {
+				driblingPuani -= 10
+			}
+			if takimTaktik.UzaktanSut == "Teşvik Et" {
+				uzaktanSutPuani += 7
+			} else if takimTaktik.UzaktanSut == "Vazgeçir" {
+				uzaktanSutPuani -= 7
+			}
+			toplamIhtimal := dikinePasPuani + kisaPasPuani + driblingPuani + uzaktanSutPuani
+			yapilacakAksiyon := rand.Intn(toplamIhtimal)
+			if yapilacakAksiyon < dikinePasPuani {
+				return "Dikine Pas"
+			} else if yapilacakAksiyon < (dikinePasPuani + kisaPasPuani) {
+				return "Kısa Pas"
+			} else if yapilacakAksiyon < (dikinePasPuani + kisaPasPuani + driblingPuani) {
+				return "Dribling"
+			} else {
+				return "Uzaktan Şut"
+			}
+		} else if player.Mevki == "SagBek" || player.Mevki == "SolBek" {
+			dikinePasPuani := player.Profil.Pas + player.Profil.Teknik + player.Profil.Vizyon
+			kisaPasPuani := player.Profil.Pas + player.Profil.Sogukkanlilik + player.Profil.Cesaret + 3
+			driblingPuani := player.Profil.Dribling + player.Profil.Denge + player.Profil.Teknik + player.Profil.IlkKontrol - player.Profil.TaktigeBaglilik
+			uzaktanSutPuani := player.Profil.UzaktanSut + player.Profil.Bitiricilik + player.Profil.KararAlma + player.Profil.Teknik - player.Profil.TaktigeBaglilik - 5
+			ortaPuani := player.Profil.OrtaYapma + player.Profil.Teknik + player.Profil.Pas - 10
+			if ortaPuani <= 0 {
+				ortaPuani = 1
+			}
+			if driblingPuani <= 0 {
+				driblingPuani = 1
+			}
+			if uzaktanSutPuani <= 0 {
+				uzaktanSutPuani = 1
+			}
+			if takimTaktik.OyunKurma == "Kısa Pas" {
+				kisaPasPuani += 10
+			} else if takimTaktik.OyunKurma == "Uzun Pas" {
+				dikinePasPuani += 10
+			}
+			if takimTaktik.DriblingIzni == "Teşvik Et" {
+				driblingPuani += 10
+			} else if takimTaktik.DriblingIzni == "Vazgeçir" {
+				driblingPuani -= 10
+			}
+			if takimTaktik.UzaktanSut == "Teşvik Et" {
+				uzaktanSutPuani += 7
+			} else if takimTaktik.UzaktanSut == "Vazgeçir" {
+				uzaktanSutPuani -= 7
+			}
+			toplamIhtimal := dikinePasPuani + kisaPasPuani + driblingPuani + uzaktanSutPuani
+			yapilacakAksiyon := rand.Intn(toplamIhtimal)
+			if yapilacakAksiyon < dikinePasPuani {
+				return "Dikine Pas"
+			} else if yapilacakAksiyon < (dikinePasPuani + kisaPasPuani) {
+				return "Kısa Pas"
+			} else if yapilacakAksiyon < (dikinePasPuani + kisaPasPuani + driblingPuani) {
+				return "Dribling"
+			} else {
+				return "Uzaktan Şut"
+			}
+		} else {
+			uzunPasPuani := player.Profil.Pas + player.Profil.Teknik + player.Profil.Vizyon
+			kisaPasPuani := player.Profil.Pas + player.Profil.Sogukkanlilik + player.Profil.Cesaret
+			driblingPuani := player.Profil.Dribling + player.Profil.Denge + player.Profil.Teknik + player.Profil.IlkKontrol - player.Profil.TaktigeBaglilik
+			if driblingPuani <= 0 {
+				driblingPuani = 1
+			}
+			if takimTaktik.OyunKurma == "Kısa Pas" {
+				kisaPasPuani += 10
+			} else if takimTaktik.OyunKurma == "Uzun Pas" {
+				uzunPasPuani += 10
+			}
+			if takimTaktik.DriblingIzni == "Teşvik Et" {
+				driblingPuani += 10
+			} else if takimTaktik.DriblingIzni == "Vazgeçir" {
+				driblingPuani -= 10
+			}
+			toplamIhtimal := uzunPasPuani + kisaPasPuani + driblingPuani
+			yapilacakAksiyon := rand.Intn(toplamIhtimal)
+			if yapilacakAksiyon < uzunPasPuani {
+				return "Uzun Pas"
+			} else if yapilacakAksiyon < (uzunPasPuani + kisaPasPuani) {
+				return "Kısa Pas"
+			} else {
+				return "Dribling"
+			}
+		}
+	}
+	return "Bekle"
+}
