@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"math"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -83,18 +82,22 @@ type takim struct {
 
 func main() {
 
-	kacanMesajlar := []string{"TOP DİREKTE PATLADI", "KALE AĞZINDAN DIŞARIYA VURDU", "BUNU NASIL KAÇIRIR?", "TAKIM ARKADAŞLARINDAN ÖZÜR DİLİYOR", "TOP DİREĞİN YANINDAN DIŞARIYA GİDİYOR", "AZ FARKLA AUT", "DAĞLARA TAŞLARA", "REZİL BİR ŞUT"}
+	/*kacanMesajlar := []string{"TOP DİREKTE PATLADI", "KALE AĞZINDAN DIŞARIYA VURDU", "BUNU NASIL KAÇIRIR?", "TAKIM ARKADAŞLARINDAN ÖZÜR DİLİYOR", "TOP DİREĞİN YANINDAN DIŞARIYA GİDİYOR", "AZ FARKLA AUT", "DAĞLARA TAŞLARA", "REZİL BİR ŞUT"}
 	asistMesajlari := []string{"AKIL DOLU BİR PAS", "MÜTHİŞ SERVİS", "TEKTE OYNUYOR", "TOPUKLA BIRAKIYOR"}
-	golMesajlari := []string{"MÜTHİŞ BİR GOL", "KALECİ TOPU İZLEMEKTEN BAŞKA HİÇBİR ŞEY YAPAMADI", "AĞLARI DELİYOR", "TAM DOKSANA", "ÖRÜMCEK AĞLARINI AVLADI", "FİLELERİ HAVALANDIRIYOR", "ONA SADECE DOKUNMAK KALIYOR"}
+	golMesajlari := []string{"MÜTHİŞ BİR GOL", "KALECİ TOPU İZLEMEKTEN BAŞKA HİÇBİR ŞEY YAPAMADI", "AĞLARI DELİYOR", "TAM DOKSANA", "ÖRÜMCEK AĞLARINI AVLADI", "FİLELERİ HAVALANDIRIYOR", "ONA SADECE DOKUNMAK KALIYOR"}*/
 
 	var ilkTakim takim
 	var ikinciTakim takim
-	var hucumSansFaktoru int
-	var defansSansFaktoru int
+	// var hucumSansFaktoru int
+	// var defansSansFaktoru int
 	var macRaporu []Olay
 	var toplamDefansGucu int
 	var toplamOrtaSahaGucu int
 	var toplamHucumGucu int
+	var takimAdi string
+	var topaSahipOyuncu Futbolcu
+	var seciliTaktik Taktik
+	var topaSahipOyuncuIndex int
 	defansOyuncuSayisi := 0
 	ortaSahaOyuncuSayisi := 0
 	hucumOyuncuSayisi := 0
@@ -299,7 +302,7 @@ func main() {
 	ilkTakim.GolSayisi = 0
 	ikinciTakim.GolSayisi = 0
 
-	fark := math.Abs(float64(ilkTakim.OrtalamaGuc) - float64(ikinciTakim.OrtalamaGuc))
+	/*fark := math.Abs(float64(ilkTakim.OrtalamaGuc) - float64(ikinciTakim.OrtalamaGuc))
 
 	if fark > 5 {
 		hucumSansFaktoru = 20
@@ -307,74 +310,71 @@ func main() {
 	} else {
 		hucumSansFaktoru = 20
 		defansSansFaktoru = 30
+	}*/
+
+	anlikBolge := 2
+	isimIndex := rand.Intn(2)
+	if isimIndex == 0 {
+		takimAdi = "ilkTakim"
+		topaSahipOyuncuIndex = 6
+		topaSahipOyuncu = ilkTakim.Kadro[topaSahipOyuncuIndex]
+		seciliTaktik = ilkTakim.TakimTaktik
+	} else {
+		takimAdi = "ikinciTakim"
+		topaSahipOyuncuIndex = 6
+		topaSahipOyuncu = ikinciTakim.Kadro[topaSahipOyuncuIndex]
+		seciliTaktik = ikinciTakim.TakimTaktik
 	}
 
 	for i := 0; i <= 90; i++ {
 
-		tehlikeliAtakKontrolu := rand.Intn(100) + 1
-		golMesajiIndex := rand.Intn(len(golMesajlari))
-		asistMesajiIndex := rand.Intn(len(asistMesajlari))
-		kacanMesajIndex := rand.Intn(len(kacanMesajlar))
+		aksiyon := KararVer(topaSahipOyuncu, anlikBolge, seciliTaktik)
 
-		if tehlikeliAtakKontrolu > 15 {
-
-		} else {
-			toplamOrtaSaha := ilkTakim.OrtaSaha + ikinciTakim.OrtaSaha
-			topKimde := rand.Intn(toplamOrtaSaha)
-			if topKimde < ilkTakim.OrtaSaha {
-				anlikHucumGucu := ilkTakim.Hucum + rand.Intn(hucumSansFaktoru)
-				anlikDefansGucu := ikinciTakim.Defans + rand.Intn(defansSansFaktoru) + (ikinciTakim.Kaleci)
-
-				if anlikHucumGucu > anlikDefansGucu {
-					goluAtanKisi := rand.Intn(10) + 1
-					asistiYapanKisi := rand.Intn(11)
-					for {
-						if asistiYapanKisi != goluAtanKisi {
-							break
-						} else {
-							asistiYapanKisi = rand.Intn(11)
-						}
-					}
-					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d. DAKİKA! %s'den %s... Topla buluşan %s ve %s!", i, ilkTakim.Kadro[asistiYapanKisi].Isim, asistMesajlari[asistMesajiIndex], ilkTakim.Kadro[goluAtanKisi].Isim, golMesajlari[golMesajiIndex]),
-					}
-					macRaporu = append(macRaporu, yasananAksiyon)
-					ilkTakim.GolSayisi += 1
-				} else if anlikHucumGucu == anlikDefansGucu {
-					sutuCekenKisi := rand.Intn(10) + 1
-					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d. DAKİKA %s %s", i, ilkTakim.Kadro[sutuCekenKisi].Isim, kacanMesajlar[kacanMesajIndex]),
-					}
-					macRaporu = append(macRaporu, yasananAksiyon)
+		if aksiyon == "Kısa Pas" {
+			hedefOyuncuIndex := rand.Intn(11)
+			for {
+				if hedefOyuncuIndex == topaSahipOyuncuIndex || hedefOyuncuIndex > 10 || hedefOyuncuIndex < 0 {
+					hedefOyuncuIndex = rand.Intn(topaSahipOyuncuIndex) + (topaSahipOyuncuIndex / 2)
+				} else {
+					break
+				}
+			}
+			rakipOyuncuIndex := rand.Intn(10 - topaSahipOyuncuIndex)
+			var rakipOyuncu Futbolcu
+			if takimAdi == "ilkTakim" {
+				rakipOyuncu = ilkTakim.Kadro[rakipOyuncuIndex]
+			} else {
+				rakipOyuncu = ikinciTakim.Kadro[rakipOyuncuIndex]
+			}
+			basariIhtimali := topaSahipOyuncu.Profil.Pas + topaSahipOyuncu.Profil.Vizyon + topaSahipOyuncu.Profil.Teknik
+			basarisizlikIhtimali := rakipOyuncu.Profil.DefansifPozisyonAlma + rakipOyuncu.Profil.TopKapma + rakipOyuncu.Profil.OnSezi
+			toplamIhtimal := basariIhtimali + basarisizlikIhtimali
+			zar := rand.Intn(toplamIhtimal)
+			if zar < basariIhtimali {
+				if takimAdi == "ilkTakim" {
+					hedefOyuncu := ilkTakim.Kadro[hedefOyuncuIndex]
+					anlikBolge = rand.Intn(anlikBolge) + 1
+					topaSahipOyuncu = hedefOyuncu
+				} else {
+					hedefOyuncu := ikinciTakim.Kadro[hedefOyuncuIndex]
+					anlikBolge = rand.Intn(anlikBolge) + 1
+					topaSahipOyuncu = hedefOyuncu
 				}
 			} else {
-				anlikHucumGucu := ikinciTakim.Hucum + rand.Intn(hucumSansFaktoru)
-				anlikDefansGucu := ilkTakim.Defans + rand.Intn(defansSansFaktoru) + (ilkTakim.Kaleci)
-
-				if anlikHucumGucu > anlikDefansGucu {
-					goluAtanKisi := rand.Intn(10) + 1
-					asistiYapanKisi := rand.Intn(11)
-					for {
-						if asistiYapanKisi != goluAtanKisi {
-							break
-						} else {
-							asistiYapanKisi = rand.Intn(11)
-						}
-					}
-					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d. DAKİKA! %s'den %s... Topla buluşan %s ve %s!", i, ikinciTakim.Kadro[asistiYapanKisi].Isim, asistMesajlari[asistMesajiIndex], ikinciTakim.Kadro[goluAtanKisi].Isim, golMesajlari[golMesajiIndex]),
-					}
-					macRaporu = append(macRaporu, yasananAksiyon)
-					ikinciTakim.GolSayisi += 1
-				} else if anlikHucumGucu == anlikDefansGucu {
-					sutuCekenKisi := rand.Intn(10) + 1
-					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d. DAKİKA %s %s", i, ikinciTakim.Kadro[sutuCekenKisi].Isim, kacanMesajlar[kacanMesajIndex]),
-					}
-					macRaporu = append(macRaporu, yasananAksiyon)
+				if takimAdi == "ilkTakim" {
+					seciliTaktik = ikinciTakim.TakimTaktik
+					topaSahipOyuncu = rakipOyuncu
+				} else {
+					seciliTaktik = ilkTakim.TakimTaktik
+					topaSahipOyuncu = rakipOyuncu
 				}
 			}
 		}
+
+		/*golMesajiIndex := rand.Intn(len(golMesajlari))
+		asistMesajiIndex := rand.Intn(len(asistMesajlari))
+		kacanMesajIndex := rand.Intn(len(kacanMesajlar))*/
+
 		if i == 90 {
 			skor := strconv.Itoa(ilkTakim.GolSayisi) + "-" + strconv.Itoa(ikinciTakim.GolSayisi)
 			yasananAksiyon := Olay{
