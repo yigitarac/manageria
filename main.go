@@ -378,7 +378,7 @@ func main() {
 					hedefOyuncu := ilkTakim.Kadro[hedefOyuncuIndex]
 					anlikBolge = rand.Intn(anlikBolge) + 1
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s boştaki %s'e kısa oynuyor", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s boştaki %s'e kısa oynuyor", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
 					}
 					macRaporu = append(macRaporu, yasananAksiyon)
 					topaSahipOyuncu = hedefOyuncu
@@ -386,7 +386,7 @@ func main() {
 					hedefOyuncu := ikinciTakim.Kadro[hedefOyuncuIndex]
 					anlikBolge = rand.Intn(anlikBolge) + 1
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s boştaki %s'e kısa oynuyor", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s boştaki %s'e kısa oynuyor", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
 					}
 					macRaporu = append(macRaporu, yasananAksiyon)
 					topaSahipOyuncu = hedefOyuncu
@@ -396,7 +396,7 @@ func main() {
 					takimAdi = "ikinciTakim"
 					seciliTaktik = ikinciTakim.TakimTaktik
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s pas hatası! %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s pas hatası! %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
 					}
 					bolgeCevirici := math.Abs(float64(3 - anlikBolge))
 					anlikBolge = int(bolgeCevirici)
@@ -406,7 +406,7 @@ func main() {
 					takimAdi = "ilkTakim"
 					seciliTaktik = ilkTakim.TakimTaktik
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s pas hatası! %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s pas hatası! %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
 					}
 					bolgeCevirici := math.Abs(float64(3 - anlikBolge))
 					anlikBolge = int(bolgeCevirici)
@@ -442,7 +442,7 @@ func main() {
 						anlikBolge = 3
 					}
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s boştaki %s'e uzun bir top", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s boştaki %s'e uzun bir top", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
 					}
 					macRaporu = append(macRaporu, yasananAksiyon)
 					topaSahipOyuncu = hedefOyuncu
@@ -453,7 +453,7 @@ func main() {
 						anlikBolge = 3
 					}
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s boştaki %s'e uzun bir top", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s boştaki %s'e uzun bir top", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
 					}
 					macRaporu = append(macRaporu, yasananAksiyon)
 					topaSahipOyuncu = hedefOyuncu
@@ -463,7 +463,7 @@ func main() {
 					takimAdi = "ikinciTakim"
 					seciliTaktik = ikinciTakim.TakimTaktik
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s pas hatası! %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s pas hatası! %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
 					}
 					bolgeCevirici := math.Abs(float64(3 - anlikBolge))
 					anlikBolge = int(bolgeCevirici)
@@ -473,7 +473,7 @@ func main() {
 					takimAdi = "ilkTakim"
 					seciliTaktik = ilkTakim.TakimTaktik
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s pas hatası! %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s pas hatası! %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
 					}
 					bolgeCevirici := math.Abs(float64(3 - anlikBolge))
 					anlikBolge = int(bolgeCevirici)
@@ -509,7 +509,7 @@ func main() {
 						anlikBolge = 3
 					}
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den içerideki %s'e güzel bir orta", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s'den içerideki %s'e güzel bir orta", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
 					}
 					macRaporu = append(macRaporu, yasananAksiyon)
 					topaSahipOyuncu = hedefOyuncu
@@ -520,7 +520,7 @@ func main() {
 						anlikBolge = 3
 					}
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den içerideki %s'e güzel bir orta", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s'den içerideki %s'e güzel bir orta", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
 					}
 					macRaporu = append(macRaporu, yasananAksiyon)
 					topaSahipOyuncu = hedefOyuncu
@@ -530,7 +530,7 @@ func main() {
 					takimAdi = "ikinciTakim"
 					seciliTaktik = ikinciTakim.TakimTaktik
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den rezalet bir orta! %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s'den rezalet bir orta! %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
 					}
 					bolgeCevirici := math.Abs(float64(3 - anlikBolge))
 					anlikBolge = int(bolgeCevirici)
@@ -540,7 +540,7 @@ func main() {
 					takimAdi = "ilkTakim"
 					seciliTaktik = ilkTakim.TakimTaktik
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den rezalet bir orta! %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s'den rezalet bir orta! %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
 					}
 					bolgeCevirici := math.Abs(float64(3 - anlikBolge))
 					anlikBolge = int(bolgeCevirici)
@@ -576,7 +576,7 @@ func main() {
 						anlikBolge = 3
 					}
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den ilerideki %s'e müthiş bir pas.", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s'den ilerideki %s'e müthiş bir pas.", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
 					}
 					macRaporu = append(macRaporu, yasananAksiyon)
 					topaSahipOyuncu = hedefOyuncu
@@ -587,7 +587,7 @@ func main() {
 						anlikBolge = 3
 					}
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den ilerideki %s'e müthiş bir pas.", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s'den ilerideki %s'e müthiş bir pas.", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
 					}
 					macRaporu = append(macRaporu, yasananAksiyon)
 					topaSahipOyuncu = hedefOyuncu
@@ -597,7 +597,7 @@ func main() {
 					takimAdi = "ikinciTakim"
 					seciliTaktik = ikinciTakim.TakimTaktik
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s arayı iyi gördü! Fakat %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s arayı iyi gördü! Fakat %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
 					}
 					bolgeCevirici := math.Abs(float64(3 - anlikBolge))
 					anlikBolge = int(bolgeCevirici)
@@ -607,7 +607,7 @@ func main() {
 					takimAdi = "ilkTakim"
 					seciliTaktik = ilkTakim.TakimTaktik
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s arayı iyi gördü! Fakat %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s arayı iyi gördü! Fakat %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
 					}
 					bolgeCevirici := math.Abs(float64(3 - anlikBolge))
 					anlikBolge = int(bolgeCevirici)
@@ -634,7 +634,7 @@ func main() {
 						anlikBolge = 3
 					}
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den nefis bir çalım %s dondu kaldı", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s'den nefis bir çalım %s dondu kaldı", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
 					}
 					macRaporu = append(macRaporu, yasananAksiyon)
 				} else {
@@ -643,7 +643,7 @@ func main() {
 						anlikBolge = 3
 					}
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den nefis bir çalım %s dondu kaldı", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s'den nefis bir çalım %s dondu kaldı", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
 					}
 					macRaporu = append(macRaporu, yasananAksiyon)
 				}
@@ -652,7 +652,7 @@ func main() {
 					takimAdi = "ikinciTakim"
 					seciliTaktik = ikinciTakim.TakimTaktik
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den çalım denemesi.. Fakat %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s'den çalım denemesi.. Fakat %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
 					}
 					bolgeCevirici := math.Abs(float64(3 - anlikBolge))
 					anlikBolge = int(bolgeCevirici)
@@ -662,7 +662,7 @@ func main() {
 					takimAdi = "ilkTakim"
 					seciliTaktik = ilkTakim.TakimTaktik
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den çalım denemesi.. Fakat %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s'den çalım denemesi.. Fakat %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
 					}
 					bolgeCevirici := math.Abs(float64(3 - anlikBolge))
 					anlikBolge = int(bolgeCevirici)
@@ -692,7 +692,7 @@ func main() {
 						anlikBolge = 3
 					}
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s Uzaklardan bir şut.. TOP AĞLARDA GOOOOOOOOOOOL %s dondu kaldı", i, topaSahipOyuncu.Isim, rakipKaleci.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s Uzaklardan bir şut.. TOP AĞLARDA GOOOOOOOOOOOL %s dondu kaldı", i, topaSahipOyuncu.Isim, rakipKaleci.Isim),
 					}
 					macRaporu = append(macRaporu, yasananAksiyon)
 				} else {
@@ -701,7 +701,7 @@ func main() {
 						anlikBolge = 3
 					}
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s Uzaklardan bir şut.. TOP AĞLARDA GOOOOOOOOOOOL %s dondu kaldı", i, topaSahipOyuncu.Isim, rakipKaleci.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s Uzaklardan bir şut.. TOP AĞLARDA GOOOOOOOOOOOL %s dondu kaldı", i, topaSahipOyuncu.Isim, rakipKaleci.Isim),
 					}
 					macRaporu = append(macRaporu, yasananAksiyon)
 				}
@@ -710,7 +710,7 @@ func main() {
 					takimAdi = "ikinciTakim"
 					seciliTaktik = ikinciTakim.TakimTaktik
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s Uzaklardan bir şut.. Fakat %s topu rahatça alıyor", i, topaSahipOyuncu.Isim, rakipKaleci.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s Uzaklardan bir şut.. Fakat %s topu rahatça alıyor", i, topaSahipOyuncu.Isim, rakipKaleci.Isim),
 					}
 					bolgeCevirici := math.Abs(float64(3 - anlikBolge))
 					anlikBolge = int(bolgeCevirici)
@@ -720,7 +720,7 @@ func main() {
 					takimAdi = "ilkTakim"
 					seciliTaktik = ilkTakim.TakimTaktik
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s Uzaklardan bir şut.. Fakat %s topu rahatça alıyor", i, topaSahipOyuncu.Isim, rakipKaleci.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s Uzaklardan bir şut.. Fakat %s topu rahatça alıyor", i, topaSahipOyuncu.Isim, rakipKaleci.Isim),
 					}
 					bolgeCevirici := math.Abs(float64(3 - anlikBolge))
 					anlikBolge = int(bolgeCevirici)
@@ -750,7 +750,7 @@ func main() {
 						anlikBolge = 3
 					}
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s Güzel bir şut.. TOP AĞLARDA GOOOOOOOOOOOL %s'nin yapabilecek hiçbir şeyi yok", i, topaSahipOyuncu.Isim, rakipKaleci.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s Güzel bir şut.. TOP AĞLARDA GOOOOOOOOOOOL %s'nin yapabilecek hiçbir şeyi yok", i, topaSahipOyuncu.Isim, rakipKaleci.Isim),
 					}
 					macRaporu = append(macRaporu, yasananAksiyon)
 				} else {
@@ -759,7 +759,7 @@ func main() {
 						anlikBolge = 3
 					}
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s Güzel bir şut.. TOP AĞLARDA GOOOOOOOOOOOL %s'nin yapabilecek hiçbir şeyi yok", i, topaSahipOyuncu.Isim, rakipKaleci.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s Güzel bir şut.. TOP AĞLARDA GOOOOOOOOOOOL %s'nin yapabilecek hiçbir şeyi yok", i, topaSahipOyuncu.Isim, rakipKaleci.Isim),
 					}
 					macRaporu = append(macRaporu, yasananAksiyon)
 				}
@@ -768,7 +768,7 @@ func main() {
 					takimAdi = "ikinciTakim"
 					seciliTaktik = ikinciTakim.TakimTaktik
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s Bir şut.. Fakat %s topu rahatça alıyor", i, topaSahipOyuncu.Isim, rakipKaleci.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s Bir şut.. Fakat %s topu rahatça alıyor", i, topaSahipOyuncu.Isim, rakipKaleci.Isim),
 					}
 					bolgeCevirici := math.Abs(float64(3 - anlikBolge))
 					anlikBolge = int(bolgeCevirici)
@@ -778,7 +778,7 @@ func main() {
 					takimAdi = "ilkTakim"
 					seciliTaktik = ilkTakim.TakimTaktik
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s Bir şut.. Fakat %s topu rahatça alıyor", i, topaSahipOyuncu.Isim, rakipKaleci.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s Bir şut.. Fakat %s topu rahatça alıyor", i, topaSahipOyuncu.Isim, rakipKaleci.Isim),
 					}
 					bolgeCevirici := math.Abs(float64(3 - anlikBolge))
 					anlikBolge = int(bolgeCevirici)
