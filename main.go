@@ -593,6 +593,61 @@ func main() {
 					topaSahipOyuncu = rakipOyuncu
 				}
 			}
+		} else if aksiyon == "Dribling" {
+			rakipOyuncuIndex := rand.Intn(10) + 1
+			var rakipOyuncu Futbolcu
+			if takimAdi == "ilkTakim" {
+				rakipOyuncu = ilkTakim.Kadro[rakipOyuncuIndex]
+			} else {
+				rakipOyuncu = ikinciTakim.Kadro[rakipOyuncuIndex]
+			}
+			basariIhtimali := topaSahipOyuncu.Profil.Dribling + topaSahipOyuncu.Profil.Ceviklik + topaSahipOyuncu.Profil.Teknik + topaSahipOyuncu.Profil.IlkKontrol
+			basarisizlikIhtimali := rakipOyuncu.Profil.DefansifPozisyonAlma + rakipOyuncu.Profil.TopKapma + rakipOyuncu.Profil.Markaj + 8
+			toplamIhtimal := basariIhtimali + basarisizlikIhtimali
+			zar := rand.Intn(toplamIhtimal)
+			if zar < basariIhtimali {
+				if takimAdi == "ilkTakim" {
+					anlikBolge += 1
+					if anlikBolge > 3 {
+						anlikBolge = 3
+					}
+					yasananAksiyon := Olay{
+						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den nefis bir çalım %s dondu kaldı", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
+					}
+					macRaporu = append(macRaporu, yasananAksiyon)
+				} else {
+					anlikBolge += 1
+					if anlikBolge > 3 {
+						anlikBolge = 3
+					}
+					yasananAksiyon := Olay{
+						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den nefis bir çalım %s dondu kaldı", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
+					}
+					macRaporu = append(macRaporu, yasananAksiyon)
+				}
+			} else {
+				if takimAdi == "ilkTakim" {
+					takimAdi = "ikinciTakim"
+					seciliTaktik = ikinciTakim.TakimTaktik
+					yasananAksiyon := Olay{
+						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den çalım denemesi.. Fakat %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
+					}
+					bolgeCevirici := math.Abs(float64(3 - anlikBolge))
+					anlikBolge = int(bolgeCevirici)
+					macRaporu = append(macRaporu, yasananAksiyon)
+					topaSahipOyuncu = rakipOyuncu
+				} else {
+					takimAdi = "ilkTakim"
+					seciliTaktik = ilkTakim.TakimTaktik
+					yasananAksiyon := Olay{
+						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den çalım denemesi.. Fakat %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
+					}
+					bolgeCevirici := math.Abs(float64(3 - anlikBolge))
+					anlikBolge = int(bolgeCevirici)
+					macRaporu = append(macRaporu, yasananAksiyon)
+					topaSahipOyuncu = rakipOyuncu
+				}
+			}
 		}
 
 		/*golMesajiIndex := rand.Intn(len(golMesajlari))
