@@ -111,67 +111,78 @@ func main() {
 		Isim:    "Ali",
 		Soyisim: "Yilmaz",
 		Mevki:   "Kaleci",
-		Yetenek: 85,
+		Yetenek: 170,
+		Profil:  ProfilOlustur("Kaleci", 170),
 	}
 	Veli := Futbolcu{
 		Isim:    "Veli",
 		Soyisim: "Bakir",
 		Mevki:   "SolBek",
-		Yetenek: 80,
+		Yetenek: 160,
+		Profil:  ProfilOlustur("SolBek", 160),
 	}
 	Mehmet := Futbolcu{
 		Isim:    "Mehmet",
 		Soyisim: "Gunes",
 		Mevki:   "Stoper",
-		Yetenek: 70,
+		Yetenek: 140,
+		Profil:  ProfilOlustur("Stoper", 140),
 	}
 	Alperen := Futbolcu{
 		Isim:    "Alperen",
 		Soyisim: "Celik",
 		Mevki:   "Stoper",
-		Yetenek: 85,
+		Yetenek: 170,
+		Profil:  ProfilOlustur("Stoper", 170),
 	}
 	Poyraz := Futbolcu{
 		Isim:    "Poyraz",
 		Soyisim: "Demir",
 		Mevki:   "SagBek",
-		Yetenek: 80,
+		Yetenek: 160,
+		Profil:  ProfilOlustur("SagBek", 160),
 	}
 	Metehan := Futbolcu{
 		Isim:    "Metehan",
 		Soyisim: "Kaya",
 		Mevki:   "OrtaSaha",
-		Yetenek: 70,
+		Yetenek: 140,
+		Profil:  ProfilOlustur("OrtaSaha", 140),
 	}
 	Cagan := Futbolcu{
 		Isim:    "Cagan",
 		Soyisim: "Yilmaz",
 		Mevki:   "OrtaSaha",
-		Yetenek: 85,
+		Yetenek: 170,
+		Profil:  ProfilOlustur("OrtaSaha", 140),
 	}
 	Goktug := Futbolcu{
 		Isim:    "Goktug",
 		Soyisim: "Sahin",
 		Mevki:   "OrtaSaha",
-		Yetenek: 80,
+		Yetenek: 160,
+		Profil:  ProfilOlustur("OrtaSaha", 160),
 	}
 	Aras := Futbolcu{
 		Isim:    "Aras",
 		Soyisim: "Aydin",
 		Mevki:   "SolKanat",
-		Yetenek: 70,
+		Yetenek: 140,
+		Profil:  ProfilOlustur("SolKanat", 140),
 	}
 	Cinar := Futbolcu{
 		Isim:    "Cinar",
 		Soyisim: "Ozturk",
 		Mevki:   "Forvet",
-		Yetenek: 85,
+		Yetenek: 170,
+		Profil:  ProfilOlustur("Forvet", 170),
 	}
 	Bora := Futbolcu{
 		Isim:    "Bora",
 		Soyisim: "Yildirim",
 		Mevki:   "SagKanat",
-		Yetenek: 80,
+		Yetenek: 160,
+		Profil:  ProfilOlustur("SagKanat", 170),
 	}
 
 	ilkTakim.Kadro = append(ilkTakim.Kadro, Ali, Veli, Mehmet, Alperen, Poyraz, Metehan, Cagan, Goktug, Aras, Cinar, Bora)
@@ -180,67 +191,78 @@ func main() {
 		Isim:    "Atlas",
 		Soyisim: "Koc",
 		Mevki:   "Kaleci",
-		Yetenek: 85,
+		Yetenek: 170,
+		Profil:  ProfilOlustur("Kaleci", 170),
 	}
 	Kuzey := Futbolcu{
 		Isim:    "Kuzey",
 		Soyisim: "Cetin",
 		Mevki:   "SolBek",
-		Yetenek: 80,
+		Yetenek: 160,
+		Profil:  ProfilOlustur("SolBek", 160),
 	}
 	Sarp := Futbolcu{
 		Isim:    "Sarp",
 		Soyisim: "Dogan",
 		Mevki:   "Stoper",
-		Yetenek: 70,
+		Yetenek: 140,
+		Profil:  ProfilOlustur("Stoper", 140),
 	}
 	Doruk := Futbolcu{
 		Isim:    "Doruk",
 		Soyisim: "Sonmez",
 		Mevki:   "Stoper",
-		Yetenek: 85,
+		Yetenek: 170,
+		Profil:  ProfilOlustur("Stoper", 170),
 	}
 	Eymen := Futbolcu{
 		Isim:    "Eymen",
 		Soyisim: "Keskin",
 		Mevki:   "SagBek",
-		Yetenek: 80,
+		Yetenek: 160,
+		Profil:  ProfilOlustur("SagBek", 160),
 	}
 	Bartu := Futbolcu{
 		Isim:    "Bartu",
 		Soyisim: "Tekin",
 		Mevki:   "OrtaSaha",
-		Yetenek: 70,
+		Yetenek: 140,
+		Profil:  ProfilOlustur("OrtaSaha", 140),
 	}
 	Yigit := Futbolcu{
 		Isim:    "Yigit",
 		Soyisim: "Arslan",
 		Mevki:   "OrtaSaha",
-		Yetenek: 85,
+		Yetenek: 170,
+		Profil:  ProfilOlustur("OrtaSaha", 170),
 	}
 	Yagiz := Futbolcu{
 		Isim:    "Yagiz",
 		Soyisim: "Korkmaz",
 		Mevki:   "OrtaSaha",
-		Yetenek: 80,
+		Yetenek: 160,
+		Profil:  ProfilOlustur("OrtaSaha", 160),
 	}
 	Deniz := Futbolcu{
 		Isim:    "Deniz",
 		Soyisim: "Aksoy",
 		Mevki:   "SolKanat",
-		Yetenek: 70,
+		Yetenek: 140,
+		Profil:  ProfilOlustur("SolKanat", 140),
 	}
 	Efe := Futbolcu{
 		Isim:    "Efe",
 		Soyisim: "Ozkan",
 		Mevki:   "Forvet",
-		Yetenek: 85,
+		Yetenek: 170,
+		Profil:  ProfilOlustur("Forvet", 170),
 	}
 	Utku := Futbolcu{
 		Isim:    "Utku",
 		Soyisim: "Erdem",
 		Mevki:   "SagKanat",
-		Yetenek: 80,
+		Yetenek: 160,
+		Profil:  ProfilOlustur("SagKanat", 160),
 	}
 
 	ikinciTakim.Kadro = append(ikinciTakim.Kadro, Atlas, Kuzey, Sarp, Doruk, Eymen, Bartu, Yigit, Yagiz, Deniz, Efe, Utku)
@@ -1335,4 +1357,285 @@ func KararVer(player Futbolcu, bolge int, takimTaktik Taktik) (aksiyon string) {
 		}
 	}
 	return "Bekle"
+}
+
+func ProfilOlustur(mevki string, yetenek int) Ozellikler {
+	var player Ozellikler
+	temelPuan := yetenek / 10
+
+	if mevki == "Kaleci" {
+		player.Degaj = temelPuan + rand.Intn(4) - 1
+		player.KarsiKarsiya = temelPuan + rand.Intn(4) - 1
+		player.Refleks = temelPuan + rand.Intn(4) - 1
+		player.Ziplama = temelPuan + rand.Intn(4) - 1
+		player.Bitiricilik = rand.Intn(8) + 1
+		player.Caliskanlik = rand.Intn(8) + 1
+		player.Cesaret = rand.Intn(8) + 1
+		player.Ceviklik = rand.Intn(8) + 1
+		player.Dayaniklilik = rand.Intn(8) + 1
+		player.DefansifPozisyonAlma = rand.Intn(8) + 1
+		player.Denge = rand.Intn(8) + 1
+		player.Dribling = rand.Intn(8) + 1
+		player.DuranToplar = rand.Intn(8) + 1
+		player.Guc = rand.Intn(8) + 1
+		player.Hiz = rand.Intn(8) + 1
+		player.Hizlanma = rand.Intn(8) + 1
+		player.IlkKontrol = rand.Intn(8) + 1
+		player.KafaVurusu = rand.Intn(8) + 1
+		player.KararAlma = rand.Intn(8) + 1
+		player.Kararlilik = rand.Intn(8) + 1
+		player.Konsantrasyon = rand.Intn(8) + 1
+		player.Liderlik = rand.Intn(8) + 1
+		player.Markaj = rand.Intn(8) + 1
+		player.OnSezi = rand.Intn(8) + 1
+		player.OrtaYapma = rand.Intn(8) + 1
+		player.Pas = rand.Intn(8) + 1
+		player.Sogukkanlilik = rand.Intn(8) + 1
+		player.TaktigeBaglilik = rand.Intn(8) + 1
+		player.Teknik = rand.Intn(8) + 1
+		player.TopKapma = rand.Intn(8) + 1
+		player.TopsuzAlan = rand.Intn(8) + 1
+		player.UzaktanSut = rand.Intn(8) + 1
+		player.Vizyon = rand.Intn(8) + 1
+	} else if mevki == "Stoper" {
+		player.TopKapma = temelPuan + rand.Intn(4) - 1
+		player.Markaj = temelPuan + rand.Intn(4) - 1
+		player.DefansifPozisyonAlma = temelPuan + rand.Intn(4) - 1
+		player.Ziplama = temelPuan + rand.Intn(4) - 1
+		player.Degaj = rand.Intn(8) + 1
+		player.KarsiKarsiya = rand.Intn(8) + 1
+		player.Refleks = rand.Intn(8) + 1
+		player.Bitiricilik = rand.Intn(8) + 1
+		player.Caliskanlik = rand.Intn(8) + 1
+		player.Cesaret = rand.Intn(8) + 1
+		player.Ceviklik = rand.Intn(8) + 1
+		player.Dayaniklilik = rand.Intn(8) + 1
+		player.Denge = rand.Intn(8) + 1
+		player.Dribling = rand.Intn(8) + 1
+		player.DuranToplar = rand.Intn(8) + 1
+		player.Guc = rand.Intn(8) + 1
+		player.Hiz = rand.Intn(8) + 1
+		player.Hizlanma = rand.Intn(8) + 1
+		player.IlkKontrol = rand.Intn(8) + 1
+		player.KafaVurusu = rand.Intn(8) + 1
+		player.KararAlma = rand.Intn(8) + 1
+		player.Kararlilik = rand.Intn(8) + 1
+		player.Konsantrasyon = rand.Intn(8) + 1
+		player.Liderlik = rand.Intn(8) + 1
+		player.OnSezi = rand.Intn(8) + 1
+		player.OrtaYapma = rand.Intn(8) + 1
+		player.Pas = rand.Intn(8) + 1
+		player.Sogukkanlilik = rand.Intn(8) + 1
+		player.TaktigeBaglilik = rand.Intn(8) + 1
+		player.Teknik = rand.Intn(8) + 1
+		player.TopsuzAlan = rand.Intn(8) + 1
+		player.UzaktanSut = rand.Intn(8) + 1
+		player.Vizyon = rand.Intn(8) + 1
+	} else if mevki == "SolBek" || mevki == "SagBek" {
+		player.TopKapma = temelPuan + rand.Intn(4) - 1
+		player.Markaj = temelPuan + rand.Intn(4) - 1
+		player.DefansifPozisyonAlma = temelPuan + rand.Intn(4) - 1
+		player.Hiz = temelPuan + rand.Intn(4) - 1
+		player.Hizlanma = temelPuan + rand.Intn(4) - 1
+		player.OrtaYapma = temelPuan + rand.Intn(4) - 1
+		player.Pas = temelPuan + rand.Intn(4) - 1
+		player.Teknik = temelPuan + rand.Intn(4) - 1
+		player.Dribling = temelPuan + rand.Intn(4) - 1
+		player.Ziplama = rand.Intn(8) + 1
+		player.Degaj = rand.Intn(8) + 1
+		player.KarsiKarsiya = rand.Intn(8) + 1
+		player.Refleks = rand.Intn(8) + 1
+		player.Bitiricilik = rand.Intn(8) + 1
+		player.Caliskanlik = rand.Intn(8) + 1
+		player.Cesaret = rand.Intn(8) + 1
+		player.Ceviklik = rand.Intn(8) + 1
+		player.Dayaniklilik = rand.Intn(8) + 1
+		player.Denge = rand.Intn(8) + 1
+		player.DuranToplar = rand.Intn(8) + 1
+		player.Guc = rand.Intn(8) + 1
+		player.IlkKontrol = rand.Intn(8) + 1
+		player.KafaVurusu = rand.Intn(8) + 1
+		player.KararAlma = rand.Intn(8) + 1
+		player.Kararlilik = rand.Intn(8) + 1
+		player.Konsantrasyon = rand.Intn(8) + 1
+		player.Liderlik = rand.Intn(8) + 1
+		player.OnSezi = rand.Intn(8) + 1
+		player.Sogukkanlilik = rand.Intn(8) + 1
+		player.TaktigeBaglilik = rand.Intn(8) + 1
+		player.TopsuzAlan = rand.Intn(8) + 1
+		player.UzaktanSut = rand.Intn(8) + 1
+		player.Vizyon = rand.Intn(8) + 1
+	} else if mevki == "SolKanat" || mevki == "SagKanat" {
+		player.Hiz = temelPuan + rand.Intn(4) - 1
+		player.Hizlanma = temelPuan + rand.Intn(4) - 1
+		player.OrtaYapma = temelPuan + rand.Intn(4) - 1
+		player.Pas = temelPuan + rand.Intn(4) - 1
+		player.Teknik = temelPuan + rand.Intn(4) - 1
+		player.Dribling = temelPuan + rand.Intn(4) - 1
+		player.UzaktanSut = temelPuan + rand.Intn(4) - 1
+		player.Vizyon = temelPuan + rand.Intn(4) - 1
+		player.Bitiricilik = temelPuan + rand.Intn(4) - 1
+		player.Ziplama = rand.Intn(8) + 1
+		player.TopKapma = rand.Intn(8) + 1
+		player.Markaj = rand.Intn(8) + 1
+		player.DefansifPozisyonAlma = rand.Intn(8) + 1
+		player.Degaj = rand.Intn(8) + 1
+		player.KarsiKarsiya = rand.Intn(8) + 1
+		player.Refleks = rand.Intn(8) + 1
+		player.Caliskanlik = rand.Intn(8) + 1
+		player.Cesaret = rand.Intn(8) + 1
+		player.Ceviklik = rand.Intn(8) + 1
+		player.Dayaniklilik = rand.Intn(8) + 1
+		player.Denge = rand.Intn(8) + 1
+		player.DuranToplar = rand.Intn(8) + 1
+		player.Guc = rand.Intn(8) + 1
+		player.IlkKontrol = rand.Intn(8) + 1
+		player.KafaVurusu = rand.Intn(8) + 1
+		player.KararAlma = rand.Intn(8) + 1
+		player.Kararlilik = rand.Intn(8) + 1
+		player.Konsantrasyon = rand.Intn(8) + 1
+		player.Liderlik = rand.Intn(8) + 1
+		player.OnSezi = rand.Intn(8) + 1
+		player.Sogukkanlilik = rand.Intn(8) + 1
+		player.TaktigeBaglilik = rand.Intn(8) + 1
+		player.TopsuzAlan = rand.Intn(8) + 1
+	} else if mevki == "DefansifOrtaSaha" {
+		player.OrtaYapma = temelPuan + rand.Intn(4) - 1
+		player.Pas = temelPuan + rand.Intn(4) - 1
+		player.Teknik = temelPuan + rand.Intn(4) - 1
+		player.TopKapma = temelPuan + rand.Intn(4) - 1
+		player.Markaj = temelPuan + rand.Intn(4) - 1
+		player.DefansifPozisyonAlma = temelPuan + rand.Intn(4) - 1
+		player.UzaktanSut = temelPuan + rand.Intn(4) - 1
+		player.Vizyon = temelPuan + rand.Intn(4) - 1
+		player.IlkKontrol = temelPuan + rand.Intn(4) - 1
+		player.Bitiricilik = rand.Intn(8) + 1
+		player.Dayaniklilik = rand.Intn(8) + 1
+		player.Ziplama = rand.Intn(8) + 1
+		player.Hiz = rand.Intn(8) + 1
+		player.Dribling = rand.Intn(8) + 1
+		player.Hizlanma = rand.Intn(8) + 1
+		player.Degaj = rand.Intn(8) + 1
+		player.KarsiKarsiya = rand.Intn(8) + 1
+		player.Refleks = rand.Intn(8) + 1
+		player.Caliskanlik = rand.Intn(8) + 1
+		player.Cesaret = rand.Intn(8) + 1
+		player.Ceviklik = rand.Intn(8) + 1
+		player.Denge = rand.Intn(8) + 1
+		player.DuranToplar = rand.Intn(8) + 1
+		player.Guc = rand.Intn(8) + 1
+		player.KafaVurusu = rand.Intn(8) + 1
+		player.KararAlma = rand.Intn(8) + 1
+		player.Kararlilik = rand.Intn(8) + 1
+		player.Konsantrasyon = rand.Intn(8) + 1
+		player.Liderlik = rand.Intn(8) + 1
+		player.OnSezi = rand.Intn(8) + 1
+		player.Sogukkanlilik = rand.Intn(8) + 1
+		player.TaktigeBaglilik = rand.Intn(8) + 1
+		player.TopsuzAlan = rand.Intn(8) + 1
+	} else if mevki == "OrtaSaha" {
+		player.OrtaYapma = temelPuan + rand.Intn(4) - 1
+		player.Pas = temelPuan + rand.Intn(4) - 1
+		player.Teknik = temelPuan + rand.Intn(4) - 1
+		player.UzaktanSut = temelPuan + rand.Intn(4) - 1
+		player.Vizyon = temelPuan + rand.Intn(4) - 1
+		player.Dayaniklilik = temelPuan + rand.Intn(4) - 1
+		player.IlkKontrol = temelPuan + rand.Intn(4) - 1
+		player.Bitiricilik = rand.Intn(10) + 1
+		player.Dribling = rand.Intn(12) + 1
+		player.TopKapma = rand.Intn(12) + 1
+		player.Markaj = rand.Intn(12) + 1
+		player.DefansifPozisyonAlma = rand.Intn(12) + 1
+		player.Ziplama = rand.Intn(8) + 1
+		player.Hiz = rand.Intn(8) + 1
+		player.Hizlanma = rand.Intn(8) + 1
+		player.Degaj = rand.Intn(8) + 1
+		player.KarsiKarsiya = rand.Intn(8) + 1
+		player.Refleks = rand.Intn(8) + 1
+		player.Caliskanlik = rand.Intn(8) + 1
+		player.Cesaret = rand.Intn(8) + 1
+		player.Ceviklik = rand.Intn(8) + 1
+		player.Denge = rand.Intn(8) + 1
+		player.DuranToplar = rand.Intn(8) + 1
+		player.Guc = rand.Intn(8) + 1
+		player.KafaVurusu = rand.Intn(8) + 1
+		player.KararAlma = rand.Intn(8) + 1
+		player.Kararlilik = rand.Intn(8) + 1
+		player.Konsantrasyon = rand.Intn(8) + 1
+		player.Liderlik = rand.Intn(8) + 1
+		player.OnSezi = rand.Intn(8) + 1
+		player.Sogukkanlilik = rand.Intn(8) + 1
+		player.TaktigeBaglilik = rand.Intn(8) + 1
+		player.TopsuzAlan = rand.Intn(8) + 1
+	} else if mevki == "OfansifOrtaSaha" {
+		player.OrtaYapma = temelPuan + rand.Intn(4) - 1
+		player.Pas = temelPuan + rand.Intn(4) - 1
+		player.Teknik = temelPuan + rand.Intn(4) - 1
+		player.UzaktanSut = temelPuan + rand.Intn(4) - 1
+		player.Vizyon = temelPuan + rand.Intn(4) - 1
+		player.IlkKontrol = temelPuan + rand.Intn(4) - 1
+		player.Bitiricilik = temelPuan + rand.Intn(4) - 1
+		player.Dribling = temelPuan + rand.Intn(4) - 1
+		player.Dayaniklilik = rand.Intn(12) + 1
+		player.Ceviklik = rand.Intn(12) + 1
+		player.Hiz = rand.Intn(12) + 1
+		player.Hizlanma = rand.Intn(12) + 1
+		player.TopKapma = rand.Intn(8) + 1
+		player.Markaj = rand.Intn(8) + 1
+		player.DefansifPozisyonAlma = rand.Intn(8) + 1
+		player.Ziplama = rand.Intn(8) + 1
+		player.Degaj = rand.Intn(8) + 1
+		player.KarsiKarsiya = rand.Intn(8) + 1
+		player.Refleks = rand.Intn(8) + 1
+		player.Caliskanlik = rand.Intn(8) + 1
+		player.Cesaret = rand.Intn(8) + 1
+		player.Denge = rand.Intn(8) + 1
+		player.DuranToplar = rand.Intn(8) + 1
+		player.Guc = rand.Intn(8) + 1
+		player.KafaVurusu = rand.Intn(8) + 1
+		player.KararAlma = rand.Intn(8) + 1
+		player.Kararlilik = rand.Intn(8) + 1
+		player.Konsantrasyon = rand.Intn(8) + 1
+		player.Liderlik = rand.Intn(8) + 1
+		player.OnSezi = rand.Intn(8) + 1
+		player.Sogukkanlilik = rand.Intn(8) + 1
+		player.TaktigeBaglilik = rand.Intn(8) + 1
+		player.TopsuzAlan = rand.Intn(8) + 1
+	} else if mevki == "Forvet" {
+		player.UzaktanSut = temelPuan + rand.Intn(4) - 1
+		player.IlkKontrol = temelPuan + rand.Intn(4) - 1
+		player.Bitiricilik = temelPuan + rand.Intn(4) - 1
+		player.KafaVurusu = rand.Intn(8) + 1
+		player.Dayaniklilik = rand.Intn(12) + 1
+		player.Dribling = rand.Intn(12) + 1
+		player.Ceviklik = rand.Intn(12) + 1
+		player.OrtaYapma = rand.Intn(12) + 1
+		player.Pas = rand.Intn(12) + 1
+		player.Teknik = rand.Intn(12) + 1
+		player.Vizyon = rand.Intn(12) + 1
+		player.Hiz = rand.Intn(12) + 1
+		player.OnSezi = rand.Intn(12) + 1
+		player.Sogukkanlilik = rand.Intn(12) + 1
+		player.Hizlanma = rand.Intn(12) + 1
+		player.TopKapma = rand.Intn(8) + 1
+		player.Markaj = rand.Intn(8) + 1
+		player.DefansifPozisyonAlma = rand.Intn(8) + 1
+		player.Ziplama = rand.Intn(8) + 1
+		player.Degaj = rand.Intn(8) + 1
+		player.KarsiKarsiya = rand.Intn(8) + 1
+		player.Refleks = rand.Intn(8) + 1
+		player.Caliskanlik = rand.Intn(8) + 1
+		player.Cesaret = rand.Intn(8) + 1
+		player.Denge = rand.Intn(8) + 1
+		player.DuranToplar = rand.Intn(8) + 1
+		player.Guc = rand.Intn(8) + 1
+		player.KararAlma = rand.Intn(8) + 1
+		player.Kararlilik = rand.Intn(8) + 1
+		player.Konsantrasyon = rand.Intn(8) + 1
+		player.Liderlik = rand.Intn(8) + 1
+		player.TaktigeBaglilik = rand.Intn(8) + 1
+		player.TopsuzAlan = rand.Intn(8) + 1
+	}
+
+	return player
 }
