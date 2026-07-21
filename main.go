@@ -542,8 +542,8 @@ func main() {
 			} else {
 				rakipOyuncu = ikinciTakim.Kadro[rakipOyuncuIndex]
 			}
-			basariIhtimali := topaSahipOyuncu.Profil.Pas + topaSahipOyuncu.Profil.OrtaYapma + topaSahipOyuncu.Profil.Teknik
-			basarisizlikIhtimali := rakipOyuncu.Profil.DefansifPozisyonAlma + rakipOyuncu.Profil.TopKapma + rakipOyuncu.Profil.KafaVurusu
+			basariIhtimali := topaSahipOyuncu.Profil.Pas + topaSahipOyuncu.Profil.Vizyon + topaSahipOyuncu.Profil.Teknik
+			basarisizlikIhtimali := rakipOyuncu.Profil.DefansifPozisyonAlma + rakipOyuncu.Profil.TopKapma + rakipOyuncu.Profil.Markaj + 2
 			toplamIhtimal := basariIhtimali + basarisizlikIhtimali
 			zar := rand.Intn(toplamIhtimal)
 			if zar < basariIhtimali {
@@ -554,7 +554,7 @@ func main() {
 						anlikBolge = 3
 					}
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den içerideki %s'e güzel bir orta", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
+						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den ilerideki %s'e müthiş bir pas.", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
 					}
 					macRaporu = append(macRaporu, yasananAksiyon)
 					topaSahipOyuncu = hedefOyuncu
@@ -565,7 +565,7 @@ func main() {
 						anlikBolge = 3
 					}
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den içerideki %s'e güzel bir orta", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
+						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den ilerideki %s'e müthiş bir pas.", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
 					}
 					macRaporu = append(macRaporu, yasananAksiyon)
 					topaSahipOyuncu = hedefOyuncu
@@ -575,7 +575,7 @@ func main() {
 					takimAdi = "ikinciTakim"
 					seciliTaktik = ikinciTakim.TakimTaktik
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den rezalet bir orta! %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
+						Aksiyon: fmt.Sprintf("%d DAKİKA: %s arayı iyi gördü! Fakat %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
 					}
 					bolgeCevirici := math.Abs(float64(3 - anlikBolge))
 					anlikBolge = int(bolgeCevirici)
@@ -585,7 +585,7 @@ func main() {
 					takimAdi = "ilkTakim"
 					seciliTaktik = ilkTakim.TakimTaktik
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den rezalet bir orta! %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
+						Aksiyon: fmt.Sprintf("%d DAKİKA: %s arayı iyi gördü! Fakat %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
 					}
 					bolgeCevirici := math.Abs(float64(3 - anlikBolge))
 					anlikBolge = int(bolgeCevirici)
