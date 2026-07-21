@@ -354,18 +354,34 @@ func main() {
 				if takimAdi == "ilkTakim" {
 					hedefOyuncu := ilkTakim.Kadro[hedefOyuncuIndex]
 					anlikBolge = rand.Intn(anlikBolge) + 1
+					yasananAksiyon := Olay{
+						Aksiyon: fmt.Sprintf("%d DAKİKA: %s boştaki %s'e kısa oynuyor", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
+					}
+					macRaporu = append(macRaporu, yasananAksiyon)
 					topaSahipOyuncu = hedefOyuncu
 				} else {
 					hedefOyuncu := ikinciTakim.Kadro[hedefOyuncuIndex]
 					anlikBolge = rand.Intn(anlikBolge) + 1
+					yasananAksiyon := Olay{
+						Aksiyon: fmt.Sprintf("%d DAKİKA: %s boştaki %s'e kısa oynuyor", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
+					}
+					macRaporu = append(macRaporu, yasananAksiyon)
 					topaSahipOyuncu = hedefOyuncu
 				}
 			} else {
 				if takimAdi == "ilkTakim" {
 					seciliTaktik = ikinciTakim.TakimTaktik
+					yasananAksiyon := Olay{
+						Aksiyon: fmt.Sprintf("%d DAKİKA: %s pas hatası! %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
+					}
+					macRaporu = append(macRaporu, yasananAksiyon)
 					topaSahipOyuncu = rakipOyuncu
 				} else {
 					seciliTaktik = ilkTakim.TakimTaktik
+					yasananAksiyon := Olay{
+						Aksiyon: fmt.Sprintf("%d DAKİKA: %s pas hatası! %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
+					}
+					macRaporu = append(macRaporu, yasananAksiyon)
 					topaSahipOyuncu = rakipOyuncu
 				}
 			}
