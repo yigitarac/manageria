@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -339,7 +340,7 @@ func main() {
 					break
 				}
 			}
-			rakipOyuncuIndex := rand.Intn(10 - topaSahipOyuncuIndex)
+			rakipOyuncuIndex := rand.Intn(10) + 1
 			var rakipOyuncu Futbolcu
 			if takimAdi == "ilkTakim" {
 				rakipOyuncu = ilkTakim.Kadro[rakipOyuncuIndex]
@@ -375,6 +376,8 @@ func main() {
 					yasananAksiyon := Olay{
 						Aksiyon: fmt.Sprintf("%d DAKİKA: %s pas hatası! %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
 					}
+					bolgeCevirici := math.Abs(float64(3 - anlikBolge))
+					anlikBolge = int(bolgeCevirici)
 					macRaporu = append(macRaporu, yasananAksiyon)
 					topaSahipOyuncu = rakipOyuncu
 				} else {
@@ -383,6 +386,8 @@ func main() {
 					yasananAksiyon := Olay{
 						Aksiyon: fmt.Sprintf("%d DAKİKA: %s pas hatası! %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
 					}
+					bolgeCevirici := math.Abs(float64(3 - anlikBolge))
+					anlikBolge = int(bolgeCevirici)
 					macRaporu = append(macRaporu, yasananAksiyon)
 					topaSahipOyuncu = rakipOyuncu
 				}
@@ -396,7 +401,7 @@ func main() {
 					break
 				}
 			}
-			rakipOyuncuIndex := rand.Intn(10 - topaSahipOyuncuIndex)
+			rakipOyuncuIndex := rand.Intn(10) + 1
 			var rakipOyuncu Futbolcu
 			if takimAdi == "ilkTakim" {
 				rakipOyuncu = ilkTakim.Kadro[rakipOyuncuIndex]
@@ -438,6 +443,8 @@ func main() {
 					yasananAksiyon := Olay{
 						Aksiyon: fmt.Sprintf("%d DAKİKA: %s pas hatası! %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
 					}
+					bolgeCevirici := math.Abs(float64(3 - anlikBolge))
+					anlikBolge = int(bolgeCevirici)
 					macRaporu = append(macRaporu, yasananAksiyon)
 					topaSahipOyuncu = rakipOyuncu
 				} else {
@@ -446,6 +453,8 @@ func main() {
 					yasananAksiyon := Olay{
 						Aksiyon: fmt.Sprintf("%d DAKİKA: %s pas hatası! %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
 					}
+					bolgeCevirici := math.Abs(float64(3 - anlikBolge))
+					anlikBolge = int(bolgeCevirici)
 					macRaporu = append(macRaporu, yasananAksiyon)
 					topaSahipOyuncu = rakipOyuncu
 				}
