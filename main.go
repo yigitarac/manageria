@@ -459,6 +459,140 @@ func main() {
 					topaSahipOyuncu = rakipOyuncu
 				}
 			}
+		} else if aksiyon == "Erken Orta" || aksiyon == "Orta" {
+			hedefOyuncuIndex := rand.Intn(10) + 1
+			for {
+				if hedefOyuncuIndex == topaSahipOyuncuIndex || hedefOyuncuIndex > 10 || hedefOyuncuIndex < 0 {
+					hedefOyuncuIndex = rand.Intn(10) + 1
+				} else {
+					break
+				}
+			}
+			rakipOyuncuIndex := rand.Intn(10) + 1
+			var rakipOyuncu Futbolcu
+			if takimAdi == "ilkTakim" {
+				rakipOyuncu = ilkTakim.Kadro[rakipOyuncuIndex]
+			} else {
+				rakipOyuncu = ikinciTakim.Kadro[rakipOyuncuIndex]
+			}
+			basariIhtimali := topaSahipOyuncu.Profil.Pas + topaSahipOyuncu.Profil.OrtaYapma + topaSahipOyuncu.Profil.Teknik
+			basarisizlikIhtimali := rakipOyuncu.Profil.DefansifPozisyonAlma + rakipOyuncu.Profil.TopKapma + rakipOyuncu.Profil.KafaVurusu
+			toplamIhtimal := basariIhtimali + basarisizlikIhtimali
+			zar := rand.Intn(toplamIhtimal)
+			if zar < basariIhtimali {
+				if takimAdi == "ilkTakim" {
+					hedefOyuncu := ilkTakim.Kadro[hedefOyuncuIndex]
+					anlikBolge += 1
+					if anlikBolge > 3 {
+						anlikBolge = 3
+					}
+					yasananAksiyon := Olay{
+						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den içerideki %s'e güzel bir orta", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
+					}
+					macRaporu = append(macRaporu, yasananAksiyon)
+					topaSahipOyuncu = hedefOyuncu
+				} else {
+					hedefOyuncu := ikinciTakim.Kadro[hedefOyuncuIndex]
+					anlikBolge += 1
+					if anlikBolge > 3 {
+						anlikBolge = 3
+					}
+					yasananAksiyon := Olay{
+						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den içerideki %s'e güzel bir orta", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
+					}
+					macRaporu = append(macRaporu, yasananAksiyon)
+					topaSahipOyuncu = hedefOyuncu
+				}
+			} else {
+				if takimAdi == "ilkTakim" {
+					takimAdi = "ikinciTakim"
+					seciliTaktik = ikinciTakim.TakimTaktik
+					yasananAksiyon := Olay{
+						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den rezalet bir orta! %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
+					}
+					bolgeCevirici := math.Abs(float64(3 - anlikBolge))
+					anlikBolge = int(bolgeCevirici)
+					macRaporu = append(macRaporu, yasananAksiyon)
+					topaSahipOyuncu = rakipOyuncu
+				} else {
+					takimAdi = "ilkTakim"
+					seciliTaktik = ilkTakim.TakimTaktik
+					yasananAksiyon := Olay{
+						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den rezalet bir orta! %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
+					}
+					bolgeCevirici := math.Abs(float64(3 - anlikBolge))
+					anlikBolge = int(bolgeCevirici)
+					macRaporu = append(macRaporu, yasananAksiyon)
+					topaSahipOyuncu = rakipOyuncu
+				}
+			}
+		} else if aksiyon == "Dikine Pas" || aksiyon == "Kilit Pas" {
+			hedefOyuncuIndex := rand.Intn(10) + 1
+			for {
+				if hedefOyuncuIndex == topaSahipOyuncuIndex || hedefOyuncuIndex > 10 || hedefOyuncuIndex < 0 {
+					hedefOyuncuIndex = rand.Intn(10) + 1
+				} else {
+					break
+				}
+			}
+			rakipOyuncuIndex := rand.Intn(10) + 1
+			var rakipOyuncu Futbolcu
+			if takimAdi == "ilkTakim" {
+				rakipOyuncu = ilkTakim.Kadro[rakipOyuncuIndex]
+			} else {
+				rakipOyuncu = ikinciTakim.Kadro[rakipOyuncuIndex]
+			}
+			basariIhtimali := topaSahipOyuncu.Profil.Pas + topaSahipOyuncu.Profil.OrtaYapma + topaSahipOyuncu.Profil.Teknik
+			basarisizlikIhtimali := rakipOyuncu.Profil.DefansifPozisyonAlma + rakipOyuncu.Profil.TopKapma + rakipOyuncu.Profil.KafaVurusu
+			toplamIhtimal := basariIhtimali + basarisizlikIhtimali
+			zar := rand.Intn(toplamIhtimal)
+			if zar < basariIhtimali {
+				if takimAdi == "ilkTakim" {
+					hedefOyuncu := ilkTakim.Kadro[hedefOyuncuIndex]
+					anlikBolge += 1
+					if anlikBolge > 3 {
+						anlikBolge = 3
+					}
+					yasananAksiyon := Olay{
+						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den içerideki %s'e güzel bir orta", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
+					}
+					macRaporu = append(macRaporu, yasananAksiyon)
+					topaSahipOyuncu = hedefOyuncu
+				} else {
+					hedefOyuncu := ikinciTakim.Kadro[hedefOyuncuIndex]
+					anlikBolge += 1
+					if anlikBolge > 3 {
+						anlikBolge = 3
+					}
+					yasananAksiyon := Olay{
+						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den içerideki %s'e güzel bir orta", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
+					}
+					macRaporu = append(macRaporu, yasananAksiyon)
+					topaSahipOyuncu = hedefOyuncu
+				}
+			} else {
+				if takimAdi == "ilkTakim" {
+					takimAdi = "ikinciTakim"
+					seciliTaktik = ikinciTakim.TakimTaktik
+					yasananAksiyon := Olay{
+						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den rezalet bir orta! %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
+					}
+					bolgeCevirici := math.Abs(float64(3 - anlikBolge))
+					anlikBolge = int(bolgeCevirici)
+					macRaporu = append(macRaporu, yasananAksiyon)
+					topaSahipOyuncu = rakipOyuncu
+				} else {
+					takimAdi = "ilkTakim"
+					seciliTaktik = ilkTakim.TakimTaktik
+					yasananAksiyon := Olay{
+						Aksiyon: fmt.Sprintf("%d DAKİKA: %s'den rezalet bir orta! %s topu kapıyor", i, topaSahipOyuncu.Isim, rakipOyuncu.Isim),
+					}
+					bolgeCevirici := math.Abs(float64(3 - anlikBolge))
+					anlikBolge = int(bolgeCevirici)
+					macRaporu = append(macRaporu, yasananAksiyon)
+					topaSahipOyuncu = rakipOyuncu
+				}
+			}
 		}
 
 		/*golMesajiIndex := rand.Intn(len(golMesajlari))
@@ -837,7 +971,7 @@ func KararVer(player Futbolcu, bolge int, takimTaktik Taktik) (aksiyon string) {
 			toplamIhtimal := kilitPasPuani + kisaPasPuani + driblingPuani + sutPuani
 			yapilacakAksiyon := rand.Intn(toplamIhtimal)
 			if yapilacakAksiyon < kilitPasPuani {
-				return "Dikine Pas"
+				return "Kilit Pas"
 			} else if yapilacakAksiyon < (kilitPasPuani + kisaPasPuani) {
 				return "Kısa Pas"
 			} else if yapilacakAksiyon < (kilitPasPuani + kisaPasPuani + driblingPuani) {
@@ -875,7 +1009,7 @@ func KararVer(player Futbolcu, bolge int, takimTaktik Taktik) (aksiyon string) {
 			toplamIhtimal := kilitPasPuani + kisaPasPuani + driblingPuani + uzaktanSutPuani + sutPuani
 			yapilacakAksiyon := rand.Intn(toplamIhtimal)
 			if yapilacakAksiyon < kilitPasPuani {
-				return "Dikine Pas"
+				return "Kilit Pas"
 			} else if yapilacakAksiyon < (kilitPasPuani + kisaPasPuani) {
 				return "Kısa Pas"
 			} else if yapilacakAksiyon < (kilitPasPuani + kisaPasPuani + driblingPuani) {
@@ -924,7 +1058,7 @@ func KararVer(player Futbolcu, bolge int, takimTaktik Taktik) (aksiyon string) {
 			toplamIhtimal := kilitPasPuani + kisaPasPuani + driblingPuani + uzaktanSutPuani + ortaPuani + sutPuani
 			yapilacakAksiyon := rand.Intn(toplamIhtimal)
 			if yapilacakAksiyon < kilitPasPuani {
-				return "Dikine Pas"
+				return "Kilit Pas"
 			} else if yapilacakAksiyon < (kilitPasPuani + kisaPasPuani) {
 				return "Kısa Pas"
 			} else if yapilacakAksiyon < (kilitPasPuani + kisaPasPuani + driblingPuani) {
@@ -975,7 +1109,7 @@ func KararVer(player Futbolcu, bolge int, takimTaktik Taktik) (aksiyon string) {
 			toplamIhtimal := kilitPasPuani + kisaPasPuani + driblingPuani + uzaktanSutPuani + ortaPuani + sutPuani
 			yapilacakAksiyon := rand.Intn(toplamIhtimal)
 			if yapilacakAksiyon < kilitPasPuani {
-				return "Dikine Pas"
+				return "Kilit Pas"
 			} else if yapilacakAksiyon < (kilitPasPuani + kisaPasPuani) {
 				return "Kısa Pas"
 			} else if yapilacakAksiyon < (kilitPasPuani + kisaPasPuani + driblingPuani) {
@@ -1017,7 +1151,7 @@ func KararVer(player Futbolcu, bolge int, takimTaktik Taktik) (aksiyon string) {
 			toplamIhtimal := kilitPasPuani + kisaPasPuani + driblingPuani + uzaktanSutPuani + sutPuani
 			yapilacakAksiyon := rand.Intn(toplamIhtimal)
 			if yapilacakAksiyon < kilitPasPuani {
-				return "Dikine Pas"
+				return "Kilit Pas"
 			} else if yapilacakAksiyon < (kilitPasPuani + kisaPasPuani) {
 				return "Kısa Pas"
 			} else if yapilacakAksiyon < (kilitPasPuani + kisaPasPuani + driblingPuani) {
