@@ -1359,6 +1359,16 @@ func KararVer(player Futbolcu, bolge int, takimTaktik Taktik) (aksiyon string) {
 	return "Bekle"
 }
 
+func sinirla(deger int) int {
+	if deger > 20 {
+		return 20
+	}
+	if deger < 1 {
+		return 1
+	}
+	return deger
+}
+
 func ProfilOlustur(mevki string, yetenek int) Ozellikler {
 	var player Ozellikler
 	temelPuan := yetenek / 10
@@ -1636,6 +1646,39 @@ func ProfilOlustur(mevki string, yetenek int) Ozellikler {
 		player.TaktigeBaglilik = rand.Intn(8) + 1
 		player.TopsuzAlan = rand.Intn(8) + 1
 	}
+	player.Bitiricilik = sinirla(player.Bitiricilik)
+	player.UzaktanSut = sinirla(player.UzaktanSut)
+	player.OnSezi = sinirla(player.OnSezi)
+	player.Dribling = sinirla(player.Dribling)
+	player.DuranToplar = sinirla(player.DuranToplar)
+	player.Pas = sinirla(player.Pas)
+	player.OrtaYapma = sinirla(player.OrtaYapma)
+	player.Teknik = sinirla(player.Teknik)
+	player.IlkKontrol = sinirla(player.IlkKontrol)
+	player.Vizyon = sinirla(player.Vizyon)
+	player.Markaj = sinirla(player.Markaj)
+	player.TopKapma = sinirla(player.TopKapma)
+	player.KafaVurusu = sinirla(player.KafaVurusu)
+	player.DefansifPozisyonAlma = sinirla(player.DefansifPozisyonAlma)
+	player.KararAlma = sinirla(player.KararAlma)
+	player.TopsuzAlan = sinirla(player.TopsuzAlan)
+	player.Caliskanlik = sinirla(player.Caliskanlik)
+	player.Kararlilik = sinirla(player.Kararlilik)
+	player.Cesaret = sinirla(player.Cesaret)
+	player.Liderlik = sinirla(player.Liderlik)
+	player.Sogukkanlilik = sinirla(player.Sogukkanlilik)
+	player.Konsantrasyon = sinirla(player.Konsantrasyon)
+	player.TaktigeBaglilik = sinirla(player.TaktigeBaglilik)
+	player.Ceviklik = sinirla(player.Ceviklik)
+	player.Dayaniklilik = sinirla(player.Dayaniklilik)
+	player.Denge = sinirla(player.Denge)
+	player.Guc = sinirla(player.Guc)
+	player.Hiz = sinirla(player.Hiz)
+	player.Hizlanma = sinirla(player.Hizlanma)
+	player.Ziplama = sinirla(player.Ziplama)
+	player.Refleks = sinirla(player.Refleks)
+	player.Degaj = sinirla(player.Degaj)
+	player.KarsiKarsiya = sinirla(player.KarsiKarsiya)
 
 	return player
 }
