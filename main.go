@@ -576,7 +576,7 @@ func main() {
 				rakipOyuncu = ilkTakim.Kadro[rakipOyuncuIndex]
 			}
 			basariIhtimali := topaSahipOyuncu.Profil.Pas + topaSahipOyuncu.Profil.Vizyon + topaSahipOyuncu.Profil.Teknik
-			basarisizlikIhtimali := rakipOyuncu.Profil.DefansifPozisyonAlma + rakipOyuncu.Profil.TopKapma + rakipOyuncu.Profil.Markaj + 2
+			basarisizlikIhtimali := rakipOyuncu.Profil.DefansifPozisyonAlma + rakipOyuncu.Profil.TopKapma + rakipOyuncu.Profil.Markaj + 15
 			toplamIhtimal := basariIhtimali + basarisizlikIhtimali
 			zar := rand.Intn(toplamIhtimal)
 			if zar < basariIhtimali {
@@ -639,7 +639,7 @@ func main() {
 				rakipOyuncu = ilkTakim.Kadro[rakipOyuncuIndex]
 			}
 			basariIhtimali := topaSahipOyuncu.Profil.Dribling + topaSahipOyuncu.Profil.Ceviklik + topaSahipOyuncu.Profil.Teknik + topaSahipOyuncu.Profil.IlkKontrol
-			basarisizlikIhtimali := rakipOyuncu.Profil.DefansifPozisyonAlma + rakipOyuncu.Profil.TopKapma + rakipOyuncu.Profil.Markaj + 8
+			basarisizlikIhtimali := rakipOyuncu.Profil.DefansifPozisyonAlma + rakipOyuncu.Profil.TopKapma + rakipOyuncu.Profil.Markaj + 10
 			toplamIhtimal := basariIhtimali + basarisizlikIhtimali
 			zar := rand.Intn(toplamIhtimal)
 			if zar < basariIhtimali {
@@ -699,7 +699,7 @@ func main() {
 				rakipKaleci = ilkTakim.Kadro[0]
 			}
 			basariIhtimali := topaSahipOyuncu.Profil.UzaktanSut + topaSahipOyuncu.Profil.Bitiricilik + topaSahipOyuncu.Profil.Teknik
-			basarisizlikIhtimali := rakipOyuncu.Profil.DefansifPozisyonAlma + rakipOyuncu.Profil.TopKapma + rakipOyuncu.Profil.Markaj + 5 /* Kaleci İhtimalleri */ + rakipKaleci.Profil.Refleks + rakipKaleci.Profil.Konsantrasyon + 3
+			basarisizlikIhtimali := rakipOyuncu.Profil.DefansifPozisyonAlma + rakipOyuncu.Profil.TopKapma + rakipOyuncu.Profil.Markaj + 5 /* Kaleci İhtimalleri */ + rakipKaleci.Profil.Refleks + rakipKaleci.Profil.Konsantrasyon + 150
 			toplamIhtimal := basariIhtimali + basarisizlikIhtimali
 			zar := rand.Intn(toplamIhtimal)
 			if zar < basariIhtimali {
@@ -771,7 +771,7 @@ func main() {
 				rakipKaleci = ilkTakim.Kadro[0]
 			}
 			basariIhtimali := topaSahipOyuncu.Profil.OnSezi + topaSahipOyuncu.Profil.Bitiricilik + topaSahipOyuncu.Profil.Teknik + topaSahipOyuncu.Profil.KafaVurusu
-			basarisizlikIhtimali := rakipOyuncu.Profil.DefansifPozisyonAlma + rakipOyuncu.Profil.TopKapma + rakipOyuncu.Profil.Markaj + 5 /* Kaleci İhtimalleri */ + rakipKaleci.Profil.Refleks + rakipKaleci.Profil.Konsantrasyon + 3
+			basarisizlikIhtimali := rakipOyuncu.Profil.DefansifPozisyonAlma + rakipOyuncu.Profil.TopKapma + rakipOyuncu.Profil.Markaj + 5 /* Kaleci İhtimalleri */ + rakipKaleci.Profil.Refleks + rakipKaleci.Profil.Konsantrasyon + 100
 			toplamIhtimal := basariIhtimali + basarisizlikIhtimali
 			zar := rand.Intn(toplamIhtimal)
 			if zar < basariIhtimali {
