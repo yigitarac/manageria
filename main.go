@@ -733,7 +733,7 @@ func main() {
 			basarisizlikIhtimali := rakipOyuncu.Profil.DefansifPozisyonAlma + rakipOyuncu.Profil.TopKapma + rakipOyuncu.Profil.Markaj + 5 /* Kaleci İhtimalleri */ + rakipKaleci.Profil.Refleks + rakipKaleci.Profil.Konsantrasyon + 150
 			toplamIhtimal := basariIhtimali + basarisizlikIhtimali
 			zar := rand.Intn(toplamIhtimal)
-			if zar < basariIhtimali {
+			if zar < basariIhtimali { // asdasdasd
 				if takimAdi == "ilkTakim" {
 					takimAdi = "ikinciTakim"
 					seciliTaktik = ikinciTakim.TakimTaktik
@@ -742,7 +742,7 @@ func main() {
 						anlikBolge = 3
 					}
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s Uzaklardan bir şut.. TOP AĞLARDA GOOOOOOOOOOOL %s dondu kaldı", i, topaSahipOyuncu.Isim, rakipKaleci.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s Çok uzaktan kaleye bir füze yolluyor.. TOP AĞLARDA GOOOOOOOOOOOL %s'nin yapabilecek hiçbir şeyi yok", i, topaSahipOyuncu.Isim, rakipKaleci.Isim),
 					}
 					ilkTakim.GolSayisi++
 					topaSahipOyuncu = ikinciTakim.Kadro[6]
@@ -757,7 +757,7 @@ func main() {
 						anlikBolge = 3
 					}
 					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s Uzaklardan bir şut.. TOP AĞLARDA GOOOOOOOOOOOL %s dondu kaldı", i, topaSahipOyuncu.Isim, rakipKaleci.Isim),
+						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s Çok uzaktan kaleye bir füze yolluyor.. TOP AĞLARDA GOOOOOOOOOOOL %s'nin yapabilecek hiçbir şeyi yok", i, topaSahipOyuncu.Isim, rakipKaleci.Isim),
 					}
 					ikinciTakim.GolSayisi++
 					topaSahipOyuncu = ilkTakim.Kadro[6]
@@ -767,27 +767,212 @@ func main() {
 				}
 			} else {
 				if takimAdi == "ilkTakim" {
-					takimAdi = "ikinciTakim"
-					seciliTaktik = ikinciTakim.TakimTaktik
-					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s Uzaklardan bir şut.. Fakat %s topu rahatça alıyor", i, topaSahipOyuncu.Isim, rakipKaleci.Isim),
-					}
 					bolgeCevirici := 4 - anlikBolge
 					anlikBolge = int(bolgeCevirici)
+					var metin string
+					autIhtimali := 50
+					kornerIhtimali := 25
+					kalecideKalmaIhtimali := 12
+					kalecidenDonmeIhtimali := 8
+					direktenDonmeIhtimali := 5
+					toplamBasarisizIhtimal := autIhtimali + kornerIhtimali + kalecideKalmaIhtimali + kalecidenDonmeIhtimali + direktenDonmeIhtimali
+					basarisizlikZari := rand.Intn(toplamBasarisizIhtimal)
+					if basarisizlikZari < autIhtimali {
+						metin = fmt.Sprintf("%d. DAKİKA: %s Kaleyi uzaklardan yokluyor top az farkla auta gidiyor", i, topaSahipOyuncu.Isim)
+						topaSahipOyuncu = rakipKaleci
+						topaSahipOyuncuIndex = 0
+						takimAdi = "ikinciTakim"
+						seciliTaktik = ikinciTakim.TakimTaktik
+					} else if basarisizlikZari < (autIhtimali + kornerIhtimali) {
+						kaleciKurtarisIhtimali := 45
+						defanstanDonmeIhtimali := 55
+						kimdenDonduToplami := kaleciKurtarisIhtimali + defanstanDonmeIhtimali
+						kimdenDonduZari := rand.Intn(kimdenDonduToplami)
+						if kimdenDonduZari < defanstanDonmeIhtimali {
+							donenOyuncuIndex := rand.Intn(8)
+							var donenOyuncu Futbolcu
+							donenOyuncu = ikinciTakim.Kadro[donenOyuncuIndex]
+							metin = fmt.Sprintf("%d. DAKİKA: %s Kaleyi çok uzaktan yokluyor %s'den seken top kornere gidiyor", i, topaSahipOyuncu.Isim, donenOyuncu.Isim)
+						} else {
+							metin = fmt.Sprintf("%d. DAKİKA: %s Uzaklardan nefis bir şut %s aynı güzellikle bir kurtarışa imza atıyor. Korner", i, topaSahipOyuncu.Isim, rakipKaleci.Isim)
+						}
+						korneriKullanacakIndex := rand.Intn(4) + 6
+						topaSahipOyuncu = ilkTakim.Kadro[korneriKullanacakIndex]
+						topaSahipOyuncuIndex = korneriKullanacakIndex
+						DuranTop(topaSahipOyuncu, "Korner", "ilkTakim")
+
+					} else if basarisizlikZari < (autIhtimali + kornerIhtimali + kalecideKalmaIhtimali) {
+						metin = fmt.Sprintf("%d. DAKİKA: %s Çok uzaktan bir şut.. Fakat %s topu rahatça alıyor", i, topaSahipOyuncu.Isim, rakipKaleci.Isim)
+						topaSahipOyuncu = rakipKaleci
+						topaSahipOyuncuIndex = 0
+						takimAdi = "ikinciTakim"
+						seciliTaktik = ikinciTakim.TakimTaktik
+					} else if basarisizlikZari < (autIhtimali + kornerIhtimali + kalecideKalmaIhtimali + kalecidenDonmeIhtimali) {
+						metin = fmt.Sprintf("%d. DAKİKA: %s Çok uzaktan bir şut %s'den seken top boşta kaldı!", i, topaSahipOyuncu.Isim, rakipKaleci.Isim)
+						hucumcuIndex := rand.Intn(5) + 6
+						defansIndex := rand.Intn(7)
+						var hucumOyuncusu Futbolcu
+						var defansOyuncusu Futbolcu
+						hucumOyuncusu = ilkTakim.Kadro[hucumcuIndex]
+						defansOyuncusu = ikinciTakim.Kadro[defansIndex]
+						hucumRibaundIhtimali := hucumOyuncusu.Profil.OnSezi + hucumOyuncusu.Profil.TopsuzAlan
+						defansRibaundIhtimali := defansOyuncusu.Profil.DefansifPozisyonAlma + defansOyuncusu.Profil.OnSezi + 10
+						toplamRibaundIhtimali := hucumRibaundIhtimali + defansRibaundIhtimali
+						ribaundZari := rand.Intn(toplamRibaundIhtimali)
+						if ribaundZari < hucumRibaundIhtimali {
+							yasananAksiyon := Olay{
+								Aksiyon: fmt.Sprintf("Boşta kalan topu %s alıyor! Atak devam edecek", hucumOyuncusu.Isim),
+							}
+							macRaporu = append(macRaporu, yasananAksiyon)
+							topaSahipOyuncu = hucumOyuncusu
+							topaSahipOyuncuIndex = hucumcuIndex
+						} else {
+							yasananAksiyon := Olay{
+								Aksiyon: fmt.Sprintf("Boşta kalan topu %s alıyor! Önemli bir atağı sonlandırdı", defansOyuncusu.Isim),
+							}
+							macRaporu = append(macRaporu, yasananAksiyon)
+							topaSahipOyuncu = defansOyuncusu
+							topaSahipOyuncuIndex = defansIndex
+							takimAdi = "ikinciTakim"
+							seciliTaktik = ikinciTakim.TakimTaktik
+						}
+					} else {
+						metin = fmt.Sprintf("%d. DAKİKA: %s Uzaklardan bir şut.. TOP DİREKTE PATLIYOR", i, topaSahipOyuncu.Isim)
+						hucumcuIndex := rand.Intn(5) + 6
+						defansIndex := rand.Intn(7)
+						var hucumOyuncusu Futbolcu
+						var defansOyuncusu Futbolcu
+						hucumOyuncusu = ilkTakim.Kadro[hucumcuIndex]
+						defansOyuncusu = ikinciTakim.Kadro[defansIndex]
+						hucumRibaundIhtimali := hucumOyuncusu.Profil.OnSezi + hucumOyuncusu.Profil.TopsuzAlan
+						defansRibaundIhtimali := defansOyuncusu.Profil.DefansifPozisyonAlma + defansOyuncusu.Profil.OnSezi + 10
+						toplamRibaundIhtimali := hucumRibaundIhtimali + defansRibaundIhtimali
+						ribaundZari := rand.Intn(toplamRibaundIhtimali)
+						if ribaundZari < hucumRibaundIhtimali {
+							yasananAksiyon := Olay{
+								Aksiyon: fmt.Sprintf("Boşta kalan topu %s alıyor! Atak devam edecek", hucumOyuncusu.Isim),
+							}
+							macRaporu = append(macRaporu, yasananAksiyon)
+							topaSahipOyuncu = hucumOyuncusu
+							topaSahipOyuncuIndex = hucumcuIndex
+						} else {
+							yasananAksiyon := Olay{
+								Aksiyon: fmt.Sprintf("Boşta kalan topu %s alıyor! Önemli bir atağı sonlandırdı", defansOyuncusu.Isim),
+							}
+							macRaporu = append(macRaporu, yasananAksiyon)
+							topaSahipOyuncu = defansOyuncusu
+							topaSahipOyuncuIndex = defansIndex
+							takimAdi = "ikinciTakim"
+							seciliTaktik = ikinciTakim.TakimTaktik
+						}
+					}
+					yasananAksiyon := Olay{
+						Aksiyon: metin,
+					}
 					macRaporu = append(macRaporu, yasananAksiyon)
-					topaSahipOyuncu = rakipKaleci
-					topaSahipOyuncuIndex = 0
 				} else {
-					takimAdi = "ilkTakim"
-					seciliTaktik = ilkTakim.TakimTaktik
-					yasananAksiyon := Olay{
-						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s Uzaklardan bir şut.. Fakat %s topu rahatça alıyor", i, topaSahipOyuncu.Isim, rakipKaleci.Isim),
-					}
 					bolgeCevirici := 4 - anlikBolge
 					anlikBolge = int(bolgeCevirici)
+					var metin string
+					autIhtimali := 50
+					kornerIhtimali := 25
+					kalecideKalmaIhtimali := 12
+					kalecidenDonmeIhtimali := 8
+					direktenDonmeIhtimali := 5
+					toplamBasarisizIhtimal := autIhtimali + kornerIhtimali + kalecideKalmaIhtimali + kalecidenDonmeIhtimali + direktenDonmeIhtimali
+					basarisizlikZari := rand.Intn(toplamBasarisizIhtimal)
+					if basarisizlikZari < autIhtimali {
+						metin = fmt.Sprintf("%d. DAKİKA: %s Çok uzaktan bir şut top az farkla auta gidiyor", i, topaSahipOyuncu.Isim)
+						topaSahipOyuncu = rakipKaleci
+						topaSahipOyuncuIndex = 0
+						takimAdi = "ilkTakim"
+						seciliTaktik = ilkTakim.TakimTaktik
+					} else if basarisizlikZari < (autIhtimali + kornerIhtimali) {
+						kaleciKurtarisIhtimali := 45
+						defanstanDonmeIhtimali := 55
+						kimdenDonduToplami := kaleciKurtarisIhtimali + defanstanDonmeIhtimali
+						kimdenDonduZari := rand.Intn(kimdenDonduToplami)
+						if kimdenDonduZari < defanstanDonmeIhtimali {
+							donenOyuncuIndex := rand.Intn(8)
+							var donenOyuncu Futbolcu
+							donenOyuncu = ilkTakim.Kadro[donenOyuncuIndex]
+							metin = fmt.Sprintf("%d. DAKİKA: %s Uzaklardan kaleyi yokluyor %s'den seken top kornere gidiyor", i, topaSahipOyuncu.Isim, donenOyuncu.Isim)
+						} else {
+							metin = fmt.Sprintf("%d. DAKİKA: %s Uzaklardan müthiş vuruyor %s aynı güzellikle bir kurtarışa imza atıyor. Korner", i, topaSahipOyuncu.Isim, rakipKaleci.Isim)
+						}
+						korneriKullanacakIndex := rand.Intn(4) + 6
+						topaSahipOyuncu = ikinciTakim.Kadro[korneriKullanacakIndex]
+						topaSahipOyuncuIndex = korneriKullanacakIndex
+						DuranTop(topaSahipOyuncu, "Korner", "ikinciTakim")
+					} else if basarisizlikZari < (autIhtimali + kornerIhtimali + kalecideKalmaIhtimali) {
+						metin = fmt.Sprintf("%d. DAKİKA: %s Çok uzaktan bir şut.. Fakat %s topu rahatça alıyor", i, topaSahipOyuncu.Isim, rakipKaleci.Isim)
+						topaSahipOyuncu = rakipKaleci
+						topaSahipOyuncuIndex = 0
+						takimAdi = "ilkTakim"
+						seciliTaktik = ilkTakim.TakimTaktik
+					} else if basarisizlikZari < (autIhtimali + kornerIhtimali + kalecideKalmaIhtimali + kalecidenDonmeIhtimali) {
+						metin = fmt.Sprintf("%d. DAKİKA: %s Çok uzaktan bir şut %s'den seken top boşta kaldı!", i, topaSahipOyuncu.Isim, rakipKaleci.Isim)
+						hucumcuIndex := rand.Intn(5) + 6
+						defansIndex := rand.Intn(7)
+						var hucumOyuncusu Futbolcu
+						var defansOyuncusu Futbolcu
+						hucumOyuncusu = ikinciTakim.Kadro[hucumcuIndex]
+						defansOyuncusu = ilkTakim.Kadro[defansIndex]
+						hucumRibaundIhtimali := hucumOyuncusu.Profil.OnSezi + hucumOyuncusu.Profil.TopsuzAlan
+						defansRibaundIhtimali := defansOyuncusu.Profil.DefansifPozisyonAlma + defansOyuncusu.Profil.OnSezi + 10
+						toplamRibaundIhtimali := hucumRibaundIhtimali + defansRibaundIhtimali
+						ribaundZari := rand.Intn(toplamRibaundIhtimali)
+						if ribaundZari < hucumRibaundIhtimali {
+							yasananAksiyon := Olay{
+								Aksiyon: fmt.Sprintf("Boşta kalan topu %s alıyor! Atak devam edecek", hucumOyuncusu.Isim),
+							}
+							macRaporu = append(macRaporu, yasananAksiyon)
+							topaSahipOyuncu = hucumOyuncusu
+							topaSahipOyuncuIndex = hucumcuIndex
+						} else {
+							yasananAksiyon := Olay{
+								Aksiyon: fmt.Sprintf("Boşta kalan topu %s alıyor! Önemli bir atağı sonlandırdı", defansOyuncusu.Isim),
+							}
+							macRaporu = append(macRaporu, yasananAksiyon)
+							topaSahipOyuncu = defansOyuncusu
+							topaSahipOyuncuIndex = defansIndex
+							takimAdi = "ilkTakim"
+							seciliTaktik = ilkTakim.TakimTaktik
+						}
+					} else {
+						metin = fmt.Sprintf("%d. DAKİKA: %s Çok uzaktan bir şut.. TOP DİREKTE PATLIYOR", i, topaSahipOyuncu.Isim)
+						hucumcuIndex := rand.Intn(5) + 6
+						defansIndex := rand.Intn(7)
+						var hucumOyuncusu Futbolcu
+						var defansOyuncusu Futbolcu
+						hucumOyuncusu = ikinciTakim.Kadro[hucumcuIndex]
+						defansOyuncusu = ilkTakim.Kadro[defansIndex]
+						hucumRibaundIhtimali := hucumOyuncusu.Profil.OnSezi + hucumOyuncusu.Profil.TopsuzAlan
+						defansRibaundIhtimali := defansOyuncusu.Profil.DefansifPozisyonAlma + defansOyuncusu.Profil.OnSezi + 10
+						toplamRibaundIhtimali := hucumRibaundIhtimali + defansRibaundIhtimali
+						ribaundZari := rand.Intn(toplamRibaundIhtimali)
+						if ribaundZari < hucumRibaundIhtimali {
+							yasananAksiyon := Olay{
+								Aksiyon: fmt.Sprintf("Boşta kalan topu %s alıyor! Atak devam edecek", hucumOyuncusu.Isim),
+							}
+							macRaporu = append(macRaporu, yasananAksiyon)
+							topaSahipOyuncu = hucumOyuncusu
+							topaSahipOyuncuIndex = hucumcuIndex
+						} else {
+							yasananAksiyon := Olay{
+								Aksiyon: fmt.Sprintf("Boşta kalan topu %s alıyor! Önemli bir atağı sonlandırdı", defansOyuncusu.Isim),
+							}
+							macRaporu = append(macRaporu, yasananAksiyon)
+							topaSahipOyuncu = defansOyuncusu
+							topaSahipOyuncuIndex = defansIndex
+							takimAdi = "ilkTakim"
+							seciliTaktik = ilkTakim.TakimTaktik
+						}
+					}
+					yasananAksiyon := Olay{
+						Aksiyon: metin,
+					}
 					macRaporu = append(macRaporu, yasananAksiyon)
-					topaSahipOyuncu = rakipKaleci
-					topaSahipOyuncuIndex = 0
 				}
 			}
 		} else if aksiyon == "Şut" {
@@ -805,7 +990,7 @@ func main() {
 			basarisizlikIhtimali := rakipOyuncu.Profil.DefansifPozisyonAlma + rakipOyuncu.Profil.TopKapma + rakipOyuncu.Profil.Markaj + 5 /* Kaleci İhtimalleri */ + rakipKaleci.Profil.Refleks + rakipKaleci.Profil.Konsantrasyon + 100
 			toplamIhtimal := basariIhtimali + basarisizlikIhtimali
 			zar := rand.Intn(toplamIhtimal)
-			if zar < basariIhtimali {
+			if zar < basariIhtimali { // asdasdasd
 				if takimAdi == "ilkTakim" {
 					takimAdi = "ikinciTakim"
 					seciliTaktik = ikinciTakim.TakimTaktik
@@ -853,6 +1038,8 @@ func main() {
 						metin = fmt.Sprintf("%d. DAKİKA: %s'den bir şut top az farkla auta gidiyor", i, topaSahipOyuncu.Isim)
 						topaSahipOyuncu = rakipKaleci
 						topaSahipOyuncuIndex = 0
+						takimAdi = "ikinciTakim"
+						seciliTaktik = ikinciTakim.TakimTaktik
 					} else if basarisizlikZari < (autIhtimali + kornerIhtimali) {
 						kaleciKurtarisIhtimali := 45
 						defanstanDonmeIhtimali := 55
@@ -867,19 +1054,75 @@ func main() {
 							metin = fmt.Sprintf("%d. DAKİKA: %s'den nefis bir şut %s aynı güzellikle bir kurtarışa imza atıyor. Korner", i, topaSahipOyuncu.Isim, rakipKaleci.Isim)
 						}
 						korneriKullanacakIndex := rand.Intn(4) + 6
-						DuranTop(ilkTakim.Kadro[korneriKullanacakIndex], "Korner", "ilkTakim")
+						topaSahipOyuncu = ilkTakim.Kadro[korneriKullanacakIndex]
+						topaSahipOyuncuIndex = korneriKullanacakIndex
+						DuranTop(topaSahipOyuncu, "Korner", "ilkTakim")
 
 					} else if basarisizlikZari < (autIhtimali + kornerIhtimali + kalecideKalmaIhtimali) {
 						metin = fmt.Sprintf("%d. DAKİKA: %s Bir şut.. Fakat %s topu rahatça alıyor", i, topaSahipOyuncu.Isim, rakipKaleci.Isim)
 						topaSahipOyuncu = rakipKaleci
 						topaSahipOyuncuIndex = 0
+						takimAdi = "ikinciTakim"
+						seciliTaktik = ikinciTakim.TakimTaktik
 					} else if basarisizlikZari < (autIhtimali + kornerIhtimali + kalecideKalmaIhtimali + kalecidenDonmeIhtimali) {
 						metin = fmt.Sprintf("%d. DAKİKA: %s'den isabetli bir şut %s'den seken top boşta kaldı!", i, topaSahipOyuncu.Isim, rakipKaleci.Isim)
+						hucumcuIndex := rand.Intn(5) + 6
+						defansIndex := rand.Intn(7)
+						var hucumOyuncusu Futbolcu
+						var defansOyuncusu Futbolcu
+						hucumOyuncusu = ilkTakim.Kadro[hucumcuIndex]
+						defansOyuncusu = ikinciTakim.Kadro[defansIndex]
+						hucumRibaundIhtimali := hucumOyuncusu.Profil.OnSezi + hucumOyuncusu.Profil.TopsuzAlan
+						defansRibaundIhtimali := defansOyuncusu.Profil.DefansifPozisyonAlma + defansOyuncusu.Profil.OnSezi + 10
+						toplamRibaundIhtimali := hucumRibaundIhtimali + defansRibaundIhtimali
+						ribaundZari := rand.Intn(toplamRibaundIhtimali)
+						if ribaundZari < hucumRibaundIhtimali {
+							yasananAksiyon := Olay{
+								Aksiyon: fmt.Sprintf("Boşta kalan topu %s alıyor! Atak devam edecek", hucumOyuncusu.Isim),
+							}
+							macRaporu = append(macRaporu, yasananAksiyon)
+							topaSahipOyuncu = hucumOyuncusu
+							topaSahipOyuncuIndex = hucumcuIndex
+						} else {
+							yasananAksiyon := Olay{
+								Aksiyon: fmt.Sprintf("Boşta kalan topu %s alıyor! Önemli bir atağı sonlandırdı", defansOyuncusu.Isim),
+							}
+							macRaporu = append(macRaporu, yasananAksiyon)
+							topaSahipOyuncu = defansOyuncusu
+							topaSahipOyuncuIndex = defansIndex
+							takimAdi = "ikinciTakim"
+							seciliTaktik = ikinciTakim.TakimTaktik
+						}
 					} else {
 						metin = fmt.Sprintf("%d. DAKİKA: %s Bir şut.. TOP DİREKTE PATLIYOR", i, topaSahipOyuncu.Isim)
+						hucumcuIndex := rand.Intn(5) + 6
+						defansIndex := rand.Intn(7)
+						var hucumOyuncusu Futbolcu
+						var defansOyuncusu Futbolcu
+						hucumOyuncusu = ilkTakim.Kadro[hucumcuIndex]
+						defansOyuncusu = ikinciTakim.Kadro[defansIndex]
+						hucumRibaundIhtimali := hucumOyuncusu.Profil.OnSezi + hucumOyuncusu.Profil.TopsuzAlan
+						defansRibaundIhtimali := defansOyuncusu.Profil.DefansifPozisyonAlma + defansOyuncusu.Profil.OnSezi + 10
+						toplamRibaundIhtimali := hucumRibaundIhtimali + defansRibaundIhtimali
+						ribaundZari := rand.Intn(toplamRibaundIhtimali)
+						if ribaundZari < hucumRibaundIhtimali {
+							yasananAksiyon := Olay{
+								Aksiyon: fmt.Sprintf("Boşta kalan topu %s alıyor! Atak devam edecek", hucumOyuncusu.Isim),
+							}
+							macRaporu = append(macRaporu, yasananAksiyon)
+							topaSahipOyuncu = hucumOyuncusu
+							topaSahipOyuncuIndex = hucumcuIndex
+						} else {
+							yasananAksiyon := Olay{
+								Aksiyon: fmt.Sprintf("Boşta kalan topu %s alıyor! Önemli bir atağı sonlandırdı", defansOyuncusu.Isim),
+							}
+							macRaporu = append(macRaporu, yasananAksiyon)
+							topaSahipOyuncu = defansOyuncusu
+							topaSahipOyuncuIndex = defansIndex
+							takimAdi = "ikinciTakim"
+							seciliTaktik = ikinciTakim.TakimTaktik
+						}
 					}
-					takimAdi = "ikinciTakim"
-					seciliTaktik = ikinciTakim.TakimTaktik
 					yasananAksiyon := Olay{
 						Aksiyon: metin,
 					}
@@ -899,6 +1142,8 @@ func main() {
 						metin = fmt.Sprintf("%d. DAKİKA: %s'den bir şut top az farkla auta gidiyor", i, topaSahipOyuncu.Isim)
 						topaSahipOyuncu = rakipKaleci
 						topaSahipOyuncuIndex = 0
+						takimAdi = "ilkTakim"
+						seciliTaktik = ilkTakim.TakimTaktik
 					} else if basarisizlikZari < (autIhtimali + kornerIhtimali) {
 						kaleciKurtarisIhtimali := 45
 						defanstanDonmeIhtimali := 55
@@ -913,18 +1158,74 @@ func main() {
 							metin = fmt.Sprintf("%d. DAKİKA: %s'den nefis bir şut %s aynı güzellikle bir kurtarışa imza atıyor. Korner", i, topaSahipOyuncu.Isim, rakipKaleci.Isim)
 						}
 						korneriKullanacakIndex := rand.Intn(4) + 6
-						DuranTop(ilkTakim.Kadro[korneriKullanacakIndex], "Korner", "ikinciTakim")
+						topaSahipOyuncu = ikinciTakim.Kadro[korneriKullanacakIndex]
+						topaSahipOyuncuIndex = korneriKullanacakIndex
+						DuranTop(topaSahipOyuncu, "Korner", "ikinciTakim")
 					} else if basarisizlikZari < (autIhtimali + kornerIhtimali + kalecideKalmaIhtimali) {
 						metin = fmt.Sprintf("%d. DAKİKA: %s Bir şut.. Fakat %s topu rahatça alıyor", i, topaSahipOyuncu.Isim, rakipKaleci.Isim)
 						topaSahipOyuncu = rakipKaleci
 						topaSahipOyuncuIndex = 0
+						takimAdi = "ilkTakim"
+						seciliTaktik = ilkTakim.TakimTaktik
 					} else if basarisizlikZari < (autIhtimali + kornerIhtimali + kalecideKalmaIhtimali + kalecidenDonmeIhtimali) {
 						metin = fmt.Sprintf("%d. DAKİKA: %s'den isabetli bir şut %s'den seken top boşta kaldı!", i, topaSahipOyuncu.Isim, rakipKaleci.Isim)
+						hucumcuIndex := rand.Intn(5) + 6
+						defansIndex := rand.Intn(7)
+						var hucumOyuncusu Futbolcu
+						var defansOyuncusu Futbolcu
+						hucumOyuncusu = ikinciTakim.Kadro[hucumcuIndex]
+						defansOyuncusu = ilkTakim.Kadro[defansIndex]
+						hucumRibaundIhtimali := hucumOyuncusu.Profil.OnSezi + hucumOyuncusu.Profil.TopsuzAlan
+						defansRibaundIhtimali := defansOyuncusu.Profil.DefansifPozisyonAlma + defansOyuncusu.Profil.OnSezi + 10
+						toplamRibaundIhtimali := hucumRibaundIhtimali + defansRibaundIhtimali
+						ribaundZari := rand.Intn(toplamRibaundIhtimali)
+						if ribaundZari < hucumRibaundIhtimali {
+							yasananAksiyon := Olay{
+								Aksiyon: fmt.Sprintf("Boşta kalan topu %s alıyor! Atak devam edecek", hucumOyuncusu.Isim),
+							}
+							macRaporu = append(macRaporu, yasananAksiyon)
+							topaSahipOyuncu = hucumOyuncusu
+							topaSahipOyuncuIndex = hucumcuIndex
+						} else {
+							yasananAksiyon := Olay{
+								Aksiyon: fmt.Sprintf("Boşta kalan topu %s alıyor! Önemli bir atağı sonlandırdı", defansOyuncusu.Isim),
+							}
+							macRaporu = append(macRaporu, yasananAksiyon)
+							topaSahipOyuncu = defansOyuncusu
+							topaSahipOyuncuIndex = defansIndex
+							takimAdi = "ilkTakim"
+							seciliTaktik = ilkTakim.TakimTaktik
+						}
 					} else {
 						metin = fmt.Sprintf("%d. DAKİKA: %s Bir şut.. TOP DİREKTE PATLIYOR", i, topaSahipOyuncu.Isim)
+						hucumcuIndex := rand.Intn(5) + 6
+						defansIndex := rand.Intn(7)
+						var hucumOyuncusu Futbolcu
+						var defansOyuncusu Futbolcu
+						hucumOyuncusu = ikinciTakim.Kadro[hucumcuIndex]
+						defansOyuncusu = ilkTakim.Kadro[defansIndex]
+						hucumRibaundIhtimali := hucumOyuncusu.Profil.OnSezi + hucumOyuncusu.Profil.TopsuzAlan
+						defansRibaundIhtimali := defansOyuncusu.Profil.DefansifPozisyonAlma + defansOyuncusu.Profil.OnSezi + 10
+						toplamRibaundIhtimali := hucumRibaundIhtimali + defansRibaundIhtimali
+						ribaundZari := rand.Intn(toplamRibaundIhtimali)
+						if ribaundZari < hucumRibaundIhtimali {
+							yasananAksiyon := Olay{
+								Aksiyon: fmt.Sprintf("Boşta kalan topu %s alıyor! Atak devam edecek", hucumOyuncusu.Isim),
+							}
+							macRaporu = append(macRaporu, yasananAksiyon)
+							topaSahipOyuncu = hucumOyuncusu
+							topaSahipOyuncuIndex = hucumcuIndex
+						} else {
+							yasananAksiyon := Olay{
+								Aksiyon: fmt.Sprintf("Boşta kalan topu %s alıyor! Önemli bir atağı sonlandırdı", defansOyuncusu.Isim),
+							}
+							macRaporu = append(macRaporu, yasananAksiyon)
+							topaSahipOyuncu = defansOyuncusu
+							topaSahipOyuncuIndex = defansIndex
+							takimAdi = "ilkTakim"
+							seciliTaktik = ilkTakim.TakimTaktik
+						}
 					}
-					takimAdi = "ilkTakim"
-					seciliTaktik = ilkTakim.TakimTaktik
 					yasananAksiyon := Olay{
 						Aksiyon: metin,
 					}
