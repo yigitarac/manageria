@@ -375,7 +375,22 @@ func main() {
 			if zar < basariIhtimali {
 				if takimAdi == "ilkTakim" {
 					hedefOyuncu := ilkTakim.Kadro[hedefOyuncuIndex]
-					anlikBolge = rand.Intn(anlikBolge) + 1
+					geriPasIhtimali := 35
+					yanPasIhtimali := 45
+					ileriPasIhtimali := 20
+					pasIhtimalleri := geriPasIhtimali + yanPasIhtimali + ileriPasIhtimali
+					pasZar := rand.Intn(pasIhtimalleri)
+					if pasZar < yanPasIhtimali {
+					} else if pasZar < (yanPasIhtimali + geriPasIhtimali) {
+						anlikBolge -= 1
+					} else {
+						anlikBolge += 1
+					}
+					if anlikBolge > 3 {
+						anlikBolge = 3
+					} else if anlikBolge < 1 {
+						anlikBolge = 1
+					}
 					yasananAksiyon := Olay{
 						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s boştaki %s'e kısa oynuyor", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
 					}
@@ -384,7 +399,23 @@ func main() {
 					topaSahipOyuncuIndex = hedefOyuncuIndex
 				} else {
 					hedefOyuncu := ikinciTakim.Kadro[hedefOyuncuIndex]
-					anlikBolge = rand.Intn(anlikBolge) + 1
+
+					geriPasIhtimali := 35
+					yanPasIhtimali := 45
+					ileriPasIhtimali := 20
+					pasIhtimalleri := geriPasIhtimali + yanPasIhtimali + ileriPasIhtimali
+					pasZar := rand.Intn(pasIhtimalleri)
+					if pasZar < yanPasIhtimali {
+					} else if pasZar < (yanPasIhtimali + geriPasIhtimali) {
+						anlikBolge -= 1
+					} else {
+						anlikBolge += 1
+					}
+					if anlikBolge > 3 {
+						anlikBolge = 3
+					} else if anlikBolge < 1 {
+						anlikBolge = 1
+					}
 					yasananAksiyon := Olay{
 						Aksiyon: fmt.Sprintf("%d. DAKİKA: %s boştaki %s'e kısa oynuyor", i, topaSahipOyuncu.Isim, hedefOyuncu.Isim),
 					}
