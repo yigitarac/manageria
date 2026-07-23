@@ -839,6 +839,8 @@ func main() {
 				}
 			} else {
 				if takimAdi == "ilkTakim" {
+					bolgeCevirici := 4 - anlikBolge
+					anlikBolge = int(bolgeCevirici)
 					var metin string
 					autIhtimali := 50
 					kornerIhtimali := 25
@@ -849,10 +851,28 @@ func main() {
 					basarisizlikZari := rand.Intn(toplamBasarisizIhtimal)
 					if basarisizlikZari < autIhtimali {
 						metin = fmt.Sprintf("%d. DAKİKA: %s'den bir şut top az farkla auta gidiyor", i, topaSahipOyuncu.Isim)
+						topaSahipOyuncu = rakipKaleci
+						topaSahipOyuncuIndex = 0
 					} else if basarisizlikZari < (autIhtimali + kornerIhtimali) {
-						metin = fmt.Sprintf("%d. DAKİKA: %s'den nefis bir şut %s aynı güzellikle bir kurtarışa imza atıyor ", i, topaSahipOyuncu.Isim, rakipKaleci.Isim)
+						kaleciKurtarisIhtimali := 45
+						defanstanDonmeIhtimali := 55
+						kimdenDonduToplami := kaleciKurtarisIhtimali + defanstanDonmeIhtimali
+						kimdenDonduZari := rand.Intn(kimdenDonduToplami)
+						if kimdenDonduZari < defanstanDonmeIhtimali {
+							donenOyuncuIndex := rand.Intn(8)
+							var donenOyuncu Futbolcu
+							donenOyuncu = ikinciTakim.Kadro[donenOyuncuIndex]
+							metin = fmt.Sprintf("%d. DAKİKA: %s'den nefis bir şut %s'den seken top kornere gidiyor", i, topaSahipOyuncu.Isim, donenOyuncu.Isim)
+						} else {
+							metin = fmt.Sprintf("%d. DAKİKA: %s'den nefis bir şut %s aynı güzellikle bir kurtarışa imza atıyor. Korner", i, topaSahipOyuncu.Isim, rakipKaleci.Isim)
+						}
+						korneriKullanacakIndex := rand.Intn(4) + 6
+						DuranTop(ilkTakim.Kadro[korneriKullanacakIndex], "Korner", "ilkTakim")
+
 					} else if basarisizlikZari < (autIhtimali + kornerIhtimali + kalecideKalmaIhtimali) {
 						metin = fmt.Sprintf("%d. DAKİKA: %s Bir şut.. Fakat %s topu rahatça alıyor", i, topaSahipOyuncu.Isim, rakipKaleci.Isim)
+						topaSahipOyuncu = rakipKaleci
+						topaSahipOyuncuIndex = 0
 					} else if basarisizlikZari < (autIhtimali + kornerIhtimali + kalecideKalmaIhtimali + kalecidenDonmeIhtimali) {
 						metin = fmt.Sprintf("%d. DAKİKA: %s'den isabetli bir şut %s'den seken top boşta kaldı!", i, topaSahipOyuncu.Isim, rakipKaleci.Isim)
 					} else {
@@ -863,12 +883,10 @@ func main() {
 					yasananAksiyon := Olay{
 						Aksiyon: metin,
 					}
+					macRaporu = append(macRaporu, yasananAksiyon)
+				} else {
 					bolgeCevirici := 4 - anlikBolge
 					anlikBolge = int(bolgeCevirici)
-					macRaporu = append(macRaporu, yasananAksiyon)
-					topaSahipOyuncu = rakipKaleci
-					topaSahipOyuncuIndex = 0
-				} else {
 					var metin string
 					autIhtimali := 50
 					kornerIhtimali := 25
@@ -879,10 +897,27 @@ func main() {
 					basarisizlikZari := rand.Intn(toplamBasarisizIhtimal)
 					if basarisizlikZari < autIhtimali {
 						metin = fmt.Sprintf("%d. DAKİKA: %s'den bir şut top az farkla auta gidiyor", i, topaSahipOyuncu.Isim)
+						topaSahipOyuncu = rakipKaleci
+						topaSahipOyuncuIndex = 0
 					} else if basarisizlikZari < (autIhtimali + kornerIhtimali) {
-						metin = fmt.Sprintf("%d. DAKİKA: %s'den nefis bir şut %s aynı güzellikle bir kurtarışa imza atıyor ", i, topaSahipOyuncu.Isim, rakipKaleci.Isim)
+						kaleciKurtarisIhtimali := 45
+						defanstanDonmeIhtimali := 55
+						kimdenDonduToplami := kaleciKurtarisIhtimali + defanstanDonmeIhtimali
+						kimdenDonduZari := rand.Intn(kimdenDonduToplami)
+						if kimdenDonduZari < defanstanDonmeIhtimali {
+							donenOyuncuIndex := rand.Intn(8)
+							var donenOyuncu Futbolcu
+							donenOyuncu = ilkTakim.Kadro[donenOyuncuIndex]
+							metin = fmt.Sprintf("%d. DAKİKA: %s'den nefis bir şut %s'den seken top kornere gidiyor", i, topaSahipOyuncu.Isim, donenOyuncu.Isim)
+						} else {
+							metin = fmt.Sprintf("%d. DAKİKA: %s'den nefis bir şut %s aynı güzellikle bir kurtarışa imza atıyor. Korner", i, topaSahipOyuncu.Isim, rakipKaleci.Isim)
+						}
+						korneriKullanacakIndex := rand.Intn(4) + 6
+						DuranTop(ilkTakim.Kadro[korneriKullanacakIndex], "Korner", "ikinciTakim")
 					} else if basarisizlikZari < (autIhtimali + kornerIhtimali + kalecideKalmaIhtimali) {
 						metin = fmt.Sprintf("%d. DAKİKA: %s Bir şut.. Fakat %s topu rahatça alıyor", i, topaSahipOyuncu.Isim, rakipKaleci.Isim)
+						topaSahipOyuncu = rakipKaleci
+						topaSahipOyuncuIndex = 0
 					} else if basarisizlikZari < (autIhtimali + kornerIhtimali + kalecideKalmaIhtimali + kalecidenDonmeIhtimali) {
 						metin = fmt.Sprintf("%d. DAKİKA: %s'den isabetli bir şut %s'den seken top boşta kaldı!", i, topaSahipOyuncu.Isim, rakipKaleci.Isim)
 					} else {
@@ -893,11 +928,7 @@ func main() {
 					yasananAksiyon := Olay{
 						Aksiyon: metin,
 					}
-					bolgeCevirici := 4 - anlikBolge
-					anlikBolge = int(bolgeCevirici)
 					macRaporu = append(macRaporu, yasananAksiyon)
-					topaSahipOyuncu = rakipKaleci
-					topaSahipOyuncuIndex = 0
 				}
 			}
 		}
@@ -1473,7 +1504,7 @@ func KararVer(player Futbolcu, bolge int, takimTaktik Taktik) (aksiyon string) {
 	return "Bekle"
 }
 
-func DuranTop() {
+func DuranTop(kullananOyuncu Futbolcu, duranTopTuru string, hangiTakim string) {
 	// boş kal şimdilik
 }
 
