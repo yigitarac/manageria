@@ -9,320 +9,25 @@ import (
 	"strconv"
 )
 
-type Taktik struct {
-	KaleciOyunKurma  string
-	GeridenOyunKurma string
-	OyunKurma        string
-	DriblingIzni     string
-	UzaktanSut       string
-	Orta             string
-}
-
-type Ozellikler struct {
-	Bitiricilik          int
-	UzaktanSut           int
-	OnSezi               int
-	Dribling             int
-	DuranToplar          int
-	Pas                  int
-	OrtaYapma            int
-	Teknik               int
-	IlkKontrol           int
-	Vizyon               int
-	Markaj               int
-	TopKapma             int
-	KafaVurusu           int
-	DefansifPozisyonAlma int
-	KararAlma            int
-	TopsuzAlan           int
-	Caliskanlik          int
-	Kararlilik           int
-	Cesaret              int
-	Liderlik             int
-	Sogukkanlilik        int
-	Konsantrasyon        int
-	TaktigeBaglilik      int
-	Ceviklik             int
-	Dayaniklilik         int
-	Denge                int
-	Guc                  int
-	Hiz                  int
-	Hizlanma             int
-	Ziplama              int
-	Refleks              int
-	Degaj                int
-	KarsiKarsiya         int
-}
-
-type Futbolcu struct {
-	Isim                  string
-	Soyisim               string
-	Mevki                 string
-	Yetenek               int
-	Potansiyel            int
-	Profil                Ozellikler
-	Boy                   int
-	Kilo                  float64
-	MactakiSariKartSayisi int
-	MactaKirmizisiVarMi   bool
-}
-
-type Olay struct {
-	Aksiyon string
-}
-
-type takim struct {
-	Kaleci      int
-	OrtaSaha    int
-	Defans      int
-	Hucum       int
-	OrtalamaGuc int
-	GolSayisi   int
-	TakimTaktik Taktik
-	Kadro       []Futbolcu
-}
-
 func main() {
 
 	/*kacanMesajlar := []string{"TOP DİREKTE PATLADI", "KALE AĞZINDAN DIŞARIYA VURDU", "BUNU NASIL KAÇIRIR?", "TAKIM ARKADAŞLARINDAN ÖZÜR DİLİYOR", "TOP DİREĞİN YANINDAN DIŞARIYA GİDİYOR", "AZ FARKLA AUT", "DAĞLARA TAŞLARA", "REZİL BİR ŞUT"}
 	asistMesajlari := []string{"AKIL DOLU BİR PAS", "MÜTHİŞ SERVİS", "TEKTE OYNUYOR", "TOPUKLA BIRAKIYOR"}
 	golMesajlari := []string{"MÜTHİŞ BİR GOL", "KALECİ TOPU İZLEMEKTEN BAŞKA HİÇBİR ŞEY YAPAMADI", "AĞLARI DELİYOR", "TAM DOKSANA", "ÖRÜMCEK AĞLARINI AVLADI", "FİLELERİ HAVALANDIRIYOR", "ONA SADECE DOKUNMAK KALIYOR"}*/
-
-	var ilkTakim takim
-	var ikinciTakim takim
 	// var hucumSansFaktoru int
 	// var defansSansFaktoru int
 	var macRaporu []Olay
-	var toplamDefansGucu int
-	var toplamOrtaSahaGucu int
-	var toplamHucumGucu int
 	var takimAdi string
 	var topaSahipOyuncu Futbolcu
 	var seciliTaktik Taktik
 	var topaSahipOyuncuIndex int
-	defansOyuncuSayisi := 0
-	ortaSahaOyuncuSayisi := 0
-	hucumOyuncuSayisi := 0
 	path, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Println("Kullanıcının home dizini bulunamadı.")
 	}
-
-	Ali := Futbolcu{
-		Isim:    "Ali",
-		Soyisim: "Yilmaz",
-		Mevki:   "Kaleci",
-		Yetenek: 170,
-		Profil:  ProfilOlustur("Kaleci", 170),
-	}
-	Veli := Futbolcu{
-		Isim:    "Veli",
-		Soyisim: "Bakir",
-		Mevki:   "SolBek",
-		Yetenek: 160,
-		Profil:  ProfilOlustur("SolBek", 160),
-	}
-	Mehmet := Futbolcu{
-		Isim:    "Mehmet",
-		Soyisim: "Gunes",
-		Mevki:   "Stoper",
-		Yetenek: 140,
-		Profil:  ProfilOlustur("Stoper", 140),
-	}
-	Alperen := Futbolcu{
-		Isim:    "Alperen",
-		Soyisim: "Celik",
-		Mevki:   "Stoper",
-		Yetenek: 170,
-		Profil:  ProfilOlustur("Stoper", 170),
-	}
-	Poyraz := Futbolcu{
-		Isim:    "Poyraz",
-		Soyisim: "Demir",
-		Mevki:   "SagBek",
-		Yetenek: 160,
-		Profil:  ProfilOlustur("SagBek", 160),
-	}
-	Metehan := Futbolcu{
-		Isim:    "Metehan",
-		Soyisim: "Kaya",
-		Mevki:   "OrtaSaha",
-		Yetenek: 140,
-		Profil:  ProfilOlustur("OrtaSaha", 140),
-	}
-	Cagan := Futbolcu{
-		Isim:    "Cagan",
-		Soyisim: "Yilmaz",
-		Mevki:   "OrtaSaha",
-		Yetenek: 170,
-		Profil:  ProfilOlustur("OrtaSaha", 140),
-	}
-	Goktug := Futbolcu{
-		Isim:    "Goktug",
-		Soyisim: "Sahin",
-		Mevki:   "OrtaSaha",
-		Yetenek: 160,
-		Profil:  ProfilOlustur("OrtaSaha", 160),
-	}
-	Aras := Futbolcu{
-		Isim:    "Aras",
-		Soyisim: "Aydin",
-		Mevki:   "SolKanat",
-		Yetenek: 140,
-		Profil:  ProfilOlustur("SolKanat", 140),
-	}
-	Cinar := Futbolcu{
-		Isim:    "Cinar",
-		Soyisim: "Ozturk",
-		Mevki:   "Forvet",
-		Yetenek: 170,
-		Profil:  ProfilOlustur("Forvet", 170),
-	}
-	Bora := Futbolcu{
-		Isim:    "Bora",
-		Soyisim: "Yildirim",
-		Mevki:   "SagKanat",
-		Yetenek: 160,
-		Profil:  ProfilOlustur("SagKanat", 170),
-	}
-
-	ilkTakim.Kadro = append(ilkTakim.Kadro, Ali, Veli, Mehmet, Alperen, Poyraz, Metehan, Cagan, Goktug, Aras, Cinar, Bora)
-
-	Atlas := Futbolcu{
-		Isim:    "Atlas",
-		Soyisim: "Koc",
-		Mevki:   "Kaleci",
-		Yetenek: 170,
-		Profil:  ProfilOlustur("Kaleci", 170),
-	}
-	Kuzey := Futbolcu{
-		Isim:    "Kuzey",
-		Soyisim: "Cetin",
-		Mevki:   "SolBek",
-		Yetenek: 160,
-		Profil:  ProfilOlustur("SolBek", 160),
-	}
-	Sarp := Futbolcu{
-		Isim:    "Sarp",
-		Soyisim: "Dogan",
-		Mevki:   "Stoper",
-		Yetenek: 140,
-		Profil:  ProfilOlustur("Stoper", 140),
-	}
-	Doruk := Futbolcu{
-		Isim:    "Doruk",
-		Soyisim: "Sonmez",
-		Mevki:   "Stoper",
-		Yetenek: 170,
-		Profil:  ProfilOlustur("Stoper", 170),
-	}
-	Eymen := Futbolcu{
-		Isim:    "Eymen",
-		Soyisim: "Keskin",
-		Mevki:   "SagBek",
-		Yetenek: 160,
-		Profil:  ProfilOlustur("SagBek", 160),
-	}
-	Bartu := Futbolcu{
-		Isim:    "Bartu",
-		Soyisim: "Tekin",
-		Mevki:   "OrtaSaha",
-		Yetenek: 140,
-		Profil:  ProfilOlustur("OrtaSaha", 140),
-	}
-	Yigit := Futbolcu{
-		Isim:    "Yigit",
-		Soyisim: "Arslan",
-		Mevki:   "OrtaSaha",
-		Yetenek: 170,
-		Profil:  ProfilOlustur("OrtaSaha", 170),
-	}
-	Yagiz := Futbolcu{
-		Isim:    "Yagiz",
-		Soyisim: "Korkmaz",
-		Mevki:   "OrtaSaha",
-		Yetenek: 160,
-		Profil:  ProfilOlustur("OrtaSaha", 160),
-	}
-	Deniz := Futbolcu{
-		Isim:    "Deniz",
-		Soyisim: "Aksoy",
-		Mevki:   "SolKanat",
-		Yetenek: 140,
-		Profil:  ProfilOlustur("SolKanat", 140),
-	}
-	Efe := Futbolcu{
-		Isim:    "Efe",
-		Soyisim: "Ozkan",
-		Mevki:   "Forvet",
-		Yetenek: 170,
-		Profil:  ProfilOlustur("Forvet", 170),
-	}
-	Utku := Futbolcu{
-		Isim:    "Utku",
-		Soyisim: "Erdem",
-		Mevki:   "SagKanat",
-		Yetenek: 160,
-		Profil:  ProfilOlustur("SagKanat", 160),
-	}
-
-	ikinciTakim.Kadro = append(ikinciTakim.Kadro, Atlas, Kuzey, Sarp, Doruk, Eymen, Bartu, Yigit, Yagiz, Deniz, Efe, Utku)
-
-	for i := range ilkTakim.Kadro {
-		if ilkTakim.Kadro[i].Mevki == "Kaleci" {
-			ilkTakim.Kaleci = (rand.Intn((ilkTakim.Kadro[i].Yetenek)/5) + 4)
-		}
-		if ilkTakim.Kadro[i].Mevki == "Stoper" || ilkTakim.Kadro[i].Mevki == "SolBek" || ilkTakim.Kadro[i].Mevki == "SagBek" {
-			toplamDefansGucu += ilkTakim.Kadro[i].Yetenek
-			defansOyuncuSayisi++
-		}
-		if ilkTakim.Kadro[i].Mevki == "OrtaSaha" {
-			toplamOrtaSahaGucu += ilkTakim.Kadro[i].Yetenek
-			ortaSahaOyuncuSayisi++
-		}
-		if ilkTakim.Kadro[i].Mevki == "Forvet" || ilkTakim.Kadro[i].Mevki == "SolKanat" || ilkTakim.Kadro[i].Mevki == "SagKanat" {
-			toplamHucumGucu += ilkTakim.Kadro[i].Yetenek
-			hucumOyuncuSayisi++
-		}
-	}
-	ilkTakim.Defans = toplamDefansGucu / defansOyuncuSayisi
-	ilkTakim.OrtaSaha = toplamOrtaSahaGucu / ortaSahaOyuncuSayisi
-	ilkTakim.Hucum = toplamHucumGucu / hucumOyuncuSayisi
-	toplamDefansGucu = 0
-	toplamOrtaSahaGucu = 0
-	toplamHucumGucu = 0
-	defansOyuncuSayisi = 0
-	ortaSahaOyuncuSayisi = 0
-	hucumOyuncuSayisi = 0
-	for i := range ikinciTakim.Kadro {
-		if ikinciTakim.Kadro[i].Mevki == "Kaleci" {
-			ikinciTakim.Kaleci = (rand.Intn((ikinciTakim.Kadro[i].Yetenek)/5) + 4)
-		}
-		if ikinciTakim.Kadro[i].Mevki == "Stoper" || ikinciTakim.Kadro[i].Mevki == "SolBek" || ikinciTakim.Kadro[i].Mevki == "SagBek" {
-			toplamDefansGucu += ikinciTakim.Kadro[i].Yetenek
-			defansOyuncuSayisi++
-		}
-		if ikinciTakim.Kadro[i].Mevki == "OrtaSaha" {
-			toplamOrtaSahaGucu += ikinciTakim.Kadro[i].Yetenek
-			ortaSahaOyuncuSayisi++
-		}
-		if ikinciTakim.Kadro[i].Mevki == "Forvet" || ikinciTakim.Kadro[i].Mevki == "SolKanat" || ikinciTakim.Kadro[i].Mevki == "SagKanat" {
-			toplamHucumGucu += ikinciTakim.Kadro[i].Yetenek
-			hucumOyuncuSayisi++
-		}
-	}
-	ikinciTakim.Defans = toplamDefansGucu / defansOyuncuSayisi
-	ikinciTakim.OrtaSaha = toplamOrtaSahaGucu / ortaSahaOyuncuSayisi
-	ikinciTakim.Hucum = toplamHucumGucu / hucumOyuncuSayisi
-	toplamDefansGucu = 0
-	toplamOrtaSahaGucu = 0
-	toplamHucumGucu = 0
-	defansOyuncuSayisi = 0
-	ortaSahaOyuncuSayisi = 0
-	hucumOyuncuSayisi = 0
-
-	ilkTakim.OrtalamaGuc = (ilkTakim.OrtaSaha + ilkTakim.Defans + ilkTakim.Hucum) / 3
-	ikinciTakim.OrtalamaGuc = (ikinciTakim.Defans + ikinciTakim.Hucum + ikinciTakim.OrtaSaha) / 3
+	ilkTakim, ikinciTakim := OrnekIkiTakimOlustur()
+	ilkTakim = TakimGucuHesapla(ilkTakim)
+	ikinciTakim = TakimGucuHesapla(ikinciTakim)
 	ilkTakim.GolSayisi = 0
 	ikinciTakim.GolSayisi = 0
 
@@ -667,14 +372,14 @@ func main() {
 									Aksiyon: "2. Sarısını görüyor, Takımı artık bir kişi eksik!",
 								}
 								macRaporu = append(macRaporu, yasananAksiyon)
-								ikinciTakim.Kadro = append(ikinciTakim.Kadro[:rakipOyuncuIndex], ikinciTakim.Kadro[:rakipOyuncuIndex+1]...)
+								ilkTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi = true
 							}
 						} else {
 							yasananAksiyon := Olay{
 								Aksiyon: "DİREKT KIRMIZI KART! TAKIMI ARTIK BİR KİŞİ EKSİK MÜCADELE EDECEK!",
 							}
 							macRaporu = append(macRaporu, yasananAksiyon)
-							ikinciTakim.Kadro = append(ikinciTakim.Kadro[:rakipOyuncuIndex], ikinciTakim.Kadro[:rakipOyuncuIndex+1]...)
+							ilkTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi = true
 						}
 					}
 					takimAdi = "ikinciTakim"
@@ -686,7 +391,7 @@ func main() {
 					anlikBolge = int(bolgeCevirici)
 					macRaporu = append(macRaporu, yasananAksiyon)
 					topaSahipOyuncuIndex = rand.Intn(5) + 6
-					topaSahipOyuncu = ilkTakim.Kadro[topaSahipOyuncuIndex]
+					topaSahipOyuncu = ikinciTakim.Kadro[topaSahipOyuncuIndex]
 					duranTopTuru := "Faul"
 					if anlikBolge == 3 {
 						penaltiIhtimali := 5
@@ -732,14 +437,14 @@ func main() {
 									Aksiyon: "2. Sarısını görüyor, Takımı artık bir kişi eksik!",
 								}
 								macRaporu = append(macRaporu, yasananAksiyon)
-								ikinciTakim.Kadro = append(ilkTakim.Kadro[:rakipOyuncuIndex], ilkTakim.Kadro[:rakipOyuncuIndex+1]...)
+								ikinciTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi = true
 							}
 						} else {
 							yasananAksiyon := Olay{
 								Aksiyon: "DİREKT KIRMIZI KART! TAKIMI ARTIK BİR KİŞİ EKSİK MÜCADELE EDECEK!",
 							}
 							macRaporu = append(macRaporu, yasananAksiyon)
-							ilkTakim.Kadro = append(ilkTakim.Kadro[:rakipOyuncuIndex], ilkTakim.Kadro[:rakipOyuncuIndex+1]...)
+							ikinciTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi = true
 						}
 					}
 					takimAdi = "ilkTakim"
@@ -751,7 +456,7 @@ func main() {
 					anlikBolge = int(bolgeCevirici)
 					macRaporu = append(macRaporu, yasananAksiyon)
 					topaSahipOyuncuIndex = rand.Intn(5) + 6
-					topaSahipOyuncu = ikinciTakim.Kadro[topaSahipOyuncuIndex]
+					topaSahipOyuncu = ilkTakim.Kadro[topaSahipOyuncuIndex]
 					duranTopTuru := "Faul"
 					if anlikBolge == 3 {
 						penaltiIhtimali := 5
@@ -832,14 +537,14 @@ func main() {
 									Aksiyon: "2. Sarısını görüyor, Takımı artık bir kişi eksik!",
 								}
 								macRaporu = append(macRaporu, yasananAksiyon)
-								ikinciTakim.Kadro = append(ikinciTakim.Kadro[:rakipOyuncuIndex], ikinciTakim.Kadro[:rakipOyuncuIndex+1]...)
+								ilkTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi = true
 							}
 						} else {
 							yasananAksiyon := Olay{
 								Aksiyon: "DİREKT KIRMIZI KART! TAKIMI ARTIK BİR KİŞİ EKSİK MÜCADELE EDECEK!",
 							}
 							macRaporu = append(macRaporu, yasananAksiyon)
-							ikinciTakim.Kadro = append(ikinciTakim.Kadro[:rakipOyuncuIndex], ikinciTakim.Kadro[:rakipOyuncuIndex+1]...)
+							ilkTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi = true
 						}
 					}
 					takimAdi = "ikinciTakim"
@@ -851,7 +556,7 @@ func main() {
 					anlikBolge = int(bolgeCevirici)
 					macRaporu = append(macRaporu, yasananAksiyon)
 					topaSahipOyuncuIndex = rand.Intn(5) + 6
-					topaSahipOyuncu = ilkTakim.Kadro[topaSahipOyuncuIndex]
+					topaSahipOyuncu = ikinciTakim.Kadro[topaSahipOyuncuIndex]
 					duranTopTuru := "Faul"
 					if anlikBolge == 3 {
 						penaltiIhtimali := 5
@@ -897,14 +602,14 @@ func main() {
 									Aksiyon: "2. Sarısını görüyor, Takımı artık bir kişi eksik!",
 								}
 								macRaporu = append(macRaporu, yasananAksiyon)
-								ikinciTakim.Kadro = append(ilkTakim.Kadro[:rakipOyuncuIndex], ilkTakim.Kadro[:rakipOyuncuIndex+1]...)
+								ikinciTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi = true
 							}
 						} else {
 							yasananAksiyon := Olay{
 								Aksiyon: "DİREKT KIRMIZI KART! TAKIMI ARTIK BİR KİŞİ EKSİK MÜCADELE EDECEK!",
 							}
 							macRaporu = append(macRaporu, yasananAksiyon)
-							ilkTakim.Kadro = append(ilkTakim.Kadro[:rakipOyuncuIndex], ilkTakim.Kadro[:rakipOyuncuIndex+1]...)
+							ikinciTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi = true
 						}
 					}
 					takimAdi = "ilkTakim"
@@ -916,7 +621,7 @@ func main() {
 					anlikBolge = int(bolgeCevirici)
 					macRaporu = append(macRaporu, yasananAksiyon)
 					topaSahipOyuncuIndex = rand.Intn(5) + 6
-					topaSahipOyuncu = ikinciTakim.Kadro[topaSahipOyuncuIndex]
+					topaSahipOyuncu = ilkTakim.Kadro[topaSahipOyuncuIndex]
 					duranTopTuru := "Faul"
 					if anlikBolge == 3 {
 						penaltiIhtimali := 5
