@@ -13,6 +13,17 @@ type MacDurumu struct {
 	MacRaporu            []Olay
 }
 
+func (r MacDurumu) BaslangicOyuncusu() (oyuncu Futbolcu) {
+
+	if r.TopKimde == "EvSahibi" {
+		oyuncu = r.EvSahibiTakim.Kadro[r.TopaSahipOyuncuIndex]
+	} else {
+		oyuncu = r.DeplasmanTakimi.Kadro[r.TopaSahipOyuncuIndex]
+	}
+
+	return oyuncu
+}
+
 func YeniMacOlustur(ilkTakim *takim, ikinciTakim *takim) (baslangic MacDurumu) {
 	baslangic = MacDurumu{
 		Dakika:               0,
