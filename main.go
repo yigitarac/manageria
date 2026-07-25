@@ -16,11 +16,6 @@ func main() {
 	golMesajlari := []string{"MÜTHİŞ BİR GOL", "KALECİ TOPU İZLEMEKTEN BAŞKA HİÇBİR ŞEY YAPAMADI", "AĞLARI DELİYOR", "TAM DOKSANA", "ÖRÜMCEK AĞLARINI AVLADI", "FİLELERİ HAVALANDIRIYOR", "ONA SADECE DOKUNMAK KALIYOR"}*/
 	// var hucumSansFaktoru int
 	// var defansSansFaktoru int
-	var macRaporu []Olay
-	var takimAdi string
-	var topaSahipOyuncu Futbolcu
-	var seciliTaktik Taktik
-	var topaSahipOyuncuIndex int
 	path, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Println("Kullanıcının home dizini bulunamadı.")
@@ -41,20 +36,19 @@ func main() {
 		defansSansFaktoru = 30
 	}*/
 
-	anlikBolge := 2
-	isimIndex := rand.Intn(2)
-	if isimIndex == 0 {
+	mac := YeniMacOlustur(&ilkTakim, &ikinciTakim)
+	fmt.Println(mac.Dakika, mac.AnlikBolge, mac.TopKimde, mac.TopaSahipOyuncuIndex)
+	anlikBolge := mac.AnlikBolge
+	var macRaporu []Olay
+	var takimAdi string
+	var topaSahipOyuncu Futbolcu
+	var seciliTaktik Taktik
+	topaSahipOyuncuIndex := mac.TopaSahipOyuncuIndex
+	if mac.TopKimde == "EvSahibi" {
 		takimAdi = "ilkTakim"
-		topaSahipOyuncuIndex = 6
-		topaSahipOyuncu = ilkTakim.Kadro[topaSahipOyuncuIndex]
-		seciliTaktik = ilkTakim.TakimTaktik
 	} else {
 		takimAdi = "ikinciTakim"
-		topaSahipOyuncuIndex = 6
-		topaSahipOyuncu = ikinciTakim.Kadro[topaSahipOyuncuIndex]
-		seciliTaktik = ikinciTakim.TakimTaktik
 	}
-
 	for i := 0; i <= 90; i++ {
 
 		aksiyon := KararVer(topaSahipOyuncu, anlikBolge, seciliTaktik)
