@@ -2,6 +2,9 @@ package main
 
 import "math/rand"
 
+const evSahibiSabiti = "EvSahibi"
+const deplasmanSabiti = "Deplasman"
+
 type MacDurumu struct {
 	EvSahibiTakim        *takim
 	DeplasmanTakimi      *takim
@@ -15,7 +18,7 @@ type MacDurumu struct {
 
 func (r MacDurumu) BaslangicOyuncusu() (oyuncu Futbolcu) {
 
-	if r.TopKimde == "EvSahibi" {
+	if r.TopKimde == evSahibiSabiti {
 		oyuncu = r.EvSahibiTakim.Kadro[r.TopaSahipOyuncuIndex]
 	} else {
 		oyuncu = r.DeplasmanTakimi.Kadro[r.TopaSahipOyuncuIndex]
@@ -35,9 +38,9 @@ func YeniMacOlustur(ilkTakim *takim, ikinciTakim *takim) (baslangic MacDurumu) {
 	}
 	topKimdeZari := rand.Intn(2)
 	if topKimdeZari == 0 {
-		baslangic.TopKimde = "EvSahibi"
+		baslangic.TopKimde = evSahibiSabiti
 	} else {
-		baslangic.TopKimde = "Deplasman"
+		baslangic.TopKimde = deplasmanSabiti
 	}
 	return baslangic
 }
