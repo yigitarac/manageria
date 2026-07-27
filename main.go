@@ -47,7 +47,7 @@ func main() {
 		seciliTaktik = mac.DeplasmanTakimi.TakimTaktik
 	}
 	fmt.Println(mac.Dakika, mac.AnlikBolge, mac.TopKimde, mac.TopaSahipOyuncuIndex, topaSahipOyuncu.Isim)
-	for mac.Dakika = 0; mac.Dakika <= 90; mac.Dakika++ {
+	for mac.Dakika = 0; !(mac.MacBittiMi); mac.Dakika++ {
 
 		aksiyon := KararVer(topaSahipOyuncu, mac.AnlikBolge, seciliTaktik)
 
@@ -1168,6 +1168,8 @@ func main() {
 				Aksiyon: fmt.Sprintf("90 DAKİKA SONA ERDİ %s", skor),
 			}
 			mac.MacRaporu = append(mac.MacRaporu, yasananAksiyon)
+			mac.MacBittiMi = true
+			break
 		}
 	}
 	dondurulenListe, err := json.Marshal(mac.MacRaporu)
