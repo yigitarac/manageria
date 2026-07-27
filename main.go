@@ -63,8 +63,24 @@ func main() {
 			rakipOyuncuIndex := rand.Intn(10) + 1
 			var rakipOyuncu *Futbolcu
 			if mac.TopKimde == evSahibiSabiti {
+				if ikinciTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == true {
+					for {
+						if ikinciTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == false {
+							break
+						}
+						rakipOyuncuIndex = rand.Intn(10) + 1
+					}
+				}
 				rakipOyuncu = &ikinciTakim.Kadro[rakipOyuncuIndex]
 			} else {
+				if ilkTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == true {
+					for {
+						if ilkTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == false {
+							break
+						}
+						rakipOyuncuIndex = rand.Intn(10) + 1
+					}
+				}
 				rakipOyuncu = &ilkTakim.Kadro[rakipOyuncuIndex]
 			}
 			basariIhtimali := topaSahipOyuncu.Profil.Pas + topaSahipOyuncu.Profil.Vizyon + topaSahipOyuncu.Profil.Teknik
@@ -159,8 +175,24 @@ func main() {
 			rakipOyuncuIndex := rand.Intn(10) + 1
 			var rakipOyuncu *Futbolcu
 			if mac.TopKimde == evSahibiSabiti {
+				if ikinciTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == true {
+					for {
+						if ikinciTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == false {
+							break
+						}
+						rakipOyuncuIndex = rand.Intn(10) + 1
+					}
+				}
 				rakipOyuncu = &ikinciTakim.Kadro[rakipOyuncuIndex]
 			} else {
+				if ilkTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == true {
+					for {
+						if ilkTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == false {
+							break
+						}
+						rakipOyuncuIndex = rand.Intn(10) + 1
+					}
+				}
 				rakipOyuncu = &ilkTakim.Kadro[rakipOyuncuIndex]
 			}
 			basariIhtimali := topaSahipOyuncu.Profil.Pas + topaSahipOyuncu.Profil.Vizyon + topaSahipOyuncu.Profil.Teknik
@@ -231,8 +263,24 @@ func main() {
 			rakipOyuncuIndex := rand.Intn(10) + 1
 			var rakipOyuncu *Futbolcu
 			if mac.TopKimde == evSahibiSabiti {
+				if ikinciTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == true {
+					for {
+						if ikinciTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == false {
+							break
+						}
+						rakipOyuncuIndex = rand.Intn(10) + 1
+					}
+				}
 				rakipOyuncu = &ikinciTakim.Kadro[rakipOyuncuIndex]
 			} else {
+				if ilkTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == true {
+					for {
+						if ilkTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == false {
+							break
+						}
+						rakipOyuncuIndex = rand.Intn(10) + 1
+					}
+				}
 				rakipOyuncu = &ilkTakim.Kadro[rakipOyuncuIndex]
 			}
 			basariIhtimali := topaSahipOyuncu.Profil.Pas + topaSahipOyuncu.Profil.OrtaYapma + topaSahipOyuncu.Profil.Teknik
@@ -303,8 +351,24 @@ func main() {
 			rakipOyuncuIndex := rand.Intn(10) + 1
 			var rakipOyuncu *Futbolcu
 			if mac.TopKimde == evSahibiSabiti {
+				if ikinciTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == true {
+					for {
+						if ikinciTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == false {
+							break
+						}
+						rakipOyuncuIndex = rand.Intn(10) + 1
+					}
+				}
 				rakipOyuncu = &ikinciTakim.Kadro[rakipOyuncuIndex]
 			} else {
+				if ilkTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == true {
+					for {
+						if ilkTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == false {
+							break
+						}
+						rakipOyuncuIndex = rand.Intn(10) + 1
+					}
+				}
 				rakipOyuncu = &ilkTakim.Kadro[rakipOyuncuIndex]
 			}
 			basariIhtimali := topaSahipOyuncu.Profil.Pas + topaSahipOyuncu.Profil.Vizyon + topaSahipOyuncu.Profil.Teknik
@@ -478,8 +542,24 @@ func main() {
 			rakipOyuncuIndex := rand.Intn(10) + 1
 			var rakipOyuncu *Futbolcu
 			if mac.TopKimde == evSahibiSabiti {
+				if ikinciTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == true {
+					for {
+						if ikinciTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == false {
+							break
+						}
+						rakipOyuncuIndex = rand.Intn(10) + 1
+					}
+				}
 				rakipOyuncu = &ikinciTakim.Kadro[rakipOyuncuIndex]
 			} else {
+				if ilkTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == true {
+					for {
+						if ilkTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == false {
+							break
+						}
+						rakipOyuncuIndex = rand.Intn(10) + 1
+					}
+				}
 				rakipOyuncu = &ilkTakim.Kadro[rakipOyuncuIndex]
 			}
 			basariIhtimali := topaSahipOyuncu.Profil.Dribling + topaSahipOyuncu.Profil.Ceviklik + topaSahipOyuncu.Profil.Teknik + topaSahipOyuncu.Profil.IlkKontrol
@@ -648,9 +728,25 @@ func main() {
 			var rakipOyuncu *Futbolcu
 			var rakipKaleci *Futbolcu
 			if mac.TopKimde == evSahibiSabiti {
+				if ikinciTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == true {
+					for {
+						if ikinciTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == false {
+							break
+						}
+						rakipOyuncuIndex = rand.Intn(10) + 1
+					}
+				}
 				rakipOyuncu = &ikinciTakim.Kadro[rakipOyuncuIndex]
 				rakipKaleci = &ikinciTakim.Kadro[0]
 			} else {
+				if ilkTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == true {
+					for {
+						if ilkTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == false {
+							break
+						}
+						rakipOyuncuIndex = rand.Intn(10) + 1
+					}
+				}
 				rakipOyuncu = &ilkTakim.Kadro[rakipOyuncuIndex]
 				rakipKaleci = &ilkTakim.Kadro[0]
 			}
@@ -909,9 +1005,25 @@ func main() {
 			var rakipOyuncu Futbolcu
 			var rakipKaleci Futbolcu
 			if mac.TopKimde == evSahibiSabiti {
+				if ikinciTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == true {
+					for {
+						if ikinciTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == false {
+							break
+						}
+						rakipOyuncuIndex = rand.Intn(10) + 1
+					}
+				}
 				rakipOyuncu = ikinciTakim.Kadro[rakipOyuncuIndex]
 				rakipKaleci = ikinciTakim.Kadro[0]
 			} else {
+				if ilkTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == true {
+					for {
+						if ilkTakim.Kadro[rakipOyuncuIndex].MactaKirmizisiVarMi == false {
+							break
+						}
+						rakipOyuncuIndex = rand.Intn(10) + 1
+					}
+				}
 				rakipOyuncu = ilkTakim.Kadro[rakipOyuncuIndex]
 				rakipKaleci = ilkTakim.Kadro[0]
 			}
