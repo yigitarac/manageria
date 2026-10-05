@@ -1,0 +1,5 @@
+# Production reverse proxy (TLS termination) — configured in the deploy phase.
+# Local development does not use this file.
+:80 {
+	respond "manageria" 200
+}

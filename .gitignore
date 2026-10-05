@@ -1,0 +1,39 @@
+# --- Private planning / AI agent files (intentionally not versioned) ---
+vault/
+AGENTS.md
+.obsidian/
+.agents/
+.opencode/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# --- Env / secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Go ---
+/bin/
+*.test
+*.out
+coverage.*
+
+# --- Node / web ---
+node_modules/
+dist/
+build/
+.turbo/
+.vite/
+*.tsbuildinfo
+npm-debug.log*
+pnpm-debug.log*
+
+# --- Native wrappers ---
+src-tauri/target/
+android/
+ios/
