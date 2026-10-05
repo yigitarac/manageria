@@ -27,7 +27,7 @@ lint: ## Lint Go and web sources
 	cd web && pnpm lint && pnpm typecheck
 
 test: ## Run Go and web tests
-	cd server && go test ./...
+	cd server && go test -race ./...
 	cd web && pnpm test
 
 db-up: ## Start local Postgres
