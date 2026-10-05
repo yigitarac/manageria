@@ -1,0 +1,11 @@
+# oapi-codegen configuration for the Manageria API.
+# Source of truth: ../../../api/openapi.yaml (spec-first — edit the spec, then run `make gen`).
+output: openapi.gen.go
+package: httpapi
+generate:
+  std-http-server: true
+  strict-server: true
+  models: true
+  embedded-spec: true
+output-options:
+  skip-prune: true

@@ -1,0 +1,58 @@
+openapi: 3.0.3
+info:
+  title: Manageria API
+  description: HTTP API for Manageria, an online football management game.
+  version: 0.1.0
+servers:
+  - url: /
+tags:
+  - name: meta
+    description: Service metadata and health.
+paths:
+  /healthz:
+    get:
+      tags: [meta]
+      operationId: getHealthz
+      summary: Liveness/readiness probe
+      security: []
+      responses:
+        "200":
+          description: The service is healthy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        default:
+          $ref: "#/components/responses/Error"
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status]
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum: [ok]
+    Error:
+      type: object
+      required: [code, message]
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          description: Stable, machine-readable error code.
+        message:
+          type: string
+          description: Human-readable description.
+        details:
+          type: object
+          additionalProperties: true
+          description: Optional structured context (field errors, etc.).
+  responses:
+    Error:
+      description: An error occurred.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
