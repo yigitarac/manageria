@@ -16,8 +16,7 @@ function stubJsonResponse(body: string, status = 200) {
   vi.stubGlobal(
     "fetch",
     vi.fn(
-      async () =>
-        new Response(body, { status, headers: { "content-type": "application/json" } }),
+      async () => new Response(body, { status, headers: { "content-type": "application/json" } }),
     ),
   );
 }
