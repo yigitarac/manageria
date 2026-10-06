@@ -21,13 +21,18 @@ import (
 )
 
 func main() {
-	seed := flag.Uint64("seed", 42, "match seed (matches mode: first seed)")
+	seed := flag.Uint64("seed", 42, "match seed (matches/rehearse modes: first seed)")
 	runs := flag.Int("runs", 2, "identical re-runs to verify determinism")
 	matches := flag.Int("matches", 0, "simulate N matches with consecutive seeds and print distribution stats")
 	tactic := flag.String("tactic", "default", "matches mode: home tactic preset (default|defensive|attacking|high_press)")
+	rehearse := flag.Int("rehearse", 0, "run N corner drills (drilled pattern vs default routine) and print outcome bands")
 	out := flag.String("out", "", "write the match result JSON to this file")
 	flag.Parse()
 
+	if *rehearse > 0 {
+		rehearseCorners(*seed, *rehearse)
+		return
+	}
 	if *matches > 0 {
 		distribution(*seed, *matches, *tactic)
 		return
@@ -110,7 +115,7 @@ func distribution(seed uint64, n int, preset string) {
 	}
 
 	var (
-		homeGoals, awayGoals                      float64
+		homeGoals, awayGoals                     float64
 		homeWins, draws, awayWins                int
 		homeXG, awayXG                           float64
 		homeShots, awayShots                     int
@@ -185,4 +190,43 @@ func distribution(seed uint64, n int, preset string) {
 func fatal(err error) {
 	fmt.Fprintln(os.Stderr, "simcli:", err)
 	os.Exit(1)
+}
+
+// rehearseCorners compares a drilled corner pattern against the default routine over
+// N deterministic drills — the Pattern Studio rehearsal contract (Tactics-Schema).
+func rehearseCorners(seed uint64, n int) {
+	in := enginetest.SampleInput(seed)
+	pat := enginetest.SampleCornerPattern()
+
+	bands := func(pattern *engine.PatternSpec, label string) {
+		var goals, saved, cleared int
+		xg, marks, targets := 0.0, 0.0, 0.0
+		for i := 0; i < n; i++ {
+			out, err := engine.RehearseCorner(in, pattern, seed+uint64(i))
+			if err != nil {
+				fatal(err)
+			}
+			switch out.Outcome {
+			case "goal":
+				goals++
+			case "saved":
+				saved++
+			default:
+				cleared++
+			}
+			xg += out.XG
+			marks += out.MarksAvg
+			if out.Target >= 0 {
+				targets++
+			}
+		}
+		f := float64(n)
+		fmt.Printf("%-9s goal %5.1f%% | saved %5.1f%% | cleared %5.1f%% | xG/rep %.3f | marks %.2f | contact %3.0f%%\n",
+			label, 100*float64(goals)/f, 100*float64(saved)/f, 100*float64(cleared)/f,
+			xg/f, marks/f, 100*targets/f)
+	}
+
+	fmt.Printf("corner rehearsal: %d drills (seeds %d..%d, sample pattern %q)\n", n, seed, seed+uint64(n)-1, pat.ID)
+	bands(&pat, "pattern:")
+	bands(nil, "default:")
 }

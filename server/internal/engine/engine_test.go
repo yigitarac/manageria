@@ -23,7 +23,8 @@ func TestGoldenDigest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Digest: %v", err)
 	}
-	const want = "9cd66ad59428848a76dd3519adacf826a2151a50d88f1e2a690a7d49f345aa34"
+	// v3 goldens (frozen 2026-10-06 with the pattern execution spike).
+	const want = "cf7efbb8fa60f90fe1e4699fc69c04a5f430c354957843b887af77d66226a143"
 	if got != want {
 		t.Fatalf("golden digest = %s, want %s (update deliberately on EngineVersion bumps)", got, want)
 	}

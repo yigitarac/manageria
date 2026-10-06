@@ -18,7 +18,8 @@ import (
 //
 //	v1 — skeleton action tables (superseded)
 //	v2 — full action tables: duels, crosses, set pieces, fouls/cards, injuries, subs
-const EngineVersion = 2
+//	v3 — pattern execution (orchestrated corner routines + attribution, ADR-0009)
+const EngineVersion = 3
 
 // PlayerID identifies a player across a match (UUIDv7 string at the storage boundary).
 type PlayerID string
@@ -119,6 +120,7 @@ type Tactics struct {
 	Tackling      int8   // 1 fair, 2 hard
 	CounterAttack bool
 	SetPieces     SetPiecesConfig
+	Patterns      []PatternSpec // prepared patterns (cap 10; T-009 subset: corners)
 }
 
 // TeamSnapshot is a submitted lineup plus tactics. 11–18 players: the first 11 are the
@@ -214,6 +216,8 @@ type TeamStats struct {
 	AvgFatigue    float64 // mean final fatigue of the XI (0..100)
 	AvgShotDist   float64 // mean shot distance (normalized pitch units)
 	DistSum       float64 // internal sum backing AvgShotDist
+	PatternShots  int     // shots produced by orchestrated patterns (attribution)
+	PatternXG     float64 // xG produced by orchestrated patterns
 }
 
 // MatchStats aggregates both teams.
@@ -264,6 +268,60 @@ type MatchResult struct {
 	Stats         MatchStats
 	PlayerRatings []PlayerRating
 	Keyframes     []Keyframe
+}
+
+// Waypoint is one timed point of a pattern route (normalized pitch + seconds from trigger).
+type Waypoint struct {
+	X, Y float64
+	T    float64
+}
+
+// Pattern contact roles.
+const (
+	ContactAttackBall int8 = iota
+	ContactDecoy
+	ContactEdgeRunner
+	ContactCover
+)
+
+// PatternActor is one participant of a pattern (T-009 subset: slot + 2-point route).
+type PatternActor struct {
+	Slot    int
+	Route   []Waypoint // exactly 2 in the spike subset (start mark → finish mark)
+	Contact int8
+}
+
+// PatternDelivery describes the aimed ball played into the route meeting point.
+type PatternDelivery struct {
+	Kind    int8 // 1 cross, 2 driven pass, 3 shot, 4 lay-off
+	Aim     [2]float64
+	Spread  float64 // aim variance radius (delivery quality narrows it)
+	Power   float64
+	Targets []int // actor indexes in contact priority
+}
+
+// PatternSpec is the T-009 spike subset of the Tactics-Schema pattern grammar:
+// corner routines with ≤4 actors and 2-point Hermite routes. Triggers, decoys and
+// second-wave links arrive with the full grammar ([[Tactics-Schema]]).
+type PatternSpec struct {
+	ID       string
+	Actors   []PatternActor
+	Delivery PatternDelivery
+}
+
+// PatternCursor tracks an armed or executing pattern. It lives in the snapshot so
+// that Resume stays bit-identical across pattern windows.
+type PatternCursor struct {
+	Active    bool
+	Team      int8
+	Index     int8 // index into Tactics.Patterns (spike: armed at that team's corners)
+	StartTick int32
+	Delivered bool
+}
+
+// reset returns a cleared cursor.
+func (c PatternCursor) reset() PatternCursor {
+	return PatternCursor{}
 }
 
 // PlayerState is the simulated dynamic state of one on-pitch slot.
@@ -321,6 +379,7 @@ type Snapshot struct {
 	Cooldown   int8
 	Restart    Restart
 	Cards      [22]CardState
+	Pattern    PatternCursor
 	Stoppage   [2]float64
 	SecondHalf bool
 	Tactics    [2]Tactics

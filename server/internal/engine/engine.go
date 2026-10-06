@@ -90,6 +90,8 @@ type simState struct {
 	keyframes  []Keyframe
 	pending    []Intervention
 	present    PresenceFlags
+	pattern    PatternCursor
+	patTag     string // transient attribution tag (set/cleared within one tick's chain)
 }
 
 func newSimState(in MatchInput, ivs []Intervention, snap *Snapshot) (*simState, error) {
@@ -126,6 +128,7 @@ func newSimState(in MatchInput, ivs []Intervention, snap *Snapshot) (*simState, 
 		s.stoppage = snap.Stoppage
 		s.secondHalf = snap.SecondHalf
 		s.tactics = snap.Tactics
+		s.pattern = snap.Pattern
 		s.recomputeAnchors(0)
 		s.recomputeAnchors(1)
 		s.pending = pendingFilterFrom(pending, snap.Tick)
@@ -169,9 +172,13 @@ func (s *simState) loop() error {
 			s.ownerIdx = int8(restartIdx(s.onPitchFor(1)))
 			s.cooldown = 0
 			s.restart = Restart{}
+			s.clearPattern()
 		}
 		if err := s.applyInterventions(); err != nil {
 			return err
+		}
+		if s.pattern.Active && s.tick-s.pattern.StartTick > patternMaxTicks {
+			s.clearPattern()
 		}
 		if s.tick%keyframeEvery == 0 {
 			s.keyframes = append(s.keyframes, s.sampleKeyframe())
@@ -298,13 +305,17 @@ func (s *simState) move() {
 				continue
 			}
 			ps := &s.players[team*11+i]
+			eff := 1 - 0.3*math.Min(ps.Fatigue/100, 1)
+			k := 0.05 + 0.05*quality(s.onPitch[team*11+i].Attr.Pace)*eff
 			tx, ty := s.target(team, i, ps)
-			if s.owner == int8(team) && s.ownerIdx == int8(i) {
+			if pt, ok := s.patternTarget(team, i); ok {
+				// Pattern runs are bursts: pace-scaled sprint easing toward the moving mark.
+				tx, ty = pt[0], pt[1]
+				k = 0.10 + 0.15*quality(s.onPitch[team*11+i].Attr.Pace)*eff
+			} else if s.owner == int8(team) && s.ownerIdx == int8(i) {
 				tx = clamp(ps.X+dir*0.015, 0.02, 0.98)
 				ty = clamp(ps.Y+(0.5-ps.Y)*0.05, 0.04, 0.96)
 			}
-			eff := 1 - 0.3*math.Min(ps.Fatigue/100, 1)
-			k := 0.05 + 0.05*quality(s.onPitch[team*11+i].Attr.Pace)*eff
 			ps.X = clamp(ps.X+(tx-ps.X)*k, 0.02, 0.98)
 			ps.Y = clamp(ps.Y+(ty-ps.Y)*k, 0.04, 0.96)
 		}
@@ -505,6 +516,7 @@ func (s *simState) snapshot() Snapshot {
 		Cooldown:   s.cooldown,
 		Restart:    s.restart,
 		Cards:      s.cards,
+		Pattern:    s.pattern,
 		Stoppage:   s.stoppage,
 		SecondHalf: s.secondHalf,
 		Tactics:    s.tactics,
@@ -679,6 +691,51 @@ func validateTactics(tac Tactics) error {
 		tac.SetPieces.FreeKickRoutine >= 1 && tac.SetPieces.FreeKickRoutine <= 3
 	if !ok {
 		return ErrBadTactics
+	}
+	if len(tac.Patterns) > 10 {
+		return fmt.Errorf("%w: more than 10 patterns", ErrBadTactics)
+	}
+	for _, pat := range tac.Patterns {
+		if err := validatePattern(pat); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validatePattern enforces the T-009 spike subset of the Tactics-Schema grammar.
+func validatePattern(pat PatternSpec) error {
+	if len(pat.Actors) < 1 || len(pat.Actors) > 4 {
+		return fmt.Errorf("%w: pattern %q needs 1..4 actors (spike subset)", ErrBadTactics, pat.ID)
+	}
+	for i, a := range pat.Actors {
+		if a.Slot < 0 || a.Slot > 10 {
+			return fmt.Errorf("%w: pattern %q actor slot out of range", ErrBadTactics, pat.ID)
+		}
+		for j := 0; j < i; j++ {
+			if pat.Actors[j].Slot == a.Slot {
+				return fmt.Errorf("%w: pattern %q uses slot %d twice", ErrBadTactics, pat.ID, a.Slot)
+			}
+		}
+		if len(a.Route) != 2 || a.Route[0].T >= a.Route[1].T || a.Route[1].T > 8 {
+			return fmt.Errorf("%w: pattern %q actor routes are 2 timed marks (T0 < T1 ≤ 8)", ErrBadTactics, pat.ID)
+		}
+		for _, wp := range a.Route {
+			if wp.X < 0 || wp.X > 1 || wp.Y < 0 || wp.Y > 1 {
+				return fmt.Errorf("%w: pattern %q waypoint out of pitch", ErrBadTactics, pat.ID)
+			}
+		}
+	}
+	if len(pat.Delivery.Targets) == 0 ||
+		pat.Delivery.Kind < 1 || pat.Delivery.Kind > 4 ||
+		pat.Delivery.Spread < 0 || pat.Delivery.Spread > 1 ||
+		pat.Delivery.Power < 0 || pat.Delivery.Power > 1 {
+		return fmt.Errorf("%w: pattern %q delivery incomplete", ErrBadTactics, pat.ID)
+	}
+	for _, ti := range pat.Delivery.Targets {
+		if ti < 0 || ti >= len(pat.Actors) {
+			return fmt.Errorf("%w: pattern %q target index out of range", ErrBadTactics, pat.ID)
+		}
 	}
 	return nil
 }

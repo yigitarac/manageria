@@ -9,6 +9,9 @@ func (s *simState) queueRestart(kind RestartKind, team int, x, y float64) {
 	s.owner = -1
 	s.cooldown = 0
 	s.ballX, s.ballY = s.restart.X, s.restart.Y
+	if kind == RestartCorner {
+		s.armPattern(team)
+	}
 }
 
 // tickRestart advances the walk-over and fires the delivery when due.
@@ -127,9 +130,37 @@ func (s *simState) throwIn(team int, r Restart) {
 	s.players[team*11+thrower].Acc += 0.05
 }
 
-// corner: delivery quality vs the box battle, with keeper claims and second balls.
+// corner dispatches: choreographed when a pattern is armed, default routine otherwise.
 func (s *simState) corner(team int) {
 	s.statsFor(team).Corners++
+	if s.pattern.Active && int(s.pattern.Team) == team && int(s.pattern.Index) < len(s.tactics[team].Patterns) {
+		pat := s.tactics[team].Patterns[s.pattern.Index]
+		s.resolvePatternCorner(team, pat)
+		s.clearPattern()
+		return
+	}
+	s.defaultCorner(team)
+}
+
+// cornerEntry resolves keeper claims and early clearances before a delivery duel.
+// Returns true when the ball survives into the box. Shared by patterned and default
+// corners so rehearsals compare choreography on equal hurdles.
+func (s *simState) cornerEntry(team int, delivery float64) bool {
+	gk := s.onPitch[(1-team)*11]
+	if s.rnd.Float64() < keeperClaimShare*duelChance(quality(gk.Attr.Handling)*s.perf(1-team, 0), delivery) {
+		s.players[(1-team)*11].Acc += 0.1
+		s.restartIdxBall(1-team, 0)
+		return false
+	}
+	if s.rnd.Float64() < clearanceShare {
+		s.defensiveClear(team)
+		return false
+	}
+	return true
+}
+
+// defaultCorner: delivery quality vs the box battle, with keeper claims and second balls.
+func (s *simState) defaultCorner(team int) {
 	taker := s.setPieceTaker(team, func(a Attributes) float64 {
 		return quality(a.SetPieces)*0.7 + quality(a.Crossing)*0.3
 	})
@@ -142,14 +173,7 @@ func (s *simState) corner(team int) {
 		s.advanceBall(team, s.pickReceiver(team), 0.02)
 		return
 	}
-	if s.rnd.Float64() < keeperClaimShare*duelChance(
-		quality(s.onPitch[(1-team)*11].Attr.Handling)*s.perf(1-team, 0), delivery) {
-		s.players[(1-team)*11].Acc += 0.1
-		s.restartIdxBall(1-team, 0)
-		return
-	}
-	if s.rnd.Float64() < clearanceShare {
-		s.defensiveClear(team)
+	if !s.cornerEntry(team, delivery) {
 		return
 	}
 

@@ -89,7 +89,7 @@ func (s *simState) pickAction(team, idx int, sit situation) actionKind {
 	case sit.goalDist < 0.16:
 		w[actionShoot] = wShoot * 0.95 * quality(carrier.Finishing) * (0.6 + 0.4*(1-sit.goalDist/0.16))
 	case sit.goalDist < 0.30:
-		w[actionShoot] = wShoot * 1.05 * quality(carrier.LongShots) * (0.2+0.3*(1-sit.goalDist/0.30)) * (1 + 0.12*float64(tac.Mentality-3))
+		w[actionShoot] = wShoot * 1.05 * quality(carrier.LongShots) * (0.2 + 0.3*(1-sit.goalDist/0.30)) * (1 + 0.12*float64(tac.Mentality-3))
 	}
 	if d := s.scoreDiff(team); d < 0 {
 		// Chasing a deficit: more shot appetite (the scoreboard is visible to everyone).
@@ -313,8 +313,12 @@ func (s *simState) finishShot(team, idx int, header bool, goalDist float64) {
 		attr = float64(carrier.LongShots)
 	}
 	press := s.pressure(team, idx)
-	qShot := (attr/20)*s.perf(team, idx) * (1 - shotPressureShare*press)
-	composure := 1 - 0.15*(1-quality(carrier.Composure))*(1+0.5*press)
+	// Saturating pressure: a packed six-yard box must not multiply-shot-shy forever —
+	// real xG treats crowded close-range headers as prime chances. Congestion dilution
+	// below carries the "bodies everywhere" penalty separately.
+	sat := press / (1 + 0.3*press)
+	qShot := (attr / 20) * s.perf(team, idx) * (1 - shotPressureShare*sat)
+	composure := 1 - 0.10*(1-quality(carrier.Composure))*(1+0.5*sat)
 	if header {
 		qShot *= headerShotPenalty
 	}
@@ -330,6 +334,10 @@ func (s *simState) finishShot(team, idx int, header bool, goalDist float64) {
 	ts.Shots++
 	ts.XG += pGoal
 	ts.DistSum += goalDist
+	if s.patTag != "" {
+		ts.PatternShots++
+		ts.PatternXG += pGoal
+	}
 	s.players[team*11+idx].Acc += 0.3
 
 	// Block attempts: packed defences smother strikes. The chance value (xG) is
@@ -354,7 +362,7 @@ func (s *simState) finishShot(team, idx int, header bool, goalDist float64) {
 		s.addGoal(team, idx)
 	case roll < pGoal+pSave:
 		ts.OnTarget++
-		s.appendEvent(EventShotSaved, team, idx, "")
+		s.appendEvent(EventShotSaved, team, idx, s.patTag)
 		s.players[(1-team)*11].Acc += 0.1
 		if s.rnd.Float64() < (1-quality(gk.Attr.Handling))*0.3 {
 			// Spilled save: scramble in the six-yard box.
@@ -371,7 +379,7 @@ func (s *simState) finishShot(team, idx int, header bool, goalDist float64) {
 			s.queueRestart(RestartCorner, team, cx, cy)
 			return
 		}
-		s.appendEvent(EventShotOffTarget, team, idx, "")
+		s.appendEvent(EventShotOffTarget, team, idx, s.patTag)
 		s.queueRestart(RestartGoalKick, 1-team, 0.08+0.84*float64(1-team), 0.5)
 	}
 }
@@ -447,7 +455,11 @@ func (s *simState) addGoal(team, idx int) {
 
 	s.shiftMorale(team, +moraleGoalSwing)
 	s.shiftMorale(1-team, -moraleGoalSwing)
-	s.appendEvent(EventGoal, team, idx, "morale:+4|-4")
+	detail := "morale:+4|-4"
+	if s.patTag != "" {
+		detail += ";" + s.patTag
+	}
+	s.appendEvent(EventGoal, team, idx, detail)
 
 	half := 0
 	if s.secondHalf {

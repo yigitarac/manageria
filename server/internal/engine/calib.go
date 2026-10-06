@@ -7,7 +7,7 @@ package engine
 // Outcome shaping
 const (
 	// shotBase scales shot conversion quality before goalkeeper opposition.
-	shotBase = 1.35
+	shotBase = 0.72
 	// gkSaveShare is how strongly goalkeeping cancels shot quality.
 	gkSaveShare = 0.55
 	// shotDistanceFalloff shrinks conversion with distance (0..1 of the shot zone).
@@ -23,14 +23,16 @@ const (
 	// congestionDilution discounts the chance value itself when bodies pack the ball
 	// zone (mirrors real xG models that dilute by defender proximity).
 	congestionDilution = 0.16
+	// contactChainDecay dims successive contacts in a pattern chain (broken balls).
+	contactChainDecay = 0.6
 	// headerShotPenalty reduces headed attempts vs struck shots.
 	headerShotPenalty = 0.75
 	// penaltyBaseGoal is the baseline penalty conversion before duels.
 	penaltyBaseGoal = 0.76
 	// keeperClaimShare is the chance a keeper punches/holds a delivered cross.
-	keeperClaimShare = 0.35
+	keeperClaimShare = 0.45
 	// clearanceShare is the chance defenders clear a cross before a header duel.
-	clearanceShare = 0.30
+	clearanceShare = 0.35
 	// secondBallShare falls to the edge of the box after a clearance (long-shot wave).
 	secondBallShare = 0.35
 	// offsideBase is the baseline chance a through-ball run is caught offside.
@@ -64,6 +66,21 @@ const (
 	moraleBand = 0.03
 )
 
+// Pattern execution (T-009 spike, see ADR-0009).
+const (
+	// patternSetupTicks is the walk-over before a patterned corner is delivered
+	// (long enough for timed runs to develop).
+	patternSetupTicks = 8
+	// patternMaxTicks clears a stuck cursor (12 s guard).
+	patternMaxTicks = 720
+	// patternMarkBonus rewards runners who hit their finish mark on time.
+	patternMarkBonus = 0.15
+	// patternMarkFloor is the worst-case multiplier for hopelessly late runners.
+	patternMarkFloor = 0.88
+	// patternAimSpread widens aims of weak deliveries (× (2 − deliveryQuality)).
+	patternAimSpread = 1.0
+)
+
 // Action weights (selection priors; attributes & tactics shift them).
 const (
 	wPass    = 1.7
@@ -76,10 +93,10 @@ const (
 
 // Experience/RNG pacing
 const (
-	baseCooldown   = 8 // ticks between touches at Tempo 3
-	minCooldown     = 2
+	baseCooldown      = 8 // ticks between touches at Tempo 3
+	minCooldown       = 2
 	restartPauseTicks = 3 // "walk over" delay before a dead-ball delivery
-	manMarkRadius   = 0.06
+	manMarkRadius     = 0.06
 )
 
 // quality maps a 1–20 attribute to 0.05..1.0.

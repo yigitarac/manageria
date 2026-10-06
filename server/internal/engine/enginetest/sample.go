@@ -48,6 +48,36 @@ func SampleTactics() engine.Tactics {
 	}
 }
 
+// SampleCornerPattern returns a home-oriented corner routine (home attacks +x):
+// two striker darts into the six-yard box, a centre-back power run and a late edge
+// arrival. Attach to `Tactics.Patterns` to rehearse or arm it.
+func SampleCornerPattern() engine.PatternSpec {
+	return engine.PatternSpec{
+		ID: "six_yard_darts",
+		Actors: []engine.PatternActor{
+			{Slot: 9, Contact: engine.ContactAttackBall, Route: []engine.Waypoint{
+				{X: 0.70, Y: 0.38, T: 0}, {X: 0.93, Y: 0.46, T: 3.5},
+			}},
+			{Slot: 10, Contact: engine.ContactAttackBall, Route: []engine.Waypoint{
+				{X: 0.74, Y: 0.62, T: 0}, {X: 0.92, Y: 0.55, T: 4.0},
+			}},
+			{Slot: 1, Contact: engine.ContactAttackBall, Route: []engine.Waypoint{
+				{X: 0.66, Y: 0.52, T: 0}, {X: 0.90, Y: 0.48, T: 4.5},
+			}},
+			{Slot: 5, Contact: engine.ContactEdgeRunner, Route: []engine.Waypoint{
+				{X: 0.62, Y: 0.40, T: 0}, {X: 0.84, Y: 0.44, T: 5.5},
+			}},
+		},
+		Delivery: engine.PatternDelivery{
+			Kind:    1, // cross
+			Aim:     [2]float64{0.93, 0.50},
+			Spread:  0.07,
+			Power:   0.7,
+			Targets: []int{0, 1, 2},
+		},
+	}
+}
+
 // Digest returns a stable content hash of a match result (golden tests, simcli).
 func Digest(res engine.MatchResult) (string, error) {
 	raw, err := json.Marshal(res)
