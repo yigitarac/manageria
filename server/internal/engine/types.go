@@ -19,7 +19,9 @@ import (
 //	v1 — skeleton action tables (superseded)
 //	v2 — full action tables: duels, crosses, set pieces, fouls/cards, injuries, subs
 //	v3 — pattern execution (orchestrated corner routines + attribution, ADR-0009)
-const EngineVersion = 3
+//	v4 — balance era mechanics: pressure saturation, traffic drag, behind-space through
+//	     balls, man-marking bite, game-state management, combo fatigue (T-007)
+const EngineVersion = 4
 
 // PlayerID identifies a player across a match (UUIDv7 string at the storage boundary).
 type PlayerID string

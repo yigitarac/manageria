@@ -49,9 +49,10 @@ const (
 
 // situation gathers the carrier's tactical context (explainable inputs to tables).
 type situation struct {
-	goalDist float64 // 0 at the opponent goal line, 1 at the own goal line
-	wide     bool
-	press    float64
+	goalDist  float64 // 0 at the opponent goal line, 1 at the own goal line
+	wide      bool
+	press     float64
+	gapBehind float64 // open grass behind the opponent's defensive line
 }
 
 func (s *simState) situation(team, idx int) situation {
@@ -61,9 +62,10 @@ func (s *simState) situation(team, idx int) situation {
 		goalX = 0.0
 	}
 	return situation{
-		goalDist: absf(goalX - ps.X),
-		wide:     absf(ps.Y-0.5) > 0.28,
-		press:    s.pressure(team, idx),
+		goalDist:  absf(goalX - ps.X),
+		wide:      absf(ps.Y-0.5) > 0.28,
+		press:     s.pressure(team, idx),
+		gapBehind: absf(s.defensiveLineX(1-team) - goalXFor(1-team)),
 	}
 }
 
@@ -74,7 +76,7 @@ func (s *simState) pickAction(team, idx int, sit situation) actionKind {
 	carrier := s.onPitch[team*11+idx].Attr
 
 	w := [6]float64{wPass, wThrough, wCross, wDribble, wShoot, wHold}
-	w[actionThrough] *= quality(carrier.Vision) * (1 + 0.3*float64(tac.Mentality-3)/2)
+	w[actionThrough] *= quality(carrier.Vision) * (1 + 0.3*float64(tac.Mentality-3)/2) * (1 + 1.8*(sit.gapBehind-0.3))
 	if tac.CounterAttack {
 		w[actionThrough] *= 1.25
 	}
@@ -84,12 +86,14 @@ func (s *simState) pickAction(team, idx int, sit situation) actionKind {
 	}
 	w[actionDribble] *= quality(carrier.Dribbling) * (1 + 0.2*sit.press)
 	// Shooting happens inside the shooting zones (0.30 from goal); no pots from distance.
+	// Under heavy closing-down the shot appetite drops — players lay off instead of
+	// snatching at it (chronic box squatters therefore circulate rather than unload).
 	w[actionShoot] = 0
 	switch {
 	case sit.goalDist < 0.16:
-		w[actionShoot] = wShoot * 0.95 * quality(carrier.Finishing) * (0.6 + 0.4*(1-sit.goalDist/0.16))
+		w[actionShoot] = wShoot * 0.84 * quality(carrier.Finishing) * (0.6 + 0.4*(1-sit.goalDist/0.16)) / (1 + 0.22*sit.press)
 	case sit.goalDist < 0.30:
-		w[actionShoot] = wShoot * 1.05 * quality(carrier.LongShots) * (0.2 + 0.3*(1-sit.goalDist/0.30)) * (1 + 0.12*float64(tac.Mentality-3))
+		w[actionShoot] = wShoot * 1.05 * quality(carrier.LongShots) * (0.2 + 0.3*(1-sit.goalDist/0.30)) * (1 + 0.08*float64(tac.Mentality-3)) / (1 + 0.22*sit.press)
 	}
 	if d := s.scoreDiff(team); d < 0 {
 		// Chasing a deficit: more shot appetite (the scoreboard is visible to everyone).
@@ -173,7 +177,8 @@ func (s *simState) deliverPass(team, idx int, sit situation, length float64, lon
 		return quality(a.Positioning)
 	})
 	pIntercept := clamp(0.22*duelChance(interQ, passQ), 0.02, 0.25) * (1 + 0.15*sit.press)
-	pMisplace := clamp(0.05*(1+0.4*sit.press)-0.06*quality(carrier.Composure), 0.01, 0.25)
+	pMisplace := clamp(0.05*(1+0.4*sit.press)-0.06*quality(carrier.Composure)+
+		0.025*float64(maxInt(int(s.tactics[team].Tempo)-3, 0)), 0.01, 0.25)
 
 	receiver := s.pickReceiver(team)
 	roll := s.rnd.Float64()
@@ -191,7 +196,7 @@ func (s *simState) deliverPass(team, idx int, sit situation, length float64, lon
 	recvQ := s.skill(team, receiver, func(a Attributes) float64 {
 		return quality(a.FirstTouch)
 	})
-	pHeavy := clamp(0.08+0.08*sit.press-0.10*recvQ, 0.01, 0.3)
+	pHeavy := clamp(0.08+0.08*sit.press-0.10*recvQ, 0.01, 0.3) * (1 - 0.7*max(0, sit.gapBehind-0.3))
 	if longRun {
 		pHeavy += 0.03
 	}
@@ -201,7 +206,8 @@ func (s *simState) deliverPass(team, idx int, sit situation, length float64, lon
 	}
 
 	s.players[team*11+idx].Acc += 0.05
-	s.advanceBall(team, receiver, length)
+	traffic := 1 - trafficDrag*minf(s.boxCongestion(1-team), 1)
+	s.advanceBall(team, receiver, length*traffic)
 	if longRun && s.offsideCheck(team, receiver) {
 		return
 	}
@@ -209,7 +215,9 @@ func (s *simState) deliverPass(team, idx int, sit situation, length float64, lon
 }
 
 func (s *simState) throughBall(team, idx int, sit situation) {
-	length := 0.14 + 0.06*quality(s.onPitch[team*11+idx].Attr.Vision)
+	// Space behind the opponent's line rewards runners — high lines gamble on the trap.
+	gapBehind := absf(s.defensiveLineX(1-team) - goalXFor(1-team))
+	length := (0.14 + 0.06*quality(s.onPitch[team*11+idx].Attr.Vision)) * (1 + behindSpaceGain*(gapBehind-0.3))
 	if s.tactics[team].CounterAttack {
 		length += 0.05
 	}
@@ -242,7 +250,7 @@ func (s *simState) cross(team, idx int, sit situation) {
 	att := s.bestSlot(team, aerialFocus)
 	def := s.bestOpponentSlot(team, aerialFocus)
 	attQ := s.skill(team, att, aerialFocus)
-	defQ := s.skill(1-team, def, aerialFocus)
+	defQ := s.skill(1-team, def, aerialFocus) + s.manMarkBonus(1-team)
 	if s.rnd.Float64() >= duelChance(attQ, defQ) {
 		s.wonDuel(1-team, def, 0.2)
 		s.restartIdxBall(1-team, def)
@@ -272,7 +280,8 @@ func (s *simState) dribble(team, idx int, sit situation) {
 
 	if s.rnd.Float64() < duelChance(att, defQ) {
 		s.players[team*11+idx].Acc += 0.15
-		s.advanceBall(team, idx, 0.08+0.04*quality(s.onPitch[team*11+idx].Attr.Dribbling))
+		traffic := 1 - trafficDrag*minf(s.boxCongestion(1-team), 1)
+		s.advanceBall(team, idx, (0.08+0.04*quality(s.onPitch[team*11+idx].Attr.Dribbling))*traffic)
 		if s.rnd.Float64() < foulBase*0.5*(0.4+0.3*quality(def.Aggression))*(1+hard) {
 			s.foulConsequence(1-team, defIdx, team, idx)
 		}
@@ -438,6 +447,15 @@ func (s *simState) bookPlayer(team, idx int) {
 		return
 	}
 	s.appendEvent(EventYellowCard, team, idx, "")
+}
+
+// manMarkBonus stiffens aerial defense when the defending side plays man-oriented
+// marking (sticking to designated threats applies beyond set pieces).
+func (s *simState) manMarkBonus(defTeam int) float64 {
+	if s.tactics[defTeam].Marking == 2 {
+		return 0.05
+	}
+	return 0
 }
 
 // wonDuel credits the winning player (ratings accumulator).

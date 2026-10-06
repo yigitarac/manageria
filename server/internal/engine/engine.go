@@ -360,10 +360,15 @@ func (s *simState) target(team, idx int, ps *PlayerState) (float64, float64) {
 	return clamp(ax+dx*pull, 0.02, 0.98), clamp(ay+dy*pull, 0.04, 0.96)
 }
 
-// fatigue drains condition shaped by work rate, pressing and stamina.
+// fatigue drains condition shaped by work rate, pressing, tempo and stamina.
 func (s *simState) fatigue() {
-	press := float64(s.tactics[maxInt(int(s.owner), 0)].Pressing)
-	drain := 0.003 + 0.002*press
+	pressT := s.tactics[maxInt(int(s.owner), 0)]
+	press := float64(pressT.Pressing)
+	tempo := float64(maxInt(int(pressT.Tempo)-3, 0))
+	drain := 0.003 + 0.002*press + tempoDrain*tempo
+	pressIntensity := float64(maxInt(int(pressT.Pressing)-1, 0)) / 2
+	attackIntensity := float64(maxInt(int(pressT.Mentality)-3, 0)) / 2
+	drain *= 1 + comboFatigue*pressIntensity*attackIntensity
 	for team := 0; team < 2; team++ {
 		for i := 0; i < 11; i++ {
 			if s.cards[team*11+i].Off {
@@ -456,7 +461,11 @@ func (s *simState) gameStateShift(team int) float64 {
 	if d < -2 {
 		d = -2
 	}
-	return -float64(d) * gameStateShift
+	shift := -float64(d) * gameStateShift
+	if d > 0 {
+		shift -= float64(d) * leaderManage
+	}
+	return shift
 }
 
 func (s *simState) avgFatigue(team int) float64 {

@@ -7,7 +7,7 @@ package engine
 // Outcome shaping
 const (
 	// shotBase scales shot conversion quality before goalkeeper opposition.
-	shotBase = 0.72
+	shotBase = 0.97
 	// gkSaveShare is how strongly goalkeeping cancels shot quality.
 	gkSaveShare = 0.55
 	// shotDistanceFalloff shrinks conversion with distance (0..1 of the shot zone).
@@ -17,14 +17,24 @@ const (
 	// shotPressureShare dilutes shot quality under closing-down pressure.
 	shotPressureShare = 0.14
 	// blockBase is the baseline chance a defender blocks a strike.
-	blockBase = 0.22
+	blockBase = 0.28
 	// blockCongestionShare multiplies block strength with bodies packed near the ball.
-	blockCongestionShare = 0.35
+	blockCongestionShare = 0.5
+	// behindSpaceGain rewards through-balls into the grass behind a high defensive line.
+	behindSpaceGain = 0.8
 	// congestionDilution discounts the chance value itself when bodies pack the ball
 	// zone (mirrors real xG models that dilute by defender proximity).
 	congestionDilution = 0.16
 	// contactChainDecay dims successive contacts in a pattern chain (broken balls).
 	contactChainDecay = 0.6
+	// tempoDrain is the extra fatigue per tick for high-tempo play beyond Tempo 3.
+	tempoDrain = 0.0015
+	// comboFatigue multiplies drain when pressing AND attacking are stacked high —
+	// five-knob maximalism is physically unsustainable (it fades late in matches).
+	comboFatigue = 0.5
+	// trafficDrag shrinks pass/dribble gains in packed zones (3+ bodies = full drag).
+	// Build-ups get jammed in crowds; counters into open grass do not.
+	trafficDrag = 0.3
 	// headerShotPenalty reduces headed attempts vs struck shots.
 	headerShotPenalty = 0.75
 	// penaltyBaseGoal is the baseline penalty conversion before duels.
@@ -50,12 +60,15 @@ const (
 	// deflectCornerShare sends off-target efforts behind for a corner instead of a goal kick.
 	deflectCornerShare = 0.08
 	// homeAdvantage is the familiar-ground/crowd multiplier (visible, documented).
-	homeAdvantage = 1.10
+	homeAdvantage = 1.12
 	// moraleGoalSwing is the visible morale shift after a goal (+winner / −conceder).
 	moraleGoalSwing = 4.0
 	// gameStateShift moves the block with the scoreboard: trailing teams push up,
 	// leaders manage the game (visible, explainable — the scoreboard is public).
 	gameStateShift = 0.015
+	// leaderManage is the extra drop for teams protecting a lead (leads get managed
+	// harder than deficits get chased — the classic anti-blowout force).
+	leaderManage = 0.008
 	// gameStateChase tilts shot appetite for chasing teams late.
 	gameStateChase = 0.10
 	// hurtPenalty reduces a player's contribution while carrying an injury.
@@ -85,7 +98,7 @@ const (
 const (
 	wPass    = 1.7
 	wThrough = 1.0
-	wCross   = 1.4
+	wCross   = 1.25
 	wDribble = 0.9
 	wShoot   = 2.2
 	wHold    = 0.5

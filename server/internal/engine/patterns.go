@@ -168,7 +168,7 @@ func (s *simState) resolvePatternCorner(team int, pat PatternSpec) int {
 			(patternMarkFloor + patternMarkBonus*grade) *
 			decay
 		defIdx := s.bestOpponentSlot(team, aerialFocus)
-		defQ := s.skill(1-team, defIdx, aerialFocus)
+		defQ := s.skill(1-team, defIdx, aerialFocus) + s.manMarkBonus(1-team)
 		s.players[team*11+actor.Slot].Acc += 0.1
 		if s.rnd.Float64() < duelChance(attQ, defQ) {
 			s.players[team*11+actor.Slot].Acc += 0.25
