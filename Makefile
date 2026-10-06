@@ -24,6 +24,7 @@ fmt: ## Format Go and web sources
 
 lint: ## Lint Go and web sources
 	cd server && go vet ./... && go tool golangci-lint run ./...
+	cd server && out=$$(gofmt -l .); if [ -n "$$out" ]; then echo "$$out"; echo "gofmt needed (run: make fmt)"; exit 1; fi
 	cd web && pnpm lint && pnpm typecheck
 
 test: ## Run Go and web tests
