@@ -23,7 +23,7 @@ func TestGoldenDigest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Digest: %v", err)
 	}
-	const want = "c2a6a556cdfbfa73cda6996d53fd445d407ef365f1e8912eee3d4c5acd26f7d7"
+	const want = "9cd66ad59428848a76dd3519adacf826a2151a50d88f1e2a690a7d49f345aa34"
 	if got != want {
 		t.Fatalf("golden digest = %s, want %s (update deliberately on EngineVersion bumps)", got, want)
 	}
@@ -261,12 +261,92 @@ func TestUnsupportedInterventionKind(t *testing.T) {
 	_, _, err := engine.SimulateIntervened(in, []engine.Intervention{{
 		EffectiveTick: 300,
 		Club:          in.Home.Club,
-		Kind:          "substitution",
+		Kind:          "magic_spell",
 		Payload:       json.RawMessage(`{}`),
 	}})
 	if !errors.Is(err, engine.ErrBadIntervention) {
 		t.Fatalf("error = %v, want %v", err, engine.ErrBadIntervention)
 	}
+}
+
+// TestSubstitutionIntervention checks the substitution intervention end to end.
+func TestSubstitutionIntervention(t *testing.T) {
+	t.Parallel()
+
+	in := enginetest.SampleInput(21)
+	sub := engine.SubstitutionPayload{
+		PlayerOn:  in.Home.Players[14].ID,
+		PlayerOff: in.Home.Players[9].ID,
+	}
+	payload, err := json.Marshal(sub)
+	if err != nil {
+		t.Fatalf("marshal substitution: %v", err)
+	}
+	res, _, err := engine.SimulateIntervened(in, []engine.Intervention{{
+		EffectiveTick: 2700,
+		Club:          in.Home.Club,
+		Kind:          engine.InterventionSubstitution,
+		Payload:       payload,
+	}})
+	if err != nil {
+		t.Fatalf("SimulateIntervened: %v", err)
+	}
+
+	found := false
+	for _, ev := range res.Events {
+		if ev.Kind == engine.EventSubstitution && ev.Player == sub.PlayerOn {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("no substitution event for the incoming player")
+	}
+	// Both the departing and the incoming player get exactly one rating entry.
+	for _, id := range []engine.PlayerID{sub.PlayerOff, sub.PlayerOn} {
+		n := 0
+		for _, r := range res.PlayerRatings {
+			if r.PlayerID == id {
+				n++
+			}
+		}
+		if n != 1 {
+			t.Fatalf("player %s has %d rating entries, want 1", id, n)
+		}
+	}
+}
+
+// TestResumeMatchesStraightRunWithSubstitution: re-simulation equivalence across a
+// mid-match substitution (ratings deposit must survive the snapshot cut).
+func TestResumeMatchesStraightRunWithSubstitution(t *testing.T) {
+	t.Parallel()
+
+	in := enginetest.SampleInput(23)
+	payload, err := json.Marshal(engine.SubstitutionPayload{
+		PlayerOn:  in.Away.Players[13].ID,
+		PlayerOff: in.Away.Players[8].ID,
+	})
+	if err != nil {
+		t.Fatalf("marshal substitution: %v", err)
+	}
+	ivs := []engine.Intervention{{
+		EffectiveTick: 2400,
+		Club:          in.Away.Club,
+		Kind:          engine.InterventionSubstitution,
+		Payload:       payload,
+	}}
+
+	straight, snaps, err := engine.SimulateIntervened(in, ivs)
+	if err != nil {
+		t.Fatalf("SimulateIntervened: %v", err)
+	}
+	snap := snapAt(t, snaps, 1800)
+
+	resumed, _, err := engine.Resume(snap, in, ivs)
+	if err != nil {
+		t.Fatalf("Resume: %v", err)
+	}
+	assertSameCore(t, straight, resumed)
+	assertSameKeyframes(t, straight, resumed, snap.Tick)
 }
 
 func mustSimulate(t *testing.T, sim func() (engine.MatchResult, []engine.Snapshot, error)) engine.MatchResult {

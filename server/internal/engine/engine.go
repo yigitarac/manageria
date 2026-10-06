@@ -14,7 +14,7 @@ import (
 // Sentinel errors for invalid inputs. The engine never panics on bad data.
 var (
 	ErrEngineVersion   = errors.New("engine: match input engine version mismatch")
-	ErrBadLineup       = errors.New("engine: lineup must contain exactly 11 players with the goalkeeper first")
+	ErrBadLineup       = errors.New("engine: lineup must have 11-18 players with the goalkeeper first")
 	ErrDuplicatePlayer = errors.New("engine: duplicate player id")
 	ErrBadAttribute    = errors.New("engine: attribute out of range 1..20")
 	ErrBadCondition    = errors.New("engine: condition or morale out of range 0..100")
@@ -68,13 +68,16 @@ type simState struct {
 	in         MatchInput
 	rnd        *rng.Rand
 	tick       int32
-	pss        [22]PlayerSnapshot // static view: home 0..10, away 11..21
+	onPitch    [22]PlayerSnapshot // current occupants: home 0..10, away 11..21
 	players    [22]PlayerState
+	ratings    []PlayerRating // deposited for substituted-off players
 	ballX      float64
 	ballY      float64
 	owner      int8 // 0 home, 1 away, -1 loose
 	ownerIdx   int8
 	cooldown   int8
+	restart    Restart
+	cards      [22]CardState
 	score      Score
 	events     []Event
 	stats      MatchStats
@@ -82,7 +85,7 @@ type simState struct {
 	stoppage   [2]float64
 	secondHalf bool
 	tactics    [2]Tactics
-	anchors    [2][11][2]float64 // formation anchors in absolute coordinates
+	anchors    [2][11][2]float64
 	snaps      []Snapshot
 	keyframes  []Keyframe
 	pending    []Intervention
@@ -91,8 +94,8 @@ type simState struct {
 
 func newSimState(in MatchInput, ivs []Intervention, snap *Snapshot) (*simState, error) {
 	s := &simState{in: in, present: in.Presence}
-	copy(s.pss[:11], in.Home.Players)
-	copy(s.pss[11:], in.Away.Players)
+	copy(s.onPitch[:11], in.Home.Players)
+	copy(s.onPitch[11:], in.Away.Players)
 	s.tactics = [2]Tactics{in.Home.Tactics, in.Away.Tactics}
 	s.recomputeAnchors(0)
 	s.recomputeAnchors(1)
@@ -103,15 +106,23 @@ func newSimState(in MatchInput, ivs []Intervention, snap *Snapshot) (*simState, 
 	})
 
 	if snap != nil {
-		s.rnd, _ = rng.FromState(snap.RND)
+		rnd, err := rng.FromState(snap.RND)
+		if err != nil {
+			return nil, fmt.Errorf("restoring rng: %w", err)
+		}
+		s.rnd = rnd
 		s.tick = snap.Tick
 		s.score = snap.Score
 		s.events = slices.Clone(snap.Events)
 		s.stats = snap.Stats
 		s.possTicks = snap.PossTicks
+		s.onPitch = snap.OnPitch
 		s.players = snap.Players
+		s.ratings = slices.Clone(snap.Ratings)
 		s.ballX, s.ballY = snap.BallX, snap.BallY
 		s.owner, s.ownerIdx, s.cooldown = snap.Owner, snap.OwnerIdx, snap.Cooldown
+		s.restart = snap.Restart
+		s.cards = snap.Cards
 		s.stoppage = snap.Stoppage
 		s.secondHalf = snap.SecondHalf
 		s.tactics = snap.Tactics
@@ -122,9 +133,15 @@ func newSimState(in MatchInput, ivs []Intervention, snap *Snapshot) (*simState, 
 	}
 
 	s.rnd = rng.New(in.Seed)
-	s.owner, s.ownerIdx, s.cooldown = 0, int8(restartIdx(s.pss[:11])), 0
+	s.owner = 0
+	s.ownerIdx = int8(restartIdx(s.onPitchFor(0)))
 	s.ballX, s.ballY = 0.5, 0.5
-	s.players = initialPositions(s.anchors)
+	for team := 0; team < 2; team++ {
+		for i := 0; i < 11; i++ {
+			ps := s.onPitch[team*11+i]
+			s.players[team*11+i] = PlayerState{X: s.anchors[team][i][0], Y: s.anchors[team][i][1], Morale: ps.Morale}
+		}
+	}
 	s.pending = pending
 	return s, nil
 }
@@ -141,14 +158,17 @@ func pendingFilterFrom(ivs []Intervention, from int32) []Intervention {
 
 func (s *simState) loop() error {
 	if s.tick == 0 {
-		s.emit(EventKickOff, 0, restartIdx(s.pss[:11]))
+		s.appendEvent(EventKickOff, 0, restartIdx(s.onPitchFor(0)), "")
 	}
 	for s.tick < int32(regulationTicks+int(s.stoppage[0]+s.stoppage[1])) {
 		if s.tick == halfTicks && !s.secondHalf {
 			s.secondHalf = true
-			s.emit(EventHalfTime, 1, restartIdx(s.pss[11:]))
+			s.appendEvent(EventHalfTime, 1, restartIdx(s.onPitchFor(1)), "")
 			s.ballX, s.ballY = 0.5, 0.5
+			s.owner = 1
+			s.ownerIdx = int8(restartIdx(s.onPitchFor(1)))
 			s.cooldown = 0
+			s.restart = Restart{}
 		}
 		if err := s.applyInterventions(); err != nil {
 			return err
@@ -158,9 +178,12 @@ func (s *simState) loop() error {
 		}
 		s.move()
 		s.fatigue()
-		if s.cooldown > 0 {
+		switch {
+		case s.restart.Kind != RestartNone:
+			s.tickRestart()
+		case s.cooldown > 0:
 			s.cooldown--
-		} else {
+		default:
 			s.act()
 		}
 		if s.owner >= 0 {
@@ -185,7 +208,7 @@ func (s *simState) applyInterventions() error {
 			return err
 		}
 		switch iv.Kind {
-		case "tactics":
+		case InterventionTactics:
 			var tac Tactics
 			if err := json.Unmarshal(iv.Payload, &tac); err != nil {
 				return fmt.Errorf("decoding tactics intervention: %w", err)
@@ -195,10 +218,58 @@ func (s *simState) applyInterventions() error {
 			}
 			s.tactics[team] = tac
 			s.recomputeAnchors(team)
+		case InterventionSubstitution:
+			var sub SubstitutionPayload
+			if err := json.Unmarshal(iv.Payload, &sub); err != nil {
+				return fmt.Errorf("decoding substitution intervention: %w", err)
+			}
+			if err := s.substitute(team, sub); err != nil {
+				return err
+			}
 		default:
 			return fmt.Errorf("%w: %s", ErrBadIntervention, iv.Kind)
 		}
 	}
+	return nil
+}
+
+// substitute swaps an on-pitch player for a bench player of the same club.
+func (s *simState) substitute(team int, sub SubstitutionPayload) error {
+	off := -1
+	for i := 0; i < 11; i++ {
+		if s.onPitch[team*11+i].ID == sub.PlayerOff {
+			off = i
+			break
+		}
+	}
+	if off < 0 {
+		return fmt.Errorf("%w: %s is not on the pitch", ErrBadIntervention, sub.PlayerOff)
+	}
+
+	squad := s.in.Home.Players
+	if team == 1 {
+		squad = s.in.Away.Players
+	}
+	in := -1
+	for i := 11; i < len(squad); i++ {
+		if squad[i].ID == sub.PlayerOn {
+			in = i
+			break
+		}
+	}
+	if in < 0 {
+		return fmt.Errorf("%w: %s is not on the bench", ErrBadIntervention, sub.PlayerOn)
+	}
+
+	slot := team*11 + off
+	// Deposit the departing player's rating accumulator; the incoming player starts fresh.
+	s.ratings = append(s.ratings, PlayerRating{PlayerID: s.onPitch[slot].ID, Rating: s.players[slot].Acc})
+	departing := s.onPitch[slot].Name
+	old := s.players[slot]
+	s.onPitch[slot] = squad[in]
+	s.players[slot] = PlayerState{X: old.X, Y: old.Y, Morale: squad[in].Morale}
+	s.cards[slot] = CardState{}
+	s.appendEvent(EventSubstitution, team, off, "replaces "+departing)
 	return nil
 }
 
@@ -214,25 +285,40 @@ func (s *simState) clubTeam(club string) (int, error) {
 }
 
 // move integrates players toward their tactical targets and eases the ball along.
+// The ball carrier gets a slow forward carry target instead of his formation anchor:
+// otherwise the anchor pull drags possession backwards between touches.
 func (s *simState) move() {
 	for team := 0; team < 2; team++ {
+		dir := 1.0
+		if team == 1 {
+			dir = -1
+		}
 		for i := 0; i < 11; i++ {
+			if s.cards[team*11+i].Off {
+				continue
+			}
 			ps := &s.players[team*11+i]
 			tx, ty := s.target(team, i, ps)
+			if s.owner == int8(team) && s.ownerIdx == int8(i) {
+				tx = clamp(ps.X+dir*0.015, 0.02, 0.98)
+				ty = clamp(ps.Y+(0.5-ps.Y)*0.05, 0.04, 0.96)
+			}
 			eff := 1 - 0.3*math.Min(ps.Fatigue/100, 1)
-			k := 0.05 + 0.05*(float64(s.pss[team*11+i].Attr.Pace)/20)*eff
+			k := 0.05 + 0.05*quality(s.onPitch[team*11+i].Attr.Pace)*eff
 			ps.X = clamp(ps.X+(tx-ps.X)*k, 0.02, 0.98)
 			ps.Y = clamp(ps.Y+(ty-ps.Y)*k, 0.04, 0.96)
 		}
 	}
-	// Loose ball settles slowly toward its spot; carried ball sits with its owner.
-	if s.owner < 0 {
+	switch {
+	case s.restart.Kind != RestartNone:
+		s.ballX, s.ballY = s.restart.X, s.restart.Y
+	case s.owner < 0:
 		s.ballX = clamp(s.ballX+(0.5-s.ballX)*0.05, 0.02, 0.98)
 		s.ballY = clamp(s.ballY+(0.5-s.ballY)*0.05, 0.04, 0.96)
-		return
+	default:
+		op := &s.players[int(s.owner)*11+int(s.ownerIdx)]
+		s.ballX, s.ballY = op.X, op.Y
 	}
-	op := &s.players[int(s.owner)*11+int(s.ownerIdx)]
-	s.ballX, s.ballY = op.X, op.Y
 }
 
 // target computes one player's tactical destination in absolute coordinates.
@@ -241,13 +327,14 @@ func (s *simState) target(team, idx int, ps *PlayerState) (float64, float64) {
 
 	tac := s.tactics[team]
 	blockShift := (float64(tac.Mentality)-3)*0.02 + (float64(tac.DefensiveLine)-2)*0.03
+	blockShift += s.gameStateShift(team)
 	if int8(team) == s.owner {
 		blockShift += 0.04
 	} else {
 		blockShift -= 0.02
 	}
 	width := 0.55 + 0.15*float64(tac.Width)
-	if idx > 0 { // outfielders shift with the block, keeper stays
+	if idx > 0 {
 		if team == 0 {
 			ax += blockShift
 		} else {
@@ -256,177 +343,58 @@ func (s *simState) target(team, idx int, ps *PlayerState) (float64, float64) {
 		ay = 0.5 + (ay-0.5)*width
 	}
 
-	// Ball attraction: nearer players bend toward the ball zone.
 	dx, dy := s.ballX-ax, s.ballY-ay
 	d2 := dx*dx + dy*dy
 	pull := 0.10 / (1 + 8*d2)
 	return clamp(ax+dx*pull, 0.02, 0.98), clamp(ay+dy*pull, 0.04, 0.96)
 }
 
+// fatigue drains condition shaped by work rate, pressing and stamina.
 func (s *simState) fatigue() {
 	press := float64(s.tactics[maxInt(int(s.owner), 0)].Pressing)
 	drain := 0.003 + 0.002*press
 	for team := 0; team < 2; team++ {
 		for i := 0; i < 11; i++ {
+			if s.cards[team*11+i].Off {
+				continue
+			}
 			ps := &s.players[team*11+i]
-			stamina := float64(s.pss[team*11+i].Attr.Stamina) / 20
-			work := float64(s.pss[team*11+i].Attr.WorkRate) / 20
+			stamina := quality(s.onPitch[team*11+i].Attr.Stamina)
+			work := quality(s.onPitch[team*11+i].Attr.WorkRate)
 			ps.Fatigue = math.Min(ps.Fatigue+drain*(0.6+0.6*work)*(1-0.4*stamina), 100)
 		}
 	}
 }
 
-// act resolves one action for the ball carrier (skeleton action tables).
-func (s *simState) act() {
-	if s.owner < 0 {
-		s.contestLoose()
-		return
+// perf is the visible performance multiplier: home advantage, morale band (±3%),
+// live-presence boost, fatigue decay and carrying an injury. Nothing hidden beyond
+// these (explainable results principle).
+func (s *simState) perf(team, idx int) float64 {
+	ps := s.players[team*11+idx]
+	p := s.onPitch[team*11+idx]
+	morale := 1 + moraleBand*(ps.Morale-50)/50
+	presence := 1.0
+	if (team == 0 && s.present.Home) || (team == 1 && s.present.Away) {
+		presence = presenceBoost
 	}
-	team, idx := int(s.owner), int(s.ownerIdx)
-	carrier := &s.pss[team*11+idx]
-	dir, goalX := 1.0, 1.0
-	if team == 1 {
-		dir, goalX = -1, 0.0
+	home := 1.0
+	if team == 0 && !s.in.Context.NeutralVenue {
+		home = homeAdvantage
 	}
-	dist := math.Abs(goalX - s.ballX)
-
-	shootProb := 0.0
-	if dist < 0.32 {
-		shootProb = 0.25 + 0.25*(float64(carrier.Attr.Finishing)-10)/20
+	fatigue := 1 - 0.3*math.Min(ps.Fatigue/100, 1)
+	hurt := 1.0
+	if ps.Hurt {
+		hurt = 1 - hurtPenalty
 	}
-	if s.rnd.Float64() < shootProb {
-		s.resolveShot(team, idx, dist)
-		return
-	}
-	s.resolveBuildUp(team, idx, dir)
+	return morale * presence * home * fatigue * hurt * conditionFactor(p.Condition)
 }
 
-func (s *simState) resolveShot(team, idx int, dist float64) {
-	carrier := &s.pss[team*11+idx]
-	gk := &s.pss[(1-team)*11]
-
-	attr := float64(carrier.Attr.Finishing)
-	if dist >= 0.18 {
-		attr = float64(carrier.Attr.LongShots)
-	}
-	quality := (attr / 20) * s.perf(team, idx)
-	stop := (float64(gk.Attr.ShotStopping) / 20) * s.perf(1-team, 0)
-	distFactor := 1 - 0.6*math.Min(dist/0.32, 1)
-	pGoal := clamp(0.55*quality*(1-0.6*stop)*distFactor, 0.01, 0.55)
-	pSave := clamp(0.35*quality-0.2*stop, 0.05, 0.6)
-
-	ts := s.statsFor(team)
-	ts.Shots++
-	s.players[team*11+idx].Acc += 0.3
-
-	roll := s.rnd.Float64()
-	switch {
-	case roll < pGoal:
-		s.addGoal(team, idx)
-	case roll < pGoal+pSave:
-		ts.OnTarget++
-		s.appendEvent(EventShotSaved, team, idx, "")
-		s.restart(1-team, 0, 0.10+0.80*float64(1-team))
-	default:
-		s.appendEvent(EventShotOffTarget, team, idx, "")
-		s.restart(1-team, 0, 0.08+0.84*float64(1-team))
-	}
-	s.cooldown = s.actionCooldown(team)
-}
-
-func (s *simState) addGoal(team, idx int) {
-	s.score = addScore(s.score, team)
-	ts := s.statsFor(team)
-	ts.Goals++
-	ts.OnTarget++
-	s.players[team*11+idx].Acc += 1.5
-	s.appendEvent(EventGoal, team, idx, "")
-	half := 0
-	if s.secondHalf {
-		half = 1
-	}
-	s.stoppage[half] = math.Min(s.stoppage[half]+20+float64(s.rnd.Intn(21)), maxHalfStoppage)
-	s.restart(1-team, restartIdx(s.pss[(1-team)*11:(1-team)*11+11]), 0.5)
-}
-
-func (s *simState) resolveBuildUp(team, idx int, dir float64) {
-	carrier := &s.pss[team*11+idx]
-	oppTac := s.tactics[1-team]
-	myTac := s.tactics[team]
-
-	carrierPass := (float64(carrier.Attr.Passing) / 20) * s.perf(team, idx)
-	pressure := 0.10 + 0.05*float64(oppTac.Pressing) + 0.03*float64(oppTac.Tackling)
-	turnoverP := clamp(pressure-0.25*carrierPass-0.05*(float64(carrier.Attr.FirstTouch)/20)+0.12, 0.03, 0.65)
-
-	receiver := s.rnd.Intn(11) // fixed-order draw
-	if s.rnd.Float64() < turnoverP {
-		defIdx := s.rnd.Intn(11)
-		s.players[(1-team)*11+defIdx].Acc += 0.2
-		s.restartIdxBall(1-team, defIdx)
-		s.cooldown = s.actionCooldown(1 - team)
-		return
-	}
-
-	vision := float64(carrier.Attr.Vision) / 20
-	dribble := float64(carrier.Attr.Dribbling) / 20
-	advance := 0.015 + 0.01*float64(myTac.PassingStyle)/3 + 0.015*vision*s.perf(team, idx)
-	if myTac.CounterAttack {
-		advance += 0.01 * dribble
-	}
-	s.ballX = clamp(s.ballX+dir*advance, 0.02, 0.98)
-	_, ry := s.target(team, receiver, &s.players[team*11+receiver])
-	s.ballY = clamp(s.ballY+(ry-s.ballY)*0.5, 0.04, 0.96)
-	s.players[team*11+idx].Acc += 0.05
-	s.ownerIdx = int8(receiver)
-	s.cooldown = s.actionCooldown(team)
-}
-
-func (s *simState) contestLoose() {
-	side := 0
-	if s.rnd.Float64() >= 0.5 {
-		side = 1
-	}
-	idx := s.rnd.Intn(11)
-	s.restartIdxBall(side, idx)
-	s.cooldown = s.actionCooldown(side)
-}
-
-// restart places a restart for a team at a spot; keeper restarts put him on the ball.
-func (s *simState) restart(team, idx int, x float64) {
-	y := 0.5
-	if idx != 0 {
-		_, y = s.target(team, idx, &s.players[team*11+idx])
-	}
-	s.owner, s.ownerIdx = int8(team), int8(idx)
-	s.ballX, s.ballY = x, y
-}
-
-func (s *simState) restartIdxBall(team, idx int) {
-	s.owner, s.ownerIdx = int8(team), int8(idx)
-	op := &s.players[team*11+idx]
-	s.ballX, s.ballY = op.X, op.Y
+func conditionFactor(condition float64) float64 {
+	return 0.9 + 0.1*condition/100
 }
 
 func (s *simState) actionCooldown(team int) int8 {
-	return int8(maxInt(9-int(s.tactics[team].Tempo), 2))
-}
-
-// perf is the visible performance multiplier: morale band (±3%), live-presence boost
-// and fatigue decay. Nothing hidden beyond these (explainable results principle).
-func (s *simState) perf(team, idx int) float64 {
-	ps := s.players[team*11+idx]
-	p := s.pss[team*11+idx]
-	morale := 1 + 0.03*(p.Morale-50)/50
-	presence := 1.0
-	if (team == 0 && s.present.Home) || (team == 1 && s.present.Away) {
-		presence = 1.03
-	}
-	fatigue := 1 - 0.3*math.Min(ps.Fatigue/100, 1)
-	return morale * presence * fatigue
-}
-
-func (s *simState) emit(kind string, team, idx int) {
-	s.appendEvent(kind, team, idx, "")
+	return int8(maxInt(baseCooldown-int(s.tactics[team].Tempo), minCooldown))
 }
 
 func (s *simState) appendEvent(kind string, team, idx int, detail string) {
@@ -436,7 +404,7 @@ func (s *simState) appendEvent(kind string, team, idx int, detail string) {
 		Minute: tick/60 + 1,
 		Kind:   kind,
 		Club:   s.teamClub(team),
-		Player: s.pss[team*11+idx].ID,
+		Player: s.onPitch[team*11+idx].ID,
 		Detail: detail,
 	})
 }
@@ -455,6 +423,46 @@ func (s *simState) statsFor(team int) *TeamStats {
 	return &s.stats.Away
 }
 
+func (s *simState) onPitchFor(team int) []PlayerSnapshot {
+	return s.onPitch[team*11 : team*11+11]
+}
+
+// scoreDiff returns (own − opponent) goals for a team.
+func (s *simState) scoreDiff(team int) int {
+	if team == 0 {
+		return s.score.Home - s.score.Away
+	}
+	return s.score.Away - s.score.Home
+}
+
+// gameStateShift tilts the block with the scoreboard: trailing teams push up,
+// leaders manage the game. Clamped to ±2 goals.
+func (s *simState) gameStateShift(team int) float64 {
+	d := s.scoreDiff(team)
+	if d > 2 {
+		d = 2
+	}
+	if d < -2 {
+		d = -2
+	}
+	return -float64(d) * gameStateShift
+}
+
+func (s *simState) avgFatigue(team int) float64 {
+	sum := 0.0
+	for i := 0; i < 11; i++ {
+		sum += s.players[team*11+i].Fatigue
+	}
+	return sum / 11
+}
+
+func avgShotDist(ts TeamStats) float64 {
+	if ts.Shots == 0 {
+		return 0
+	}
+	return round2(ts.DistSum / float64(ts.Shots))
+}
+
 func (s *simState) sampleKeyframe() Keyframe {
 	kf := Keyframe{
 		TMs:       uint32(s.tick) * 1000,
@@ -465,11 +473,14 @@ func (s *simState) sampleKeyframe() Keyframe {
 	for i := range s.players {
 		ps := s.players[i]
 		state := byte(KFIdle)
-		if i == int(s.owner)*11+int(s.ownerIdx) && s.cooldown == 0 {
+		switch {
+		case s.cards[i].Off:
+			state = KFIdle
+		case i == int(s.owner)*11+int(s.ownerIdx) && s.cooldown == 0:
 			state = KFKick
-		} else if math.Abs(s.ballX-ps.X)+math.Abs(s.ballY-ps.Y) < 0.12 {
+		case absf(s.ballX-ps.X)+absf(s.ballY-ps.Y) < 0.12:
 			state = KFDuel
-		} else if math.Abs(ps.X-s.anchors[i/11][i%11][0]) > 0.03 {
+		case absf(ps.X-s.anchors[i/11][i%11][0]) > 0.03:
 			state = KFRun
 		}
 		kf.Players[i] = KFPlayer{X: ps.X, Y: ps.Y, State: state}
@@ -484,12 +495,16 @@ func (s *simState) snapshot() Snapshot {
 		Events:     slices.Clone(s.events),
 		Stats:      s.stats,
 		PossTicks:  s.possTicks,
+		OnPitch:    s.onPitch,
 		Players:    s.players,
+		Ratings:    slices.Clone(s.ratings),
 		BallX:      s.ballX,
 		BallY:      s.ballY,
 		Owner:      s.owner,
 		OwnerIdx:   s.ownerIdx,
 		Cooldown:   s.cooldown,
+		Restart:    s.restart,
+		Cards:      s.cards,
 		Stoppage:   s.stoppage,
 		SecondHalf: s.secondHalf,
 		Tactics:    s.tactics,
@@ -509,14 +524,24 @@ func (s *simState) result() MatchResult {
 		res.Stats.Home.PossessionPct = math.Round(1000*float64(s.possTicks[0])/float64(total)) / 10
 		res.Stats.Away.PossessionPct = math.Round(1000*float64(s.possTicks[1])/float64(total)) / 10
 	}
-	ratings := make([]PlayerRating, 0, 22)
-	for i := range s.players {
-		// Rating grows with concrete involvements (passes, duels, shots, goals).
-		rating := clamp(5.5+math.Min(s.players[i].Acc, 3.5), 3, 10)
-		ratings = append(ratings, PlayerRating{
-			PlayerID: s.pss[i].ID,
-			Rating:   math.Round(rating*100) / 100,
-		})
+	res.Stats.Home.XG = round2(res.Stats.Home.XG)
+	res.Stats.Away.XG = round2(res.Stats.Away.XG)
+	res.Stats.Home.AvgFatigue = round2(s.avgFatigue(0))
+	res.Stats.Away.AvgFatigue = round2(s.avgFatigue(1))
+	res.Stats.Home.AvgShotDist = avgShotDist(res.Stats.Home)
+	res.Stats.Away.AvgShotDist = avgShotDist(res.Stats.Away)
+
+	ratings := slices.Clone(s.ratings) // substituted-off players (accumulators)
+	for team := 0; team < 2; team++ {
+		for i := 0; i < 11; i++ {
+			ratings = append(ratings, PlayerRating{
+				PlayerID: s.onPitch[team*11+i].ID,
+				Rating:   s.players[team*11+i].Acc,
+			})
+		}
+	}
+	for i := range ratings {
+		ratings[i].Rating = round2(clamp(5.5+math.Min(ratings[i].Rating, 3.5), 3, 10))
 	}
 	sort.SliceStable(ratings, func(i, j int) bool {
 		return ratings[i].PlayerID < ratings[j].PlayerID
@@ -542,26 +567,16 @@ func (s *simState) recomputeAnchors(team int) {
 			i++
 		}
 	}
-	for ; i < 11; i++ { // defensive formations may leave spare slots
+	for ; i < 11; i++ {
 		table[i] = table[i-1]
 	}
 	s.anchors[team] = table
 }
 
-func initialPositions(anchors [2][11][2]float64) [22]PlayerState {
-	var ps [22]PlayerState
-	for team := 0; team < 2; team++ {
-		for i := 0; i < 11; i++ {
-			ps[team*11+i] = PlayerState{X: anchors[team][i][0], Y: anchors[team][i][1]}
-		}
-	}
-	return ps
-}
-
 // restartIdx picks a midfield conductor slot (scanned in lineup order — deterministic).
 func restartIdx(team []PlayerSnapshot) int {
 	for i, p := range team {
-		if p.Pos == PosCM {
+		if p.Pos == PosCM && i > 0 {
 			return i
 		}
 	}
@@ -581,6 +596,14 @@ func clamp(v, lo, hi float64) float64 {
 	return math.Max(lo, math.Min(v, hi))
 }
 
+func absf(v float64) float64 {
+	return math.Abs(v)
+}
+
+func minf(a, b float64) float64 {
+	return math.Min(a, b)
+}
+
 func maxInt(a, b int) int {
 	if a > b {
 		return a
@@ -588,11 +611,22 @@ func maxInt(a, b int) int {
 	return b
 }
 
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func round2(v float64) float64 {
+	return math.Round(v*100) / 100
+}
+
 func validate(in MatchInput) error {
 	if in.EngineVersion != EngineVersion {
 		return fmt.Errorf("%w: input %d, engine %d", ErrEngineVersion, in.EngineVersion, EngineVersion)
 	}
-	seen := make(map[PlayerID]struct{}, 22)
+	seen := make(map[PlayerID]struct{}, 36)
 	for team, t := range []TeamSnapshot{in.Home, in.Away} {
 		if err := validateTeam(t); err != nil {
 			return fmt.Errorf("team %d: %w", team, err)
@@ -608,7 +642,7 @@ func validate(in MatchInput) error {
 }
 
 func validateTeam(t TeamSnapshot) error {
-	if len(t.Players) != 11 || t.Players[0].Pos != PosGK {
+	if len(t.Players) < 11 || len(t.Players) > 18 || t.Players[0].Pos != PosGK {
 		return ErrBadLineup
 	}
 	for _, p := range t.Players {
@@ -640,7 +674,9 @@ func validateTactics(tac Tactics) error {
 		tac.PassingStyle >= 1 && tac.PassingStyle <= 3 &&
 		tac.DefensiveLine >= 1 && tac.DefensiveLine <= 3 &&
 		tac.Marking >= 1 && tac.Marking <= 2 &&
-		tac.Tackling >= 1 && tac.Tackling <= 2
+		tac.Tackling >= 1 && tac.Tackling <= 2 &&
+		tac.SetPieces.CornerRoutine >= 1 && tac.SetPieces.CornerRoutine <= 4 &&
+		tac.SetPieces.FreeKickRoutine >= 1 && tac.SetPieces.FreeKickRoutine <= 3
 	if !ok {
 		return ErrBadTactics
 	}

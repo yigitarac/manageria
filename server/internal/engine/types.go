@@ -1,6 +1,10 @@
 // Package engine implements the deterministic match simulation (see the Match Engine
 // design note). Pure: no I/O, no wall clock, no goroutines, no map iteration whose
 // order can affect results. The only randomness comes from the seeded rng package.
+//
+// Portability rule: outcome math uses only +, -, *, / and bit-trivial helpers
+// (abs/min/max/clamp) — no libm functions in decisions, so every platform computes
+// bit-identical results.
 package engine
 
 import (
@@ -11,7 +15,10 @@ import (
 
 // EngineVersion identifies simulation behaviour. Bump it deliberately whenever the
 // behaviour changes and update the golden tests at the same time.
-const EngineVersion = 1
+//
+//	v1 — skeleton action tables (superseded)
+//	v2 — full action tables: duels, crosses, set pieces, fouls/cards, injuries, subs
+const EngineVersion = 2
 
 // PlayerID identifies a player across a match (UUIDv7 string at the storage boundary).
 type PlayerID string
@@ -92,6 +99,13 @@ type PlayerSnapshot struct {
 	Morale    float64 // 0..100
 }
 
+// SetPiecesConfig are the designated set-piece choices.
+type SetPiecesConfig struct {
+	CornerRoutine   int8     // 1 near post, 2 far post, 3 edge of box, 4 short
+	FreeKickRoutine int8     // 1 shoot, 2 cross, 3 lay-off
+	Taker           PlayerID // empty = engine picks the best candidate deterministically
+}
+
 // Tactics are the manager knobs; every field maps to documented engine effects.
 type Tactics struct {
 	Formation     [3]int // outfield rows defence→attack, e.g. {4,4,2}; sums to 10
@@ -104,9 +118,11 @@ type Tactics struct {
 	Marking       int8   // 1 zonal, 2 man-oriented
 	Tackling      int8   // 1 fair, 2 hard
 	CounterAttack bool
+	SetPieces     SetPiecesConfig
 }
 
-// TeamSnapshot is a submitted lineup plus tactics. Exactly 11 players, [0] is the keeper.
+// TeamSnapshot is a submitted lineup plus tactics. 11–18 players: the first 11 are the
+// starters ([0] is the goalkeeper), the rest are the bench.
 type TeamSnapshot struct {
 	Club    string
 	Players []PlayerSnapshot
@@ -137,25 +153,45 @@ type MatchInput struct {
 	Presence      PresenceFlags
 }
 
+// Intervention kinds understood by the engine.
+const (
+	InterventionTactics      = "tactics"
+	InterventionSubstitution = "substitution"
+)
+
 // Intervention is a manager change submitted during the match. The server resolves
 // EffectiveTick via the "next stoppage, ≤60 s" rule; the engine just honours it.
 type Intervention struct {
 	EffectiveTick int32
 	Club          string
-	Kind          string // "tactics" (payload: Tactics JSON) — skeleton supports only this
+	Kind          string // InterventionTactics (payload: Tactics) or InterventionSubstitution
 	Payload       json.RawMessage
 }
 
-// Event kinds emitted by the skeleton action tables.
+// SubstitutionPayload is the payload of InterventionSubstitution.
+type SubstitutionPayload struct {
+	PlayerOn  PlayerID `json:"playerOn"`
+	PlayerOff PlayerID `json:"playerOff"`
+}
+
+// Event kinds emitted by the action tables.
 const (
 	EventKickOff       = "kick_off"
 	EventHalfTime      = "half_time"
 	EventGoal          = "goal"
 	EventShotSaved     = "shot_saved"
 	EventShotOffTarget = "shot_off_target"
+	EventOffside       = "offside"
+	EventFoul          = "foul"
+	EventYellowCard    = "yellow_card"
+	EventRedCard       = "red_card"
+	EventInjury        = "injury"
+	EventSubstitution  = "substitution"
+	EventError         = "error" // concentration lapse gift
 )
 
-// Event is one match incident.
+// Event is one match incident. Detail carries explainability extras
+// (e.g. "morale:+4", "minute_out:10").
 type Event struct {
 	Tick   int32
 	Minute int32
@@ -171,6 +207,13 @@ type TeamStats struct {
 	Shots         int
 	OnTarget      int
 	Goals         int
+	XG            float64
+	Corners       int
+	Fouls         int
+	Turnovers     int
+	AvgFatigue    float64 // mean final fatigue of the XI (0..100)
+	AvgShotDist   float64 // mean shot distance (normalized pitch units)
+	DistSum       float64 // internal sum backing AvgShotDist
 }
 
 // MatchStats aggregates both teams.
@@ -223,27 +266,61 @@ type MatchResult struct {
 	Keyframes     []Keyframe
 }
 
-// PlayerState is the simulated kinematic/dynamic state of one player.
+// PlayerState is the simulated dynamic state of one on-pitch slot.
 type PlayerState struct {
 	X, Y    float64
-	Fatigue float64
+	Fatigue float64 // 0..100
+	Morale  float64 // 0..100, shifts with goals (surfaced in goal event details)
 	Acc     float64 // rating accumulator
+	Hurt    bool    // playing through an injury (perf penalty until subbed)
+}
+
+// CardState tracks disciplinary state per on-pitch slot.
+type CardState struct {
+	Yellow uint8
+	Off    bool // sent off; the slot stops participating
+}
+
+// RestartKind enumerates dead-ball situations.
+type RestartKind int8
+
+// Dead-ball situations.
+const (
+	RestartNone RestartKind = iota
+	RestartGoalKick
+	RestartThrowIn
+	RestartCorner
+	RestartFreeKick
+	RestartPenalty
+)
+
+// Restart is a pending dead-ball delivery (resolved after Ticks ticks of "walk over").
+type Restart struct {
+	Kind  RestartKind
+	Team  int8
+	X, Y  float64
+	Ticks int8
 }
 
 // Snapshot is the complete serializable state at a tick boundary. Resuming from it
-// reproduces the straight run bit for bit.
+// reproduces the straight run bit for bit. It is self-contained apart from the seed:
+// on-pitch player copies travel with it (substitutions change occupants).
 type Snapshot struct {
 	Tick       int32
 	Score      Score
 	Events     []Event
 	Stats      MatchStats
 	PossTicks  [2]int
-	Players    [22]PlayerState // home 0..10, away 11..21
+	OnPitch    [22]PlayerSnapshot // current occupants: home 0..10, away 11..21
+	Players    [22]PlayerState
+	Ratings    []PlayerRating // accumulated for everyone who played
 	BallX      float64
 	BallY      float64
 	Owner      int8 // 0 home, 1 away, -1 loose
 	OwnerIdx   int8
 	Cooldown   int8
+	Restart    Restart
+	Cards      [22]CardState
 	Stoppage   [2]float64
 	SecondHalf bool
 	Tactics    [2]Tactics

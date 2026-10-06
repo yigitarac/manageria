@@ -12,13 +12,13 @@ import (
 )
 
 // SampleInput returns a fully valid, deterministic match input around two
-// fictional clubs with evenly matched squads.
+// fictional clubs with evenly matched squads (11 starters + 5 bench).
 func SampleInput(seed uint64) engine.MatchInput {
 	return engine.MatchInput{
 		EngineVersion: engine.EngineVersion,
 		Seed:          seed,
-		Home:          sampleTeam("Redvale FC", 11),
-		Away:          sampleTeam("Stonebrook Athletic", 11),
+		Home:          sampleTeam("Redvale FC"),
+		Away:          sampleTeam("Stonebrook Athletic"),
 		Context: engine.MatchContext{
 			Competition:    "league",
 			NeutralVenue:   false,
@@ -41,6 +41,10 @@ func SampleTactics() engine.Tactics {
 		DefensiveLine: 2,
 		Marking:       1,
 		Tackling:      1,
+		SetPieces: engine.SetPiecesConfig{
+			CornerRoutine:   2, // far post
+			FreeKickRoutine: 2, // cross
+		},
 	}
 }
 
@@ -54,12 +58,13 @@ func Digest(res engine.MatchResult) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
-func sampleTeam(club string, base uint8) engine.TeamSnapshot {
+func sampleTeam(club string) engine.TeamSnapshot {
 	specs := []struct {
 		name string
 		pos  engine.Pos
 		mod  uint8
 	}{
+		// Starting XI (4-4-2)
 		{"Halden Moor", engine.PosGK, 0},
 		{"Bram Kovac", engine.PosCB, 1},
 		{"Idris Vale", engine.PosCB, 0},
@@ -71,14 +76,20 @@ func sampleTeam(club string, base uint8) engine.TeamSnapshot {
 		{"Dario Salk", engine.PosW, 1},
 		{"Miro Thane", engine.PosST, 3},
 		{"Kenji Alba", engine.PosST, 2},
+		// Bench
+		{"Piet Halloran", engine.PosGK, 1},
+		{"Sven Adako", engine.PosCB, 2},
+		{"Luc Brandt", engine.PosCM, 1},
+		{"Rhys Calder", engine.PosW, 0},
+		{"Anzo Peres", engine.PosST, 1},
 	}
-	players := make([]engine.PlayerSnapshot, 0, 11)
+	players := make([]engine.PlayerSnapshot, 0, len(specs))
 	for i, sp := range specs {
 		players = append(players, engine.PlayerSnapshot{
 			ID:        engine.PlayerID(fmt.Sprintf("%s#%d", club, i)),
 			Name:      sp.name,
 			Pos:       sp.pos,
-			Attr:      sampleAttrs(sp.pos, base+sp.mod),
+			Attr:      sampleAttrs(sp.pos, uint8(11)+sp.mod),
 			Condition: 100,
 			Morale:    55,
 		})
