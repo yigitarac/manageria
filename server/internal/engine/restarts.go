@@ -30,6 +30,7 @@ func (s *simState) tickRestart() {
 func (s *simState) resolveRestart() {
 	r := s.restart
 	s.restart = Restart{Kind: RestartNone}
+	s.pendingCau = "setpiece"
 	team := int(r.Team)
 
 	switch r.Kind {

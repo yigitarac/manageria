@@ -29,6 +29,8 @@ func main() {
 	rehearse := flag.Int("rehearse", 0, "run N corner drills (drilled pattern vs default routine) and print outcome bands")
 	audit := flag.Bool("audit", false, "sweep the home-tactic preset matrix over -matches rounds and flag balance violations")
 	analyze := flag.Int("analyze", 0, "run N matches and print football-IQ smell metrics (moment-level sanity)")
+	story := flag.Bool("story", false, "print one match as a possession-by-possession narrative (the watch-through)")
+	kpi := flag.Int("kpi", 0, "print behavioural KPIs over N matches (ADR-0011 norms: chains, touches, regime mix)")
 	out := flag.String("out", "", "write the match result JSON to this file")
 	flag.Parse()
 
@@ -42,6 +44,14 @@ func main() {
 	}
 	if *analyze > 0 {
 		analyzeSmells(*seed, *analyze)
+		return
+	}
+	if *story {
+		storyMatch(*seed)
+		return
+	}
+	if *kpi > 0 {
+		kpiReport(*seed, *kpi)
 		return
 	}
 	if *matches > 0 {

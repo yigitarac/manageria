@@ -92,6 +92,15 @@ type simState struct {
 	present    PresenceFlags
 	pattern    PatternCursor
 	patTag     string // transient attribution tag (set/cleared within one tick's chain)
+	// Possession-chain bookkeeping (sensory layer, ADR-0011).
+	chainID    int32
+	chainTeam  int8
+	chainStart int32
+	chainReg   Regime
+	chainGone  int32
+	pendingCau string // transient: birth cause for the imminent chain ("setpiece")
+	touches    []Touch
+	chains     []ChainInfo
 }
 
 func newSimState(in MatchInput, ivs []Intervention, snap *Snapshot) (*simState, error) {
@@ -129,6 +138,13 @@ func newSimState(in MatchInput, ivs []Intervention, snap *Snapshot) (*simState, 
 		s.secondHalf = snap.SecondHalf
 		s.tactics = snap.Tactics
 		s.pattern = snap.Pattern
+		s.chainID = snap.ChainID
+		s.chainTeam = snap.ChainTeam
+		s.chainStart = snap.ChainStart
+		s.chainReg = snap.ChainReg
+		s.chainGone = snap.ChainGone
+		s.touches = slices.Clone(snap.Touches)
+		s.chains = slices.Clone(snap.Chains)
 		s.recomputeAnchors(0)
 		s.recomputeAnchors(1)
 		s.pending = pendingFilterFrom(pending, snap.Tick)
@@ -139,6 +155,8 @@ func newSimState(in MatchInput, ivs []Intervention, snap *Snapshot) (*simState, 
 	s.owner = 0
 	s.ownerIdx = int8(restartIdx(s.onPitchFor(0)))
 	s.ballX, s.ballY = 0.5, 0.5
+	s.chainTeam = -1
+	s.openChain(0, "kickoff")
 	for team := 0; team < 2; team++ {
 		for i := 0; i < 11; i++ {
 			ps := s.onPitch[team*11+i]
@@ -196,6 +214,7 @@ func (s *simState) loop() error {
 		if s.owner >= 0 {
 			s.possTicks[s.owner]++
 		}
+		s.senseChain()
 		s.tick++
 		if s.tick%snapshotEvery == 0 {
 			s.snaps = append(s.snaps, s.snapshot())
@@ -389,6 +408,123 @@ func (s *simState) roleClamp(team, idx int, tx, ty float64) (float64, float64) {
 		tx = math.Max(tx, 1-maxAttack)
 	}
 	return tx, ty
+}
+
+// ---- possession-chain lifecycle (sensory layer, ADR-0011) ----
+
+// senseChain closes and opens possession chains at ownership changes and classifies
+// each newborn chain into a game regime from its birth circumstances.
+func (s *simState) senseChain() {
+	if s.owner < 0 {
+		s.chainGone++
+		if s.chainGone > 15 {
+			s.closeChain("dead_ball")
+		}
+		return
+	}
+	s.chainGone = 0
+	if s.liveChain() && s.owner == s.chainTeam {
+		return
+	}
+	if s.liveChain() {
+		s.closeChain("turnover")
+	}
+	cause := "regain"
+	if s.pendingCau != "" {
+		cause = s.pendingCau
+		s.pendingCau = ""
+	}
+	s.openChain(s.owner, cause)
+}
+
+// recordTouch writes one on-ball action into the sensory ledger.
+func (s *simState) recordTouch(kind string, actor, target int8, success bool) {
+	if !s.liveChain() {
+		return // dead-ball mechanics are events, not open-play touches
+	}
+	s.touches = append(s.touches, Touch{
+		Tick:    s.tick,
+		Chain:   s.chainID,
+		Team:    s.chainTeam,
+		Kind:    kind,
+		Actor:   actor,
+		Target:  target,
+		Success: success,
+		X:       s.ballX,
+		Y:       s.ballY,
+	})
+}
+
+func (s *simState) openChain(team int8, cause string) {
+	s.chainID++ // monoton kimlik: her zincir benzersiz (defter bununla sayılıyor)
+	s.chainTeam = team
+	s.chainStart = s.tick
+	s.chainGone = 0
+	s.chainReg = s.classifyRegime(team, cause)
+}
+
+func (s *simState) closeChain(outcome string) {
+	if s.chainID == 0 {
+		return
+	}
+	touches := 0
+	for _, t := range s.touches {
+		if t.Chain == s.chainID {
+			touches++
+		}
+	}
+	s.chains = append(s.chains, ChainInfo{
+		ID:      s.chainID,
+		Team:    s.chainTeam,
+		Regime:  s.chainReg.String(),
+		Start:   s.chainStart,
+		End:     s.tick,
+		Touches: touches,
+		Outcome: outcome,
+	})
+	// NOTE: chainID stays monotonic (it is the ledger key); "no live chain" is the
+	// zero value of chainTeam guard below.
+	s.chainTeam = -1
+}
+
+// liveChain reports whether a chain is currently being written.
+func (s *simState) liveChain() bool {
+	return s.chainTeam >= 0
+}
+
+// classifyRegime reads the playbook the newborn possession should run: where and why
+// it was born decides everything (v6 spec — regimes, not dice).
+func (s *simState) classifyRegime(team int8, cause string) Regime {
+	switch cause {
+	case "setpiece":
+		return RegimeSetPiece
+	case "regroup":
+		return RegimeRegroup
+	}
+	x := s.ballX
+	if team == 1 {
+		x = 1 - x
+	}
+	// Fresh regain high up = counter window; deep win = build up; else progression.
+	if cause == "regain" && x > 0.62 {
+		return RegimeTransition
+	}
+	switch {
+	case x < 0.35:
+		return RegimeBuildUp
+	case x < 0.68:
+		return RegimeProgression
+	default:
+		return RegimeFinalThird
+	}
+}
+
+// finalChains flushes the live chain (with its outcome) at full time.
+func (s *simState) finalChains() []ChainInfo {
+	if s.liveChain() {
+		s.closeChain("half")
+	}
+	return s.chains
 }
 
 // target computes one player's tactical destination in absolute coordinates.
@@ -599,6 +735,13 @@ func (s *simState) snapshot() Snapshot {
 		Restart:    s.restart,
 		Cards:      s.cards,
 		Pattern:    s.pattern,
+		ChainID:    s.chainID,
+		ChainTeam:  s.chainTeam,
+		ChainStart: s.chainStart,
+		ChainReg:   s.chainReg,
+		ChainGone:  s.chainGone,
+		Touches:    slices.Clone(s.touches),
+		Chains:     slices.Clone(s.chains),
 		Stoppage:   s.stoppage,
 		SecondHalf: s.secondHalf,
 		Tactics:    s.tactics,
@@ -612,6 +755,8 @@ func (s *simState) result() MatchResult {
 		Score:     s.score,
 		Teams:     MatchTeams{Home: teamInfo(s.in.Home), Away: teamInfo(s.in.Away)},
 		Events:    s.events,
+		Touches:   s.touches,
+		Chains:    s.finalChains(),
 		Stats:     s.stats,
 		Keyframes: s.keyframes,
 	}

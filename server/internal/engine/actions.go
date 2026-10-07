@@ -190,10 +190,12 @@ func (s *simState) deliverPass(team, idx int, sit situation, length float64, lon
 	roll := s.rnd.Float64()
 	switch {
 	case roll < pMisplace:
+		s.recordTouch(TouchPass, int8(idx), -1, false)
 		s.lapseConsequence(team, idx)
 		return
 	case roll < pMisplace+pIntercept:
 		defIdx := s.pickReceiver(1 - team)
+		s.recordTouch(TouchPass, int8(idx), int8(defIdx), false)
 		s.wonDuel(1-team, defIdx, 0.2)
 		s.restartIdxBall(1-team, defIdx)
 		return
@@ -207,10 +209,12 @@ func (s *simState) deliverPass(team, idx int, sit situation, length float64, lon
 		pHeavy += 0.03
 	}
 	if s.rnd.Float64() < pHeavy {
+		s.recordTouch(TouchPass, int8(idx), int8(receiver), false)
 		s.lapseConsequence(team, receiver)
 		return
 	}
 
+	s.recordTouch(TouchPass, int8(idx), int8(receiver), true)
 	s.players[team*11+idx].Acc += 0.05
 	traffic := 1 - trafficDrag*minf(s.boxCongestion(1-team), 1)
 	s.advanceBall(team, receiver, length*traffic)
@@ -286,6 +290,7 @@ func (s *simState) dribble(team, idx int, sit situation) {
 
 	if s.rnd.Float64() < duelChance(att, defQ) {
 		s.players[team*11+idx].Acc += 0.15
+		s.recordTouch(TouchCarry, int8(idx), -1, true)
 		traffic := 1 - trafficDrag*minf(s.boxCongestion(1-team), 1)
 		s.advanceBall(team, idx, (0.08+0.04*quality(s.onPitch[team*11+idx].Attr.Dribbling))*traffic)
 		if s.rnd.Float64() < foulBase*0.5*(0.4+0.3*quality(def.Aggression))*(1+hard) {
@@ -299,6 +304,7 @@ func (s *simState) dribble(team, idx int, sit situation) {
 		return
 	}
 	s.wonDuel(1-team, defIdx, 0.25)
+	s.recordTouch(TouchDuel, int8(idx), int8(defIdx), false)
 	s.restartIdxBall(1-team, defIdx)
 }
 
@@ -540,6 +546,7 @@ func (s *simState) contestLoose() {
 		side, idx = 1, n1
 	}
 	s.wonDuel(side, idx, 0.1)
+	s.recordTouch(TouchRegain, int8(idx), -1, true)
 	s.restartIdxBall(side, idx)
 	s.cooldown = s.actionCooldown(side)
 }

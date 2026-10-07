@@ -23,9 +23,9 @@ func TestGoldenDigest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Digest: %v", err)
 	}
-	// v5 goldens — T-012 football IQ pass incl. markFree free-header air, post-block xG
-	// semantics and the advanceBall teleport fix. Frozen deliberately.
-	const want = "6bb730a65c6c240fcff175d5b5503dd63eca188f48695fbaad3bd0ba27201e87"
+	// v5+ ledger goldens — T-014 stage A: sensory touch ledger + possession chains +
+	// regimes (observability layer; behaviour unchanged). Frozen deliberately.
+	const want = "60c0c35a47659f57ffddcffadfffddd749c1c4df401ceab4f12eda87e4b4456e"
 	if got != want {
 		t.Fatalf("golden digest = %s, want %s (update deliberately on EngineVersion bumps)", got, want)
 	}

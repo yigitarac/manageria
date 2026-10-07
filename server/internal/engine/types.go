@@ -290,6 +290,70 @@ type MatchTeams struct {
 	Away TeamInfo `json:"away"`
 }
 
+// Regimes (ADR-0011): every possession is born into a playbook.
+type Regime int8
+
+// Possession regimes.
+const (
+	RegimeBuildUp Regime = iota
+	RegimeProgression
+	RegimeFinalThird
+	RegimeTransition
+	RegimeSetPiece
+	RegimeRegroup
+)
+
+// String returns the regime label for narratives and KPIs.
+func (r Regime) String() string {
+	switch r {
+	case RegimeBuildUp:
+		return "buildUp"
+	case RegimeProgression:
+		return "progression"
+	case RegimeFinalThird:
+		return "finalThird"
+	case RegimeTransition:
+		return "transition"
+	case RegimeSetPiece:
+		return "setPiece"
+	default:
+		return "regroup"
+	}
+}
+
+// Touch kinds in the sensory ledger.
+const (
+	TouchPass   = "pass"
+	TouchCarry  = "carry"
+	TouchDuel   = "duel"
+	TouchRegain = "regain"
+)
+
+// Touch is one recorded on-ball action — the sensory layer from which every emergent
+// statistic derives (ADR-0011: stats are bookkeeping, never manufactured).
+type Touch struct {
+	Tick    int32   `json:"tick"`
+	Chain   int32   `json:"chain"`
+	Team    int8    `json:"team"`
+	Kind    string  `json:"kind"`
+	Actor   int8    `json:"actor"`  // on-pitch slot
+	Target  int8    `json:"target"` // receiver/duel opponent slot (−1 = none)
+	Success bool    `json:"success"`
+	X       float64 `json:"x"`
+	Y       float64 `json:"y"`
+}
+
+// ChainInfo is one possession story: when it was born, who owned it, how it played.
+type ChainInfo struct {
+	ID      int32  `json:"id"`
+	Team    int8   `json:"team"`
+	Regime  string `json:"regime"`
+	Start   int32  `json:"start"`
+	End     int32  `json:"end"`
+	Touches int    `json:"touches"`
+	Outcome string `json:"outcome"` // "turnover" | "shot" | "goal" | "dead_ball" | "half"
+}
+
 // MatchResult is a completed simulation. Keyframes cover the simulated window only
 // when produced by Resume (the straight run covers the whole match).
 type MatchResult struct {
@@ -297,6 +361,8 @@ type MatchResult struct {
 	Teams         MatchTeams     `json:"teams"`
 	Score         Score          `json:"score"`
 	Events        []Event        `json:"events"`
+	Touches       []Touch        `json:"touches"`
+	Chains        []ChainInfo    `json:"chains"`
 	Stats         MatchStats     `json:"stats"`
 	PlayerRatings []PlayerRating `json:"playerRatings"`
 	Keyframes     []Keyframe     `json:"keyframes"`
@@ -414,6 +480,13 @@ type Snapshot struct {
 	Restart    Restart            `json:"restart"`
 	Cards      [22]CardState      `json:"cards"`
 	Pattern    PatternCursor      `json:"pattern"`
+	ChainID    int32              `json:"chainId"`
+	ChainTeam  int8               `json:"chainTeam"`
+	ChainStart int32              `json:"chainStart"`
+	ChainReg   Regime             `json:"chainReg"`
+	ChainGone  int32              `json:"chainGone"`
+	Touches    []Touch            `json:"touches"`
+	Chains     []ChainInfo        `json:"chains"`
 	Stoppage   [2]float64         `json:"stoppage"`
 	SecondHalf bool               `json:"secondHalf"`
 	Tactics    [2]Tactics         `json:"tactics"`
