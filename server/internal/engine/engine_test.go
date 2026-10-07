@@ -23,9 +23,9 @@ func TestGoldenDigest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Digest: %v", err)
 	}
-	// v5+ ledger goldens — T-014 stage A: sensory touch ledger + possession chains +
-	// regimes (observability layer; behaviour unchanged). Frozen deliberately.
-	const want = "60c0c35a47659f57ffddcffadfffddd749c1c4df401ceab4f12eda87e4b4456e"
+	// v5+ ledger goldens — shot/delivery touches join the sensory ledger (additive,
+	// fuels the causal ball story in the viewer). Frozen deliberately.
+	const want = "3673d1bc64616fe6e0a2cd044c6a7e718a3c55b25b6a8d332cfa0c6b4cc2e8b0"
 	if got != want {
 		t.Fatalf("golden digest = %s, want %s (update deliberately on EngineVersion bumps)", got, want)
 	}

@@ -327,6 +327,7 @@ const (
 	TouchCarry  = "carry"
 	TouchDuel   = "duel"
 	TouchRegain = "regain"
+	TouchShot   = "shot"
 )
 
 // Touch is one recorded on-ball action — the sensory layer from which every emergent

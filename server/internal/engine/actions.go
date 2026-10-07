@@ -355,6 +355,7 @@ func (s *simState) finishShot(team, idx int, header bool, goalDist, markFree flo
 
 	ts := s.statsFor(team)
 	ts.Shots++
+	s.recordTouch(TouchShot, int8(idx), -1, true)
 	blockProb := blockBase * duelChance(
 		s.bestOpponentAttr(team, func(a Attributes) float64 {
 			return 0.6*quality(a.Positioning) + 0.4*quality(a.Aggression)

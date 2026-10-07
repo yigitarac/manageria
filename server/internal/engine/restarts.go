@@ -120,6 +120,7 @@ func (s *simState) goalKick(team int) {
 func (s *simState) throwIn(team int, r Restart) {
 	thrower := s.bestSlot(team, func(a Attributes) float64 { return quality(a.Passing) })
 	s.ballX, s.ballY = r.X, r.Y
+	s.recordTouch(TouchPass, int8(thrower), -1, true)
 	pLost := 0.25 - 0.10*quality(s.onPitch[team*11+thrower].Attr.Passing)
 	if s.rnd.Float64() < pLost {
 		defIdx := s.nearestTo(1-team, r.X, r.Y)
@@ -167,6 +168,7 @@ func (s *simState) defaultCorner(team int) {
 	})
 	delivery := s.skill(team, taker, func(a Attributes) float64 { return quality(a.SetPieces) })
 	s.players[team*11+taker].Acc += 0.05
+	s.recordTouch(TouchPass, int8(taker), -1, true)
 
 	if s.tactics[team].SetPieces.CornerRoutine == 4 {
 		// Short corner: recycle into open play around the box.
@@ -245,6 +247,7 @@ func (s *simState) directFreeKick(team, taker int, dist float64) {
 	ts.Shots++
 	ts.XG += pGoal
 	ts.DistSum += dist
+	s.recordTouch(TouchShot, int8(taker), -1, true)
 	s.players[team*11+taker].Acc += 0.3
 
 	roll := s.rnd.Float64()
@@ -278,6 +281,7 @@ func (s *simState) penalty(team int) {
 	ts.Shots++
 	ts.XG += pGoal
 	ts.OnTarget++
+	s.recordTouch(TouchShot, int8(taker), -1, true)
 	s.players[team*11+taker].Acc += 0.3
 
 	if s.rnd.Float64() < pGoal {

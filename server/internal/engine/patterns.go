@@ -149,6 +149,7 @@ func (s *simState) resolvePatternCorner(team int, pat PatternSpec) int {
 	spread := pat.Delivery.Spread * patternAimSpread * (2 - delivery)
 	aimX := clamp(pat.Delivery.Aim[0]+(s.rnd.Float64()*2-1)*spread, 0.55, 0.98)
 	aimY := clamp(pat.Delivery.Aim[1]+(s.rnd.Float64()*2-1)*spread, 0.05, 0.95)
+	s.recordTouch(TouchPass, int8(taker), -1, true)
 	s.ballX, s.ballY = aimX, aimY
 
 	if !s.cornerEntry(team, delivery) {
