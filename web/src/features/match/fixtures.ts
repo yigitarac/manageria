@@ -73,6 +73,14 @@ export const syntheticDump: MatchDump = {
     { playerId: "h9", rating: 7.8 },
     { playerId: "a10", rating: 6.9 },
   ],
+  touches: [
+    { tick: 0, chain: 1, team: 0, kind: "pass", actor: 0, target: 6, success: true, x: 0.5, y: 0.5 },
+    { tick: 1, chain: 1, team: 0, kind: "carry", actor: 6, target: -1, success: true, x: 0.55, y: 0.45 },
+    { tick: 2, chain: 1, team: 0, kind: "pass", actor: 6, target: 9, success: false, x: 0.6, y: 0.4 },
+  ],
+  chains: [
+    { id: 1, team: 0, regime: "progression", start: 0, end: 3, touches: 3, outcome: "turnover" },
+  ],
   keyframes: [
     { tMs: 0, ballX: 0.5, ballY: 0.5, ballOwner: 0, players: playersAt(0.3, 0.5) },
     { tMs: 3000, ballX: 0.6, ballY: 0.4, ballOwner: 0, players: playersAt(0.4, 0.45) },

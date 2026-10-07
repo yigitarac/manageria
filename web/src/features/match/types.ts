@@ -24,6 +24,28 @@ export interface MatchEvent {
   detail: string;
 }
 
+export interface Touch {
+  tick: number;
+  chain: number;
+  team: number;
+  kind: string;
+  actor: number;
+  target: number;
+  success: boolean;
+  x: number;
+  y: number;
+}
+
+export interface ChainInfo {
+  id: number;
+  team: number;
+  regime: string;
+  start: number;
+  end: number;
+  touches: number;
+  outcome: string;
+}
+
 export interface TeamStatsDump {
   possessionPct: number;
   shots: number;
@@ -58,6 +80,8 @@ export interface MatchDump {
   teams: { home: TeamInfo; away: TeamInfo };
   score: { home: number; away: number };
   events: MatchEvent[];
+  touches: Touch[];
+  chains: ChainInfo[];
   stats: { home: TeamStatsDump; away: TeamStatsDump };
   playerRatings: { playerId: string; rating: number }[];
   keyframes: Keyframe[];

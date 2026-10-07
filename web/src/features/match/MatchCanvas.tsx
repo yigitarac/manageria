@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Application, Container, Graphics, Text } from "pixi.js";
+import { ballAt, buildBallStory } from "./ballStory";
 import { sampleAt } from "./interpolate";
 import type { FrameSample } from "./interpolate";
 import type { MatchDump } from "./types";
@@ -53,9 +54,17 @@ export function MatchCanvas({ dump, getTimeMs }: Props) {
       host.appendChild(app.canvas);
 
       const scene = buildScene(app.stage);
+      // The ball plays the match's own story (touch ledger): passes arc from touch to
+      // touch, shots fly at goal, goals nestle into the net — no invented motion.
+      const ballStory = buildBallStory(dump);
       app.ticker.add(() => {
-        const sample = sampleAt(dump.keyframes, timeRef.current());
-        if (sample) applySample(scene, sample);
+        const tMs = timeRef.current();
+        const sample = sampleAt(dump.keyframes, tMs);
+        if (sample) {
+          applySample(scene, sample);
+          const b = ballAt(ballStory, tMs);
+          if (b) scene.ball.position.set(b.x * PITCH_W, b.y * PITCH_H);
+        }
         fitScene(app.screen.width, app.screen.height, scene.root);
       });
     });

@@ -41,7 +41,7 @@ export function ViewerPage() {
   // Load the generated sample if present (make sample); otherwise prompt for a drop.
   useEffect(() => {
     let cancelled = false;
-    fetch(SAMPLE_URL)
+    fetch(SAMPLE_URL, { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("missing"))))
       .then((json: unknown) => {
         if (cancelled) return;
