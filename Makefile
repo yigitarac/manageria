@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help dev dev-api dev-web gen fmt lint test db-up db-down
+.PHONY: help dev dev-api dev-web gen fmt lint test sample db-up db-down
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-10s %s\n", $$1, $$2}'
@@ -30,6 +30,11 @@ lint: ## Lint Go and web sources
 test: ## Run Go and web tests
 	cd server && go test -race ./...
 	cd web && pnpm test
+
+sample: ## Generate a sample match dump for the web viewer
+	mkdir -p web/public/samples
+	cd server && go run ./cmd/simcli -seed 42 -runs 1 -out ../web/public/samples/match-42.json
+	@echo "drop web/public/samples/match-42.json into http://localhost:5173/viewer"
 
 db-up: ## Start local Postgres
 	docker compose -f deploy/docker-compose.yml up -d

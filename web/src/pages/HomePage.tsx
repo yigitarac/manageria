@@ -1,7 +1,9 @@
+import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { HealthCard } from "./features/health/HealthCard";
+import { Button } from "../components/ui/button";
+import { HealthCard } from "../features/health/HealthCard";
 
-export default function App() {
+export default function HomePage() {
   const { t } = useTranslation();
 
   return (
@@ -11,6 +13,9 @@ export default function App() {
         <p className="mt-2 text-muted-foreground">{t("home.tagline")}</p>
       </div>
       <HealthCard />
+      <Button asChild variant="outline">
+        <Link to="/viewer">{t("home.cta")}</Link>
+      </Button>
     </main>
   );
 }

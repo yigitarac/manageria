@@ -28,6 +28,14 @@ make dev       # API on :8080 + web on :5173
 
 Open <http://localhost:5173> — the page shows the API health status.
 
+## Match viewer
+
+`make sample` makes the engine write a real match dump to
+`web/public/samples/match-42.json` (gitignored). Open <http://localhost:5173/viewer> — the
+sample auto-loads when present, and any `simcli -out match.json` dump can be dropped onto
+the page. Space plays/pauses, the timeline scrubs, playback speed goes up to 180×.
+It renders 2D circles on a pitch with synchronized commentary and stats.
+
 ## Development
 
 ```sh

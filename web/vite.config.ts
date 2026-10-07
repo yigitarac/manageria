@@ -16,6 +16,7 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    globals: true,
     environmentOptions: {
       jsdom: {
         // Absolute URLs (Request/fetch) need a document origin in tests too.
