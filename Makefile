@@ -33,7 +33,7 @@ test: ## Run Go and web tests
 
 sample: ## Generate a sample match dump for the web viewer
 	mkdir -p web/public/samples
-	cd server && go run ./cmd/simcli -seed 42 -runs 1 -out ../web/public/samples/match-42.json
+	cd server && go run ./cmd/simcli -seed 2026 -runs 1 -out ../web/public/samples/match-42.json
 	@echo "drop web/public/samples/match-42.json into http://localhost:5173/viewer"
 
 db-up: ## Start local Postgres

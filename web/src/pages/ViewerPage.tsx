@@ -41,7 +41,7 @@ export function ViewerPage() {
   // Load the generated sample if present (make sample); otherwise prompt for a drop.
   useEffect(() => {
     let cancelled = false;
-    fetch(SAMPLE_URL, { cache: "no-store" })
+    fetch(`${SAMPLE_URL}?v=${Date.now()}`, { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("missing"))))
       .then((json: unknown) => {
         if (cancelled) return;
@@ -118,13 +118,19 @@ export function ViewerPage() {
         <div>
           <h1 className="text-lg font-bold">{t("viewer.title")}</h1>
           {dump ? (
-            <p className="text-sm text-muted-foreground">
-              {dump.teams.home.club}{" "}
-              <span className="font-mono">
-                {dump.score.home}–{dump.score.away}
-              </span>{" "}
-              {dump.teams.away.club}
-            </p>
+            <>
+              <p className="text-sm text-muted-foreground">
+                {dump.teams.home.club}{" "}
+                <span className="font-mono">
+                  {dump.score.home}–{dump.score.away}
+                </span>{" "}
+                {dump.teams.away.club}
+              </p>
+              {/* Dump fingerprint: ends "old vs new match" disputes */}
+              <p className="font-mono text-[11px] text-muted-foreground/70">
+                #{dump.keyframes.length}f · {dump.touches.length}t · {dump.chains.length}c
+              </p>
+            </>
           ) : (
             <p className="text-sm text-muted-foreground">{notice ?? t("viewer.loading")}</p>
           )}
