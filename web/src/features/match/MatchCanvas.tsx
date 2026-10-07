@@ -30,11 +30,24 @@ export function MatchCanvas({ dump, getTimeMs }: Props) {
     if (!host) return;
 
     const app = new Application();
-    let cancelled = false;
+    let disposed = false;
+    let ready = false;
+
+    // StrictMode double-mounts effects; destroying a Pixi Application before its
+    // async init() settles blows up the resize plugin (_cancelResize). Guard both
+    // directions: init resolution cleans up a disposed scene, cleanup waits for init.
+    const destroy = () => {
+      try {
+        app.destroy({ removeView: true }, { children: true });
+      } catch {
+        // teardown races are not actionable
+      }
+    };
 
     void app.init({ resizeTo: host, background: "#14532d", antialias: true }).then(() => {
-      if (cancelled) {
-        app.destroy(true, { children: true });
+      ready = true;
+      if (disposed) {
+        destroy();
         return;
       }
       host.appendChild(app.canvas);
@@ -48,8 +61,8 @@ export function MatchCanvas({ dump, getTimeMs }: Props) {
     });
 
     return () => {
-      cancelled = true;
-      app.destroy(true, { children: true });
+      disposed = true;
+      if (ready) destroy();
     };
   }, [dump]);
 

@@ -44,7 +44,13 @@ export function ViewerPage() {
     fetch(SAMPLE_URL)
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("missing"))))
       .then((json: unknown) => {
-        if (!cancelled && isMatchDump(json)) setDump(json);
+        if (cancelled) return;
+        if (isMatchDump(json)) {
+          setDump(json);
+          setNotice(null);
+        } else {
+          setNotice(t("viewer.badFile"));
+        }
       })
       .catch(() => {
         if (!cancelled) setNotice(t("viewer.dropHint"));
