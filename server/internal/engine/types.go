@@ -5,6 +5,9 @@
 // Portability rule: outcome math uses only +, -, *, / and bit-trivial helpers
 // (abs/min/max/clamp) — no libm functions in decisions, so every platform computes
 // bit-identical results.
+//
+// Serialization contract: JSON is camelCase (coding standard) and IS the client-facing
+// dump format (`simcli -out`), so tags here are public API — keep them stable.
 package engine
 
 import (
@@ -43,42 +46,42 @@ const (
 
 // Score is the final (or current) score. Home listed first.
 type Score struct {
-	Home int
-	Away int
+	Home int `json:"home"`
+	Away int `json:"away"`
 }
 
 // Attributes holds the 25 player attributes (scale 1–20). Every attribute feeds named
 // mechanics — there is no attribute without a consumer.
 type Attributes struct {
 	// Technical (9)
-	Finishing  uint8
-	LongShots  uint8
-	Passing    uint8
-	Crossing   uint8
-	Dribbling  uint8
-	FirstTouch uint8
-	Heading    uint8
-	Tackling   uint8
-	SetPieces  uint8
+	Finishing  uint8 `json:"finishing"`
+	LongShots  uint8 `json:"longShots"`
+	Passing    uint8 `json:"passing"`
+	Crossing   uint8 `json:"crossing"`
+	Dribbling  uint8 `json:"dribbling"`
+	FirstTouch uint8 `json:"firstTouch"`
+	Heading    uint8 `json:"heading"`
+	Tackling   uint8 `json:"tackling"`
+	SetPieces  uint8 `json:"setPieces"`
 	// Mental (7)
-	Vision        uint8
-	Decisions     uint8
-	Composure     uint8
-	Positioning   uint8
-	Concentration uint8
-	WorkRate      uint8
-	Aggression    uint8
+	Vision        uint8 `json:"vision"`
+	Decisions     uint8 `json:"decisions"`
+	Composure     uint8 `json:"composure"`
+	Positioning   uint8 `json:"positioning"`
+	Concentration uint8 `json:"concentration"`
+	WorkRate      uint8 `json:"workRate"`
+	Aggression    uint8 `json:"aggression"`
 	// Physical (6)
-	Pace         uint8
-	Acceleration uint8
-	Stamina      uint8
-	Strength     uint8
-	Jumping      uint8
-	Agility      uint8
+	Pace         uint8 `json:"pace"`
+	Acceleration uint8 `json:"acceleration"`
+	Stamina      uint8 `json:"stamina"`
+	Strength     uint8 `json:"strength"`
+	Jumping      uint8 `json:"jumping"`
+	Agility      uint8 `json:"agility"`
 	// Goalkeeping (3)
-	ShotStopping uint8
-	Handling     uint8
-	Distribution uint8
+	ShotStopping uint8 `json:"shotStopping"`
+	Handling     uint8 `json:"handling"`
+	Distribution uint8 `json:"distribution"`
 }
 
 // all returns every attribute value in a fixed order (validation helper).
@@ -94,67 +97,67 @@ func (a Attributes) all() []uint8 {
 
 // PlayerSnapshot is the immutable pre-match view of one player.
 type PlayerSnapshot struct {
-	ID        PlayerID
-	Name      string
-	Pos       Pos
-	Attr      Attributes
-	Condition float64 // 0..100
-	Morale    float64 // 0..100
+	ID        PlayerID   `json:"id"`
+	Name      string     `json:"name"`
+	Pos       Pos        `json:"pos"`
+	Attr      Attributes `json:"attr"`
+	Condition float64    `json:"condition"` // 0..100
+	Morale    float64    `json:"morale"`    // 0..100
 }
 
 // SetPiecesConfig are the designated set-piece choices.
 type SetPiecesConfig struct {
-	CornerRoutine   int8     // 1 near post, 2 far post, 3 edge of box, 4 short
-	FreeKickRoutine int8     // 1 shoot, 2 cross, 3 lay-off
-	Taker           PlayerID // empty = engine picks the best candidate deterministically
+	CornerRoutine   int8     `json:"cornerRoutine"`   // 1 near post, 2 far post, 3 edge of box, 4 short
+	FreeKickRoutine int8     `json:"freeKickRoutine"` // 1 shoot, 2 cross, 3 lay-off
+	Taker           PlayerID `json:"taker"`           // empty = engine picks the best candidate
 }
 
 // Tactics are the manager knobs; every field maps to documented engine effects.
 type Tactics struct {
-	Formation     [3]int // outfield rows defence→attack, e.g. {4,4,2}; sums to 10
-	Mentality     int8   // 1 very defensive .. 5 very attacking
-	Pressing      int8   // 1 low .. 3 high
-	Tempo         int8   // 1 slow .. 5 fast
-	Width         int8   // 1 narrow .. 3 wide
-	PassingStyle  int8   // 1 short .. 3 direct
-	DefensiveLine int8   // 1 deep .. 3 high
-	Marking       int8   // 1 zonal, 2 man-oriented
-	Tackling      int8   // 1 fair, 2 hard
-	CounterAttack bool
-	SetPieces     SetPiecesConfig
-	Patterns      []PatternSpec // prepared patterns (cap 10; T-009 subset: corners)
+	Formation     [3]int          `json:"formation"` // outfield rows defence→attack; sums to 10
+	Mentality     int8            `json:"mentality"`
+	Pressing      int8            `json:"pressing"`
+	Tempo         int8            `json:"tempo"`
+	Width         int8            `json:"width"`
+	PassingStyle  int8            `json:"passingStyle"`
+	DefensiveLine int8            `json:"defensiveLine"`
+	Marking       int8            `json:"marking"`
+	Tackling      int8            `json:"tackling"`
+	CounterAttack bool            `json:"counterAttack"`
+	SetPieces     SetPiecesConfig `json:"setPieces"`
+	Patterns      []PatternSpec   `json:"patterns,omitempty"` // prepared patterns (cap 10)
 }
 
 // TeamSnapshot is a submitted lineup plus tactics. 11–18 players: the first 11 are the
 // starters ([0] is the goalkeeper), the rest are the bench.
 type TeamSnapshot struct {
-	Club    string
-	Players []PlayerSnapshot
-	Tactics Tactics
+	Club    string           `json:"club"`
+	Players []PlayerSnapshot `json:"players"`
+	Tactics Tactics          `json:"tactics"`
 }
 
 // MatchContext carries competition rules.
 type MatchContext struct {
-	Competition    string
-	NeutralVenue   bool
-	AllowExtraTime bool
-	AllowPenalties bool
+	Competition    string `json:"competition"`
+	NeutralVenue   bool   `json:"neutralVenue"`
+	AllowExtraTime bool   `json:"allowExtraTime"`
+	AllowPenalties bool   `json:"allowPenalties"`
 }
 
-// PresenceFlags are the live-presence inputs (small, visible morale boost, see design note).
+// PresenceFlags are the live-presence inputs (small, visible morale boost).
 type PresenceFlags struct {
-	Home bool
-	Away bool
+	Home bool `json:"home"`
+	Away bool `json:"away"`
 }
 
 // MatchInput is everything Simulate needs. Same input + seed ⇒ same result, bit for bit.
 type MatchInput struct {
-	EngineVersion int
-	Seed          uint64
-	Home          TeamSnapshot
-	Away          TeamSnapshot
-	Context       MatchContext
-	Presence      PresenceFlags
+	EngineVersion int           `json:"engineVersion"`
+	Seed          uint64        `json:"seed"`
+	Home          TeamSnapshot  `json:"home"`
+	Away          TeamSnapshot  `json:"away"`
+	Context       MatchContext  `json:"context"`
+	Presence      PresenceFlags `json:"presence"`
 }
 
 // Intervention kinds understood by the engine.
@@ -166,10 +169,10 @@ const (
 // Intervention is a manager change submitted during the match. The server resolves
 // EffectiveTick via the "next stoppage, ≤60 s" rule; the engine just honours it.
 type Intervention struct {
-	EffectiveTick int32
-	Club          string
-	Kind          string // InterventionTactics (payload: Tactics) or InterventionSubstitution
-	Payload       json.RawMessage
+	EffectiveTick int32           `json:"effectiveTick"`
+	Club          string          `json:"club"`
+	Kind          string          `json:"kind"` // InterventionTactics or InterventionSubstitution
+	Payload       json.RawMessage `json:"payload"`
 }
 
 // SubstitutionPayload is the payload of InterventionSubstitution.
@@ -195,49 +198,50 @@ const (
 )
 
 // Event is one match incident. Detail carries explainability extras
-// (e.g. "morale:+4", "minute_out:10").
+// (e.g. "morale:+4", "minute_out:10", "pattern:id").
 type Event struct {
-	Tick   int32
-	Minute int32
-	Kind   string
-	Club   string
-	Player PlayerID
-	Detail string
+	Tick   int32    `json:"tick"`
+	Minute int32    `json:"minute"`
+	Kind   string   `json:"kind"`
+	Club   string   `json:"club"`
+	Player PlayerID `json:"player"`
+	Detail string   `json:"detail"`
 }
 
 // TeamStats are per-team aggregate numbers (explainability).
 type TeamStats struct {
-	PossessionPct float64
-	Shots         int
-	OnTarget      int
-	Goals         int
-	XG            float64
-	Corners       int
-	Fouls         int
-	Turnovers     int
-	AvgFatigue    float64 // mean final fatigue of the XI (0..100)
-	AvgShotDist   float64 // mean shot distance (normalized pitch units)
-	DistSum       float64 // internal sum backing AvgShotDist
-	PatternShots  int     // shots produced by orchestrated patterns (attribution)
-	PatternXG     float64 // xG produced by orchestrated patterns
+	PossessionPct float64 `json:"possessionPct"`
+	Shots         int     `json:"shots"`
+	OnTarget      int     `json:"onTarget"`
+	Goals         int     `json:"goals"`
+	XG            float64 `json:"xg"`
+	Corners       int     `json:"corners"`
+	Fouls         int     `json:"fouls"`
+	Turnovers     int     `json:"turnovers"`
+	AvgFatigue    float64 `json:"avgFatigue"`
+	AvgShotDist   float64 `json:"avgShotDist"`
+	DistSum       float64 `json:"distSum"` // internal sum backing AvgShotDist
+	PatternShots  int     `json:"patternShots"`
+	PatternXG     float64 `json:"patternXg"`
 }
 
 // MatchStats aggregates both teams.
 type MatchStats struct {
-	Home TeamStats
-	Away TeamStats
+	Home TeamStats `json:"home"`
+	Away TeamStats `json:"away"`
 }
 
 // PlayerRating is one player's post-match rating (sorted by PlayerID in results).
 type PlayerRating struct {
-	PlayerID PlayerID
-	Rating   float64
+	PlayerID PlayerID `json:"playerId"`
+	Rating   float64  `json:"rating"`
 }
 
 // KFPlayer is one player's visual state in a keyframe.
 type KFPlayer struct {
-	X, Y  float64
-	State uint8
+	X     float64 `json:"x"`
+	Y     float64 `json:"y"`
+	State uint8   `json:"state"`
 }
 
 // Keyframe visual states (the client animates from these).
@@ -254,28 +258,50 @@ const (
 // Keyframe is one sampled moment of the 2D timeline (3 s lattice). Generated on
 // demand, never persisted (see the live-matches decision).
 type Keyframe struct {
-	TMs       uint32
-	BallX     float64
-	BallY     float64
-	BallOwner int8 // 0 home, 1 away, -1 loose
-	Players   [22]KFPlayer
+	TMs       uint32       `json:"tMs"`
+	BallX     float64      `json:"ballX"`
+	BallY     float64      `json:"ballY"`
+	BallOwner int8         `json:"ballOwner"` // 0 home, 1 away, -1 loose
+	Players   [22]KFPlayer `json:"players"`
+}
+
+// PlayerInfo is one squad member surfaced for presentation (commentary, ratings).
+type PlayerInfo struct {
+	ID      PlayerID `json:"id"`
+	Name    string   `json:"name"`
+	Pos     Pos      `json:"pos"`
+	Starter bool     `json:"starter"`
+}
+
+// TeamInfo is the presentation roster of one side in a dump.
+type TeamInfo struct {
+	Club    string       `json:"club"`
+	Players []PlayerInfo `json:"players"`
+}
+
+// MatchTeams carries both presentation rosters (additive contract for viewers).
+type MatchTeams struct {
+	Home TeamInfo `json:"home"`
+	Away TeamInfo `json:"away"`
 }
 
 // MatchResult is a completed simulation. Keyframes cover the simulated window only
 // when produced by Resume (the straight run covers the whole match).
 type MatchResult struct {
-	Revision      int // caller-assigned revision number (0 = pre-simulation)
-	Score         Score
-	Events        []Event
-	Stats         MatchStats
-	PlayerRatings []PlayerRating
-	Keyframes     []Keyframe
+	Revision      int            `json:"revision"`
+	Teams         MatchTeams     `json:"teams"`
+	Score         Score          `json:"score"`
+	Events        []Event        `json:"events"`
+	Stats         MatchStats     `json:"stats"`
+	PlayerRatings []PlayerRating `json:"playerRatings"`
+	Keyframes     []Keyframe     `json:"keyframes"`
 }
 
 // Waypoint is one timed point of a pattern route (normalized pitch + seconds from trigger).
 type Waypoint struct {
-	X, Y float64
-	T    float64
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
+	T float64 `json:"t"`
 }
 
 // Pattern contact roles.
@@ -288,37 +314,36 @@ const (
 
 // PatternActor is one participant of a pattern (T-009 subset: slot + 2-point route).
 type PatternActor struct {
-	Slot    int
-	Route   []Waypoint // exactly 2 in the spike subset (start mark → finish mark)
-	Contact int8
+	Slot    int        `json:"slot"`
+	Route   []Waypoint `json:"route"` // exactly 2 in the spike subset
+	Contact int8       `json:"contact"`
 }
 
 // PatternDelivery describes the aimed ball played into the route meeting point.
 type PatternDelivery struct {
-	Kind    int8 // 1 cross, 2 driven pass, 3 shot, 4 lay-off
-	Aim     [2]float64
-	Spread  float64 // aim variance radius (delivery quality narrows it)
-	Power   float64
-	Targets []int // actor indexes in contact priority
+	Kind    int8       `json:"kind"` // 1 cross, 2 driven pass, 3 shot, 4 lay-off
+	Aim     [2]float64 `json:"aim"`
+	Spread  float64    `json:"spread"`
+	Power   float64    `json:"power"`
+	Targets []int      `json:"targets"`
 }
 
 // PatternSpec is the T-009 spike subset of the Tactics-Schema pattern grammar:
-// corner routines with ≤4 actors and 2-point Hermite routes. Triggers, decoys and
-// second-wave links arrive with the full grammar ([[Tactics-Schema]]).
+// corner routines with ≤4 actors and 2-point Hermite routes.
 type PatternSpec struct {
-	ID       string
-	Actors   []PatternActor
-	Delivery PatternDelivery
+	ID       string          `json:"id"`
+	Actors   []PatternActor  `json:"actors"`
+	Delivery PatternDelivery `json:"delivery"`
 }
 
 // PatternCursor tracks an armed or executing pattern. It lives in the snapshot so
 // that Resume stays bit-identical across pattern windows.
 type PatternCursor struct {
-	Active    bool
-	Team      int8
-	Index     int8 // index into Tactics.Patterns (spike: armed at that team's corners)
-	StartTick int32
-	Delivered bool
+	Active    bool  `json:"active"`
+	Team      int8  `json:"team"`
+	Index     int8  `json:"index"`
+	StartTick int32 `json:"startTick"`
+	Delivered bool  `json:"delivered"`
 }
 
 // reset returns a cleared cursor.
@@ -328,17 +353,18 @@ func (c PatternCursor) reset() PatternCursor {
 
 // PlayerState is the simulated dynamic state of one on-pitch slot.
 type PlayerState struct {
-	X, Y    float64
-	Fatigue float64 // 0..100
-	Morale  float64 // 0..100, shifts with goals (surfaced in goal event details)
-	Acc     float64 // rating accumulator
-	Hurt    bool    // playing through an injury (perf penalty until subbed)
+	X       float64 `json:"x"`
+	Y       float64 `json:"y"`
+	Fatigue float64 `json:"fatigue"` // 0..100
+	Morale  float64 `json:"morale"`  // 0..100, shifts with goals
+	Acc     float64 `json:"acc"`     // rating accumulator
+	Hurt    bool    `json:"hurt"`    // playing through an injury
 }
 
 // CardState tracks disciplinary state per on-pitch slot.
 type CardState struct {
-	Yellow uint8
-	Off    bool // sent off; the slot stops participating
+	Yellow uint8 `json:"yellow"`
+	Off    bool  `json:"off"` // sent off; the slot stops participating
 }
 
 // RestartKind enumerates dead-ball situations.
@@ -356,34 +382,35 @@ const (
 
 // Restart is a pending dead-ball delivery (resolved after Ticks ticks of "walk over").
 type Restart struct {
-	Kind  RestartKind
-	Team  int8
-	X, Y  float64
-	Ticks int8
+	Kind  RestartKind `json:"kind"`
+	Team  int8        `json:"team"`
+	X     float64     `json:"x"`
+	Y     float64     `json:"y"`
+	Ticks int8        `json:"ticks"`
 }
 
 // Snapshot is the complete serializable state at a tick boundary. Resuming from it
 // reproduces the straight run bit for bit. It is self-contained apart from the seed:
 // on-pitch player copies travel with it (substitutions change occupants).
 type Snapshot struct {
-	Tick       int32
-	Score      Score
-	Events     []Event
-	Stats      MatchStats
-	PossTicks  [2]int
-	OnPitch    [22]PlayerSnapshot // current occupants: home 0..10, away 11..21
-	Players    [22]PlayerState
-	Ratings    []PlayerRating // accumulated for everyone who played
-	BallX      float64
-	BallY      float64
-	Owner      int8 // 0 home, 1 away, -1 loose
-	OwnerIdx   int8
-	Cooldown   int8
-	Restart    Restart
-	Cards      [22]CardState
-	Pattern    PatternCursor
-	Stoppage   [2]float64
-	SecondHalf bool
-	Tactics    [2]Tactics
-	RND        rng.State
+	Tick       int32              `json:"tick"`
+	Score      Score              `json:"score"`
+	Events     []Event            `json:"events"`
+	Stats      MatchStats         `json:"stats"`
+	PossTicks  [2]int             `json:"possTicks"`
+	OnPitch    [22]PlayerSnapshot `json:"onPitch"`
+	Players    [22]PlayerState    `json:"players"`
+	Ratings    []PlayerRating     `json:"ratings"`
+	BallX      float64            `json:"ballX"`
+	BallY      float64            `json:"ballY"`
+	Owner      int8               `json:"owner"`
+	OwnerIdx   int8               `json:"ownerIdx"`
+	Cooldown   int8               `json:"cooldown"`
+	Restart    Restart            `json:"restart"`
+	Cards      [22]CardState      `json:"cards"`
+	Pattern    PatternCursor      `json:"pattern"`
+	Stoppage   [2]float64         `json:"stoppage"`
+	SecondHalf bool               `json:"secondHalf"`
+	Tactics    [2]Tactics         `json:"tactics"`
+	RND        rng.State          `json:"rnd"`
 }

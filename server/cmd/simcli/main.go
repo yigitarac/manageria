@@ -57,7 +57,7 @@ func main() {
 		if err != nil {
 			fatal(err)
 		}
-		raw, err := json.MarshalIndent(res, "", "  ")
+		raw, err := json.Marshal(res)
 		if err != nil {
 			fatal(err)
 		}

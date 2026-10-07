@@ -483,6 +483,20 @@ func avgShotDist(ts TeamStats) float64 {
 	return round2(ts.DistSum / float64(ts.Shots))
 }
 
+// teamInfo extracts the presentation roster (starters first) for viewers.
+func teamInfo(t TeamSnapshot) TeamInfo {
+	info := TeamInfo{Club: t.Club, Players: make([]PlayerInfo, 0, len(t.Players))}
+	for i, p := range t.Players {
+		info.Players = append(info.Players, PlayerInfo{
+			ID:      p.ID,
+			Name:    p.Name,
+			Pos:     p.Pos,
+			Starter: i < 11,
+		})
+	}
+	return info
+}
+
 func (s *simState) sampleKeyframe() Keyframe {
 	kf := Keyframe{
 		TMs:       uint32(s.tick) * 1000,
@@ -537,6 +551,7 @@ func (s *simState) result() MatchResult {
 	total := s.possTicks[0] + s.possTicks[1]
 	res := MatchResult{
 		Score:     s.score,
+		Teams:     MatchTeams{Home: teamInfo(s.in.Home), Away: teamInfo(s.in.Away)},
 		Events:    s.events,
 		Stats:     s.stats,
 		Keyframes: s.keyframes,
