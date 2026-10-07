@@ -23,9 +23,9 @@ func TestGoldenDigest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Digest: %v", err)
 	}
-	// v4 goldens — re-frozen 2026-10-07 twice: camelCase JSON contract, then the
-	// additive Teams roster for viewers (serialization contract changes only).
-	const want = "afe0fa2532c66b5b880b9a0f8f3e251a4e61a2c573864a25238ec7ae111e7c3f"
+	// v5 goldens — T-012 football IQ pass incl. markFree free-header air, post-block xG
+	// semantics and the advanceBall teleport fix. Frozen deliberately.
+	const want = "6bb730a65c6c240fcff175d5b5503dd63eca188f48695fbaad3bd0ba27201e87"
 	if got != want {
 		t.Fatalf("golden digest = %s, want %s (update deliberately on EngineVersion bumps)", got, want)
 	}

@@ -21,7 +21,7 @@ func (s *simState) act() {
 	sit := s.situation(team, idx)
 	switch s.pickAction(team, idx, sit) {
 	case actionShoot:
-		s.finishShot(team, idx, false, sit.goalDist)
+		s.finishShot(team, idx, false, sit.goalDist, 0)
 	case actionCross:
 		s.cross(team, idx, sit)
 	case actionThrough:
@@ -99,6 +99,12 @@ func (s *simState) pickAction(team, idx int, sit situation) actionKind {
 		// Chasing a deficit: more shot appetite (the scoreboard is visible to everyone).
 		w[actionShoot] *= 1 + gameStateChase*float64(minInt(-d, 2))/2
 	}
+	// Football IQ: nobody squares a through-on-goal chance — power the shot home.
+	if sit.goalDist < oneOnOneDist && sit.press < oneOnOnePress && s.isAheadOfDefense(team, idx) {
+		w[actionShoot] *= fixationBoost
+	}
+	// Role discipline: keepers never shoot, centre-backs rarely (headed threat stays).
+	w[actionShoot] *= s.strikeFactor(team, idx)
 	w[actionHold] *= quality(carrier.Composure) * (1 + 0.3*sit.press)
 	w[actionPass] *= quality(carrier.Passing) * (1 + 0.2*(2-float64(tac.PassingStyle)))
 
@@ -180,7 +186,7 @@ func (s *simState) deliverPass(team, idx int, sit situation, length float64, lon
 	pMisplace := clamp(0.05*(1+0.4*sit.press)-0.06*quality(carrier.Composure)+
 		0.025*float64(maxInt(int(s.tactics[team].Tempo)-3, 0)), 0.01, 0.25)
 
-	receiver := s.pickReceiver(team)
+	receiver := s.pickSmartReceiver(team, idx)
 	roll := s.rnd.Float64()
 	switch {
 	case roll < pMisplace:
@@ -260,7 +266,7 @@ func (s *simState) cross(team, idx int, sit situation) {
 	s.players[team*11+att].Acc += 0.25
 	s.ballX, s.ballY = s.players[team*11+att].X, s.players[team*11+att].Y
 	if s.rnd.Float64() < 0.55 {
-		s.finishShot(team, att, true, 0.12)
+		s.finishShot(team, att, true, 0.12, 0)
 		return
 	}
 	support := s.pickReceiver(team)
@@ -312,7 +318,9 @@ func (s *simState) holdUp(team, idx int, sit situation) {
 }
 
 // finishShot resolves strikes and headers (shared by open play, crosses, set pieces).
-func (s *simState) finishShot(team, idx int, header bool, goalDist float64) {
+// markFree is the runner's hit-your-marks grade (0 = buried in the crowd, 1 = clean
+// free header): a man who beat his marker earns air — less congestion discount, fewer blocks.
+func (s *simState) finishShot(team, idx int, header bool, goalDist, markFree float64) {
 	carrier := s.onPitch[team*11+idx].Attr
 	attr := float64(carrier.Finishing)
 	switch {
@@ -335,26 +343,36 @@ func (s *simState) finishShot(team, idx int, header bool, goalDist float64) {
 	stop := (quality(gk.Attr.ShotStopping)*0.7 + quality(gk.Attr.Agility)*0.3) * s.perf(1-team, 0)
 
 	distFrac := clamp(goalDist/shotZoneDist, 0, 1)
-	congestion := 1 - congestionDilution*s.boxCongestion(1-team)
+	congestion := 1 - congestionDilution*(1-0.5*markFree)*s.boxCongestion(1-team)
 	pGoal := clamp(shotBase*qShot*(1-gkSaveShare*stop)*composure*(1-shotDistanceFalloff*distFrac)*congestion, 0.01, 0.55)
 	pSave := clamp(0.35*qShot-0.2*stop, 0.05, 0.60)
 
 	ts := s.statsFor(team)
 	ts.Shots++
-	ts.XG += pGoal
+	blockProb := blockBase * duelChance(
+		s.bestOpponentAttr(team, func(a Attributes) float64 {
+			return 0.6*quality(a.Positioning) + 0.4*quality(a.Aggression)
+		})*(1+blockCongestionShare*s.boxCongestion(1-team)),
+		qShot,
+	)
+	// A free-header runner (high markFree) has already escaped the block line.
+	blockProb *= 1 - 0.4*markFree
+	// xG books the post-block expectation: a smothered effort is barely a chance at all
+	// (this is what makes a parked bus concede LESS xG — siege pinball isn't value).
+	ts.XG += pGoal*(1-blockProb) + 0.02*blockProb
 	ts.DistSum += goalDist
+	if !header && s.strikeFactor(team, idx) < 1 {
+		ts.StrikesFromDefenders++
+	}
 	if s.patTag != "" {
 		ts.PatternShots++
 		ts.PatternXG += pGoal
 	}
 	s.players[team*11+idx].Acc += 0.3
 
-	// Block attempts: packed defences smother strikes. The chance value (xG) is
-	// recorded above regardless of outcome.
-	blockQ := s.bestOpponentAttr(team, func(a Attributes) float64 {
-		return 0.6*quality(a.Positioning) + 0.4*quality(a.Aggression)
-	})
-	if s.rnd.Float64() < blockBase*duelChance(blockQ*(1+blockCongestionShare*s.boxCongestion(1-team)), qShot) {
+	// Block attempts: packed defences smother strikes. Chance value already booked
+	// post-block above; this roll decides the outcome (loose ball or deflection).
+	if s.rnd.Float64() < blockProb {
 		if s.rnd.Float64() < deflectCornerShare {
 			cx, cy := s.cornerSpot(team, 0.95)
 			s.queueRestart(RestartCorner, team, cx, cy)
@@ -605,6 +623,68 @@ func (s *simState) pickReceiver(team int) int {
 	return active[s.rnd.Intn(len(active))]
 }
 
+// nearestDistTo returns the |dx|+|dy| distance to the closest active opponent.
+func (s *simState) nearestDistTo(team int, x, y float64) float64 {
+	best := math.MaxFloat64
+	for i := 0; i < 11; i++ {
+		if s.cards[team*11+i].Off {
+			continue
+		}
+		ps := s.players[team*11+i]
+		if d := absf(ps.X-x) + absf(ps.Y-y); d < best {
+			best = d
+		}
+	}
+	return best
+}
+
+// pickSmartReceiver chooses a pass target by openness and forward gain — the fix for
+// "through on goal, squares it to the corner flag". Deterministic argmax (index-order
+// ties) so snapshots stay reproducible.
+func (s *simState) pickSmartReceiver(team, fromIdx int) int {
+	bx := s.ballX
+	dir := 1 - 2*float64(team)
+	best, bestW := fromIdx, -1.0e9
+	for i := 0; i < 11; i++ {
+		if i == fromIdx || s.cards[team*11+i].Off {
+			continue
+		}
+		ps := s.players[team*11+i]
+		open := clamp(s.nearestDistTo(1-team, ps.X, ps.Y)/0.15, 0, 1)
+		gain := (ps.X - bx) * dir
+		boxPresence := math.Max(0, 0.22-absf(goalXFor(team)-ps.X))
+		w := 0.3 + 2.2*math.Max(gain, 0) + 1.2*open + 2.0*boxPresence - 0.9*math.Max(-gain, 0)
+		if w > bestW {
+			bestW, best = w, i
+		}
+	}
+	return best
+}
+
+// isAheadOfDefense reports that the carrier has got beyond the opponent's line.
+func (s *simState) isAheadOfDefense(team, idx int) bool {
+	line := s.defensiveLineX(1 - team)
+	x := s.players[team*11+idx].X
+	return (1-2*float64(team))*(x-line) > aheadMargin
+}
+
+// strikeFactor is position-based open-play strike appetite (headed threat is separate
+// and stays legal for everyone — big centre-backs score headers).
+func (s *simState) strikeFactor(team, idx int) float64 {
+	switch s.onPitch[team*11+idx].Pos {
+	case PosGK:
+		return strikeGK
+	case PosCB:
+		return strikeCB
+	case PosDM:
+		return strikeDM
+	case PosFB:
+		return strikeFB
+	default:
+		return 1
+	}
+}
+
 // advanceBall moves ball and possession to a receiver. Progression is linear from
 // the current ball position (a pass gains `length` upfield) — chains can build.
 func (s *simState) advanceBall(team, receiver int, length float64) {
@@ -620,6 +700,9 @@ func (s *simState) advanceBall(team, receiver int, length float64) {
 	}
 	s.ballX = clamp(rawX, 0.02, 0.98)
 	s.ballY = clamp(ty, 0.04, 0.96)
+	// Landing obeys role discipline: a centre-back cannot control beyond his cap —
+	// the pass out-runs him and dies (all reception call-sites share this funnel).
+	s.ballX, s.ballY = s.roleClamp(team, receiver, s.ballX, s.ballY)
 	s.players[team*11+receiver].X = s.ballX
 	s.players[team*11+receiver].Y = s.ballY
 	s.owner, s.ownerIdx = int8(team), int8(receiver)

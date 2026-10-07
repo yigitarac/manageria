@@ -28,6 +28,7 @@ func main() {
 	tactic := flag.String("tactic", "default", "matches mode: home tactic preset (default|defensive|attacking|high_press)")
 	rehearse := flag.Int("rehearse", 0, "run N corner drills (drilled pattern vs default routine) and print outcome bands")
 	audit := flag.Bool("audit", false, "sweep the home-tactic preset matrix over -matches rounds and flag balance violations")
+	analyze := flag.Int("analyze", 0, "run N matches and print football-IQ smell metrics (moment-level sanity)")
 	out := flag.String("out", "", "write the match result JSON to this file")
 	flag.Parse()
 
@@ -37,6 +38,10 @@ func main() {
 	}
 	if *audit {
 		auditPresets(*seed, *matches)
+		return
+	}
+	if *analyze > 0 {
+		analyzeSmells(*seed, *analyze)
 		return
 	}
 	if *matches > 0 {
@@ -408,4 +413,52 @@ func auditPresets(seed uint64, n int) {
 			p.name, goals, homePct, drawPct, awayPct, hxg/f, axg/f, verdict)
 	}
 	fmt.Printf("violations: %d (preset rows: goals 1.8–3.5, home win ≤ 60%%; counter probes: home ≤ 56%%)\n", violations)
+}
+
+// analyzeSmells is the automated watch-through (T-012): it measures the moment-level
+// absurdities the owner hears on playback but no distribution chart shows.
+func analyzeSmells(seed uint64, n int) {
+	in := enginetest.SampleInput(seed)
+	posByID := map[engine.PlayerID]engine.Pos{}
+	for _, p := range append(append([]engine.PlayerSnapshot{}, in.Home.Players...), in.Away.Players...) {
+		posByID[p.ID] = p.Pos
+	}
+
+	shots, defenderStrikes, goals, attackerGoals := 0, 0, 0, 0
+	cbTerritory := 0.0
+	for i := 0; i < n; i++ {
+		res, _, err := engine.Simulate(enginetest.SampleInput(seed + uint64(i)))
+		if err != nil {
+			fatal(err)
+		}
+		for _, side := range []engine.TeamStats{res.Stats.Home, res.Stats.Away} {
+			shots += side.Shots
+			defenderStrikes += side.StrikesFromDefenders
+		}
+		for _, ev := range res.Events {
+			if ev.Kind != engine.EventGoal {
+				continue
+			}
+			goals++
+			switch posByID[ev.Player] {
+			case engine.PosST, engine.PosW, engine.PosAM:
+				attackerGoals++
+			}
+		}
+		for _, kf := range res.Keyframes {
+			cbTerritory = max(cbTerritory, kf.Players[1].X, kf.Players[2].X, 1-kf.Players[12].X, 1-kf.Players[13].X)
+		}
+	}
+	fmt.Printf("football-IQ smells over %d matches (seeds %d..%d):\n", n, seed, seed+uint64(n)-1)
+	denom := shots
+	if denom < 1 {
+		denom = 1
+	}
+	goalDenom := goals
+	if goalDenom < 1 {
+		goalDenom = 1
+	}
+	fmt.Printf("  defender strike share : %.1f%%  (want ≤ 5%%)\n", 100*float64(defenderStrikes)/float64(denom))
+	fmt.Printf("  attacker goal share   : %.1f%%  (want ≥ 55%%)\n", 100*float64(attackerGoals)/float64(goalDenom))
+	fmt.Printf("  CB territory reached  : %.3f (set-piece box presence legal; wilderness > 0.95)\n", cbTerritory)
 }

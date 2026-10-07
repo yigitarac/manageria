@@ -137,27 +137,50 @@ func sampleAttrs(pos engine.Pos, base uint8) engine.Attributes {
 		}
 		return v
 	}
+	// Position-shaped football realism (T-012 lesson): strikers finish, creators pass,
+	// stopers defend and head. Generic base + per-position offsets.
+	off := func(delta int) uint8 {
+		return clampAttr(uint8(int(base) + delta))
+	}
+	var finishing, heading, tackling, passing, vision, pace, setP uint8
+	switch pos {
+	case engine.PosST:
+		finishing, heading, tackling, passing, vision, pace, setP = off(4), off(3), off(-4), off(-1), off(0), off(1), off(-2)
+	case engine.PosW:
+		finishing, heading, tackling, passing, vision, pace, setP = off(2), off(-3), off(-2), off(1), off(1), off(3), off(1)
+	case engine.PosAM:
+		finishing, heading, tackling, passing, vision, pace, setP = off(2), off(-1), off(-2), off(3), off(3), off(0), off(2)
+	case engine.PosCM:
+		finishing, heading, tackling, passing, vision, pace, setP = off(-1), off(0), off(1), off(3), off(2), off(0), off(1)
+	case engine.PosDM:
+		finishing, heading, tackling, passing, vision, pace, setP = off(-3), off(1), off(3), off(1), off(0), off(-1), off(-1)
+	case engine.PosFB:
+		finishing, heading, tackling, passing, vision, pace, setP = off(-4), off(-1), off(2), off(1), off(0), off(2), off(-1)
+	case engine.PosCB:
+		finishing, heading, tackling, passing, vision, pace, setP = off(-5), off(4), off(4), off(-1), off(-2), off(-2), off(-2)
+	default: // GK
+		finishing, heading, tackling, passing, vision, pace, setP = 1, off(-3), off(-4), off(0), off(-3), off(-3), off(-4)
+	}
+
 	a := engine.Attributes{
-		Finishing: clampAttr(base), LongShots: clampAttr(base - 2), Passing: clampAttr(base + 1),
-		Crossing: clampAttr(base), Dribbling: clampAttr(base - 1), FirstTouch: clampAttr(base),
-		Heading: clampAttr(base - 1), Tackling: clampAttr(base), SetPieces: clampAttr(base - 3),
+		Finishing: finishing, LongShots: clampAttr(finishing - 2), Passing: passing,
+		Crossing: clampAttr(pace + off(-5)), Dribbling: clampAttr(pace - 1), FirstTouch: passing,
+		Heading: heading, Tackling: tackling, SetPieces: setP,
 
-		Vision: clampAttr(base - 1), Decisions: clampAttr(base), Composure: clampAttr(base),
-		Positioning: clampAttr(base), Concentration: clampAttr(base - 1), WorkRate: clampAttr(base),
-		Aggression: clampAttr(base - 2),
+		Vision: vision, Decisions: off(0), Composure: off(0),
+		Positioning: tackling, Concentration: off(-1), WorkRate: off(0),
+		Aggression: clampAttr(tackling - 2),
 
-		Pace: clampAttr(base + 1), Acceleration: clampAttr(base), Stamina: clampAttr(base + 1),
-		Strength: clampAttr(base), Jumping: clampAttr(base), Agility: clampAttr(base - 1),
+		Pace: pace, Acceleration: pace, Stamina: off(1),
+		Strength: heading, Jumping: heading, Agility: clampAttr(pace - 1),
 
-		ShotStopping: clampAttr(base - 5), Handling: clampAttr(base - 5), Distribution: clampAttr(base - 5),
+		ShotStopping: 1, Handling: 1, Distribution: 1,
 	}
 	if pos == engine.PosGK {
-		a.ShotStopping = clampAttr(base + 4)
-		a.Handling = clampAttr(base + 3)
-		a.Distribution = clampAttr(base + 2)
-		a.Finishing = 1
-		a.LongShots = 1
-		a.Dribbling = 1
+		a.ShotStopping = off(5)
+		a.Handling = off(4)
+		a.Distribution = off(3)
+		a.Agility = off(1)
 	}
 	return a
 }

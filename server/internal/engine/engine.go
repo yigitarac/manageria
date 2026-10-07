@@ -307,14 +307,28 @@ func (s *simState) move() {
 			ps := &s.players[team*11+i]
 			eff := 1 - 0.3*math.Min(ps.Fatigue/100, 1)
 			k := 0.05 + 0.05*quality(s.onPitch[team*11+i].Attr.Pace)*eff
+			if !s.patternActiveFor(team, i) && s.beyondRoleCap(team, i) {
+				// Caught upfield after a set piece? Recover shape at a scramble.
+				k *= 2
+			}
 			tx, ty := s.target(team, i, ps)
+			patterned := false
 			if pt, ok := s.patternTarget(team, i); ok {
 				// Pattern runs are bursts: pace-scaled sprint easing toward the moving mark.
 				tx, ty = pt[0], pt[1]
 				k = 0.10 + 0.15*quality(s.onPitch[team*11+i].Attr.Pace)*eff
+				patterned = true
 			} else if s.owner == int8(team) && s.ownerIdx == int8(i) {
-				tx = clamp(ps.X+dir*0.015, 0.02, 0.98)
-				ty = clamp(ps.Y+(0.5-ps.Y)*0.05, 0.04, 0.96)
+				// Leisurely carry only with breathing room; crowded carriers hold.
+				if s.nearestDistTo(1-team, ps.X, ps.Y) > carryBrakeDist {
+					tx = clamp(ps.X+dir*0.015, 0.02, 0.98)
+					ty = clamp(ps.Y+(0.5-ps.Y)*0.05, 0.04, 0.96)
+				} else {
+					tx, ty = ps.X, ps.Y
+				}
+			}
+			if !patterned {
+				tx, ty = s.roleClamp(team, i, tx, ty)
 			}
 			ps.X = clamp(ps.X+(tx-ps.X)*k, 0.02, 0.98)
 			ps.Y = clamp(ps.Y+(ty-ps.Y)*k, 0.04, 0.96)
@@ -330,6 +344,51 @@ func (s *simState) move() {
 		op := &s.players[int(s.owner)*11+int(s.ownerIdx)]
 		s.ballX, s.ballY = op.X, op.Y
 	}
+}
+
+// beyondRoleCap reports a player stranded beyond their open-play territory (used to
+// hurry defenders home after set-piece box visits).
+func (s *simState) beyondRoleCap(team, idx int) bool {
+	maxAttack := 0.98
+	switch s.onPitch[team*11+idx].Pos {
+	case PosGK:
+		maxAttack = 0.18
+	case PosCB:
+		maxAttack = roleMaxXCB
+	case PosDM:
+		maxAttack = roleMaxXDM
+	}
+	x := s.players[team*11+idx].X
+	if team == 0 {
+		return x > maxAttack+0.03
+	}
+	return x < 1-maxAttack-0.03
+}
+
+// patternActiveFor reports that this slot is currently running a pattern route.
+func (s *simState) patternActiveFor(team, idx int) bool {
+	_, ok := s.patternTarget(team, idx)
+	return ok
+}
+
+// roleClamp keeps open-play shape honest: goalkeepers and centre-backs do not holiday
+// upfield (pattern actors are routed separately and bypass this).
+func (s *simState) roleClamp(team, idx int, tx, ty float64) (float64, float64) {
+	maxAttack := 0.98
+	switch s.onPitch[team*11+idx].Pos {
+	case PosGK:
+		maxAttack = 0.18
+	case PosCB:
+		maxAttack = roleMaxXCB
+	case PosDM:
+		maxAttack = roleMaxXDM
+	}
+	if team == 0 {
+		tx = math.Min(tx, maxAttack)
+	} else {
+		tx = math.Max(tx, 1-maxAttack)
+	}
+	return tx, ty
 }
 
 // target computes one player's tactical destination in absolute coordinates.

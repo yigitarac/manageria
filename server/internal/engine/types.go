@@ -24,7 +24,9 @@ import (
 //	v3 — pattern execution (orchestrated corner routines + attribution, ADR-0009)
 //	v4 — balance era mechanics: pressure saturation, traffic drag, behind-space through
 //	     balls, man-marking bite, game-state management, combo fatigue (T-007)
-const EngineVersion = 4
+//	v5 — football IQ pass: situation-aware receiver choice, one-on-one fixation, role
+//	     discipline (defenders hold), carry traffic brake (T-012)
+const EngineVersion = 5
 
 // PlayerID identifies a player across a match (UUIDv7 string at the storage boundary).
 type PlayerID string
@@ -223,6 +225,9 @@ type TeamStats struct {
 	DistSum       float64 `json:"distSum"` // internal sum backing AvgShotDist
 	PatternShots  int     `json:"patternShots"`
 	PatternXG     float64 `json:"patternXg"`
+	// StrikesFromDefenders counts open-play strikes by GK/CB/DM — the automated
+	// watch-through smell (T-012). Headers are excluded: big defenders may head.
+	StrikesFromDefenders int `json:"strikesFromDefenders"`
 }
 
 // MatchStats aggregates both teams.

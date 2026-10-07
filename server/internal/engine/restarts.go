@@ -193,7 +193,7 @@ func (s *simState) defaultCorner(team int) {
 	s.players[team*11+att].Acc += 0.25
 	s.ballX, s.ballY = s.players[team*11+att].X, s.players[team*11+att].Y
 	if s.rnd.Float64() < 0.6 {
-		s.finishShot(team, att, true, 0.10)
+		s.finishShot(team, att, true, 0.10, 0)
 		return
 	}
 	support := s.pickReceiver(team)

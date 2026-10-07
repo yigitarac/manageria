@@ -7,7 +7,7 @@ package engine
 // Outcome shaping
 const (
 	// shotBase scales shot conversion quality before goalkeeper opposition.
-	shotBase = 0.97
+	shotBase = 0.42
 	// gkSaveShare is how strongly goalkeeping cancels shot quality.
 	gkSaveShare = 0.55
 	// shotDistanceFalloff shrinks conversion with distance (0..1 of the shot zone).
@@ -23,10 +23,11 @@ const (
 	// behindSpaceGain rewards through-balls into the grass behind a high defensive line.
 	behindSpaceGain = 0.8
 	// congestionDilution discounts the chance value itself when bodies pack the ball
-	// zone (mirrors real xG models that dilute by defender proximity).
-	congestionDilution = 0.16
+	// zone (mirrors real xG models that dilute by defender proximity). This is the
+	// parked bus' teeth against box-presence hunting.
+	congestionDilution = 0.22
 	// contactChainDecay dims successive contacts in a pattern chain (broken balls).
-	contactChainDecay = 0.6
+	contactChainDecay = 0.7
 	// tempoDrain is the extra fatigue per tick for high-tempo play beyond Tempo 3.
 	tempoDrain = 0.0015
 	// comboFatigue multiplies drain when pressing AND attacking are stacked high —
@@ -35,6 +36,31 @@ const (
 	// trafficDrag shrinks pass/dribble gains in packed zones (3+ bodies = full drag).
 	// Build-ups get jammed in crowds; counters into open grass do not.
 	trafficDrag = 0.3
+)
+
+// Football IQ (T-012): legibility of moments, not just distributions.
+const (
+	// fixationBoost powers the shot when a player is through on goal (beat the line,
+	// keeper looming) — nobody squares that to the corner flag.
+	fixationBoost = 4.0
+	// oneOnOneDist / oneOnOnePress gate the through-on-goal read.
+	oneOnOneDist  = 0.12
+	oneOnOnePress = 1.2
+	// aheadMargin is how far beyond the defensive line counts as "through".
+	aheadMargin = 0.02
+	// roleStrike scales open-play strike appetite by position (headers stay legal):
+	// keepers never shoot, centre-backs rarely, holders sometimes.
+	strikeGK = 0.0
+	strikeCB = 0.3
+	strikeDM = 0.6
+	strikeFB = 0.7
+	// roleMaxX (attack-normalized) is how far upfield each line may venture in open
+	// play: centre-backs hold, holders shuttle, everyone else roams. Set pieces and
+	// patterns exempt their actors explicitly.
+	roleMaxXCB = 0.72
+	roleMaxXDM = 0.84
+	// carryBrakeDist: no leisurely forward carry with an opponent in your shirt.
+	carryBrakeDist = 0.06
 	// headerShotPenalty reduces headed attempts vs struck shots.
 	headerShotPenalty = 0.75
 	// penaltyBaseGoal is the baseline penalty conversion before duels.
@@ -60,7 +86,7 @@ const (
 	// deflectCornerShare sends off-target efforts behind for a corner instead of a goal kick.
 	deflectCornerShare = 0.08
 	// homeAdvantage is the familiar-ground/crowd multiplier (visible, documented).
-	homeAdvantage = 1.12
+	homeAdvantage = 1.06
 	// moraleGoalSwing is the visible morale shift after a goal (+winner / −conceder).
 	moraleGoalSwing = 4.0
 	// gameStateShift moves the block with the scoreboard: trailing teams push up,
@@ -87,9 +113,9 @@ const (
 	// patternMaxTicks clears a stuck cursor (12 s guard).
 	patternMaxTicks = 720
 	// patternMarkBonus rewards runners who hit their finish mark on time.
-	patternMarkBonus = 0.15
+	patternMarkBonus = 0.25
 	// patternMarkFloor is the worst-case multiplier for hopelessly late runners.
-	patternMarkFloor = 0.88
+	patternMarkFloor = 0.90
 	// patternAimSpread widens aims of weak deliveries (× (2 − deliveryQuality)).
 	patternAimSpread = 1.0
 )

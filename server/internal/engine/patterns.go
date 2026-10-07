@@ -173,7 +173,7 @@ func (s *simState) resolvePatternCorner(team int, pat PatternSpec) int {
 		if s.rnd.Float64() < duelChance(attQ, defQ) {
 			s.players[team*11+actor.Slot].Acc += 0.25
 			s.ballX, s.ballY = s.players[team*11+actor.Slot].X, s.players[team*11+actor.Slot].Y
-			s.finishShot(team, actor.Slot, true, goalDist)
+			s.finishShot(team, actor.Slot, true, goalDist, grade)
 			return ti
 		}
 		decay *= contactChainDecay
