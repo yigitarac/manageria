@@ -24,6 +24,7 @@ const resources = {
       "viewer.stats": "Statistics",
       "viewer.patternTag": "pattern: {{id}}",
       "viewer.patternStat": "{{club}}: {{shots}} pattern shots \u00b7 {{xg}} xG",
+      "viewer.goalBanner": "GOAL! \u26bd {{scorer}} \u00b7 {{minute}}'",
       "stats.possession": "Possession",
       "stats.shots": "Shots",
       "stats.onTarget": "On target",

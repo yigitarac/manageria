@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { Pause, Play, Upload } from "lucide-react";
 import { Button } from "../components/ui/button";
+import { BroadcastHud } from "../features/match/BroadcastHud";
 import { CommentaryFeed } from "../features/match/CommentaryFeed";
 import { MatchCanvas } from "../features/match/MatchCanvas";
 import { StatsPanel } from "../features/match/StatsPanel";
@@ -178,8 +179,16 @@ export function ViewerPage() {
       {dump ? (
         <>
           <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
-            <div className="h-[46vh] min-h-[320px] lg:h-[62vh]">
+            <div className="relative h-[46vh] min-h-[320px] lg:h-[62vh]">
               <MatchCanvas dump={dump} getTimeMs={getTimeMs} />
+              <BroadcastHud
+                dump={dump}
+                tMs={state.tMs}
+                short={[
+                  dump.teams.home.club.slice(0, 3).toUpperCase(),
+                  dump.teams.away.club.slice(0, 3).toUpperCase(),
+                ]}
+              />
             </div>
             <div className="h-[46vh] min-h-[320px] lg:h-[62vh]">
               <CommentaryFeed dump={dump} tMs={state.tMs} />
