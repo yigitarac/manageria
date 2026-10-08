@@ -70,17 +70,36 @@ export function buildBallStory(dump: MatchDump): BallEpisode[] {
     if (!next) break;
     const tNext = next.tick * 1000;
     const gap = tNext - t0;
+    const sameMove = next.chain === cur.chain && next.team === cur.team;
     if (gap > GAP_CAP_MS) {
       // Dead ball: the ball WALKS to the restart spot (ball-boy physics, no teleport).
       episodes.push({ t0, t1: tNext, kind: "idle", x0: cur.x, y0: cur.y, x1: next.x, y1: next.y });
       continue;
     }
-    const flight = Math.min(gap, FLIGHT_MS);
+    if (!sameMove) {
+      // A LOST ball is NOT a pass to the rival (owner's catch): the duel ends where
+      // the ball died; the opponent's journey starts from HIS touch, not my boot.
+      const duelEnd = Math.min(t0 + 700, tNext);
+      episodes.push({ t0, t1: duelEnd, kind: "duel", x0: cur.x, y0: cur.y, x1: cur.x, y1: cur.y });
+      if (duelEnd < tNext) {
+        episodes.push({
+          t0: duelEnd,
+          t1: tNext,
+          kind: "idle",
+          x0: cur.x,
+          y0: cur.y,
+          x1: next.x,
+          y1: next.y,
+        });
+      }
+      continue;
+    }
+    const dist = Math.hypot(next.x - cur.x, next.y - cur.y);
+    // Flight duration scales with the pass length (a 40 m ball hangs longer).
+    const flight = Math.min(gap, 500 + dist * 2200);
     const kind: BallEpisode["kind"] =
-      cur.kind === "pass" || cur.kind === "carry" || cur.kind === "duel" || cur.kind === "regain"
-        ? cur.kind === "carry"
-          ? "carry"
-          : "pass"
+      cur.kind === "carry"
+        ? "carry"
         : "pass";
     episodes.push({ t0, t1: t0 + flight, kind, x0: cur.x, y0: cur.y, x1: next.x, y1: next.y });
     if (t0 + flight < tNext) {

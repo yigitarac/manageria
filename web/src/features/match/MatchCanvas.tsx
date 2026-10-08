@@ -63,7 +63,7 @@ export function MatchCanvas({ dump, getTimeMs }: Props) {
         const tMs = timeRef.current();
         const sample = sampleAt(dump.keyframes, tMs);
         if (sample) {
-          applySample(scene, sample);
+          applySample(scene, sample, tMs);
           const b = ballAt(ballStory, tMs);
           if (b) scene.ball.position.set(b.x * PITCH_W, b.y * PITCH_H);
           // Broadcast camera: glide to frame the action like a TV truck.
@@ -102,6 +102,8 @@ interface Scene {
   dots: Graphics[];
   labels: Text[];
   ball: Graphics;
+  trail: Graphics;
+  prevBall: { x: number; y: number };
 }
 
 function buildScene(stage: Container): Scene {
@@ -168,21 +170,34 @@ function buildScene(stage: Container): Scene {
     .circle(0, 0, 8)
     .fill("#f8fafc")
     .stroke({ width: 2, color: "#0f172a" });
-  root.addChild(ball);
+  const trail = new Graphics();
+  root.addChild(trail, ball);
 
-  return { root, dots, labels, ball };
+  return { root, dots, labels, ball, trail, prevBall: { x: PITCH_W / 2, y: PITCH_H / 2 } };
 }
 
-function applySample(scene: Scene, sample: FrameSample) {
+function applySample(scene: Scene, sample: FrameSample, tMs: number) {
   for (let i = 0; i < scene.dots.length; i++) {
     const p = sample.players[i];
     if (!p) continue;
-    const x = p.x * PITCH_W;
-    const y = p.y * PITCH_H;
+    // Micro-locomotion: real footballers breathe/jockey in place — pure statues read
+    // as broken. A tiny per-player phase sway sells life without inventing travel.
+    const sway = Math.sin(tMs / 640 + i * 1.7) * 1.4;
+    const x = p.x * PITCH_W + sway;
+    const y = p.y * PITCH_H + Math.cos(tMs / 720 + i) * 1.1;
     scene.dots[i].position.set(x, y);
     scene.labels[i].position.set(x, y);
   }
-  scene.ball.position.set(sample.ballX * PITCH_W, sample.ballY * PITCH_H);
+  const bx = sample.ballX * PITCH_W;
+  const by = sample.ballY * PITCH_H;
+  // Ball trail: motion you can read at any playback speed.
+  scene.trail.clear();
+  scene.trail
+    .moveTo(scene.prevBall.x, scene.prevBall.y)
+    .lineTo(bx, by)
+    .stroke({ width: 3, color: "#f8fafc66" });
+  scene.prevBall = { x: bx, y: by };
+  scene.ball.position.set(bx, by);
 }
 
 
