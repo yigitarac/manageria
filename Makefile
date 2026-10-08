@@ -2,6 +2,9 @@
 
 .PHONY: help dev dev-api dev-web gen fmt lint test sample db-up db-down
 
+# Sample matches vary per run by default; pin one with: make sample SEED=42
+SEED ?= $(shell date +%s%N)
+
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-10s %s\n", $$1, $$2}'
 
@@ -31,10 +34,10 @@ test: ## Run Go and web tests
 	cd server && go test -race ./...
 	cd web && pnpm test
 
-sample: ## Generate a sample match dump for the web viewer
+sample: ## Generate a fresh sample match (override with SEED=<n> for a reproducible match)
 	mkdir -p web/public/samples
-	cd server && go run ./cmd/simcli -seed 2026 -runs 1 -out ../web/public/samples/match-42.json
-	@echo "drop web/public/samples/match-42.json into http://localhost:5173/viewer"
+	cd server && go run ./cmd/simcli -seed $(SEED) -runs 1 -out ../web/public/samples/match-42.json
+	@echo "open http://localhost:5173/viewer — a different match every run (same one with SEED=<n>)"
 
 db-up: ## Start local Postgres
 	docker compose -f deploy/docker-compose.yml up -d

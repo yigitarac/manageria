@@ -30,8 +30,9 @@ Open <http://localhost:5173> — the page shows the API health status.
 
 ## Match viewer
 
-`make sample` makes the engine write a real match dump to
-`web/public/samples/match-42.json` (gitignored). Open <http://localhost:5173/viewer> — the
+`make sample` makes the engine write a fresh match dump to
+`web/public/samples/match-42.json` (gitignored) — a **different match every run** (the seed varies);
+pin a specific one with `make sample SEED=42`. Open <http://localhost:5173/viewer> — the
 sample auto-loads when present, and any `simcli -out match.json` dump can be dropped onto
 the page. Space plays/pauses, the timeline scrubs, playback speed goes up to 180×.
 It renders 2D circles on a pitch with synchronized commentary and stats.
