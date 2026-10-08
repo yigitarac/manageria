@@ -16,7 +16,17 @@ describe("ballStory", () => {
     const dump = {
       ...syntheticDump,
       touches: [
-        { tick: 20, chain: 1, team: 0, kind: "shot", actor: 1, target: -1, success: true, x: 0.9, y: 0.4 },
+        {
+          tick: 20,
+          chain: 1,
+          team: 0,
+          kind: "shot",
+          actor: 1,
+          target: -1,
+          success: true,
+          x: 0.9,
+          y: 0.4,
+        },
       ],
       events: [{ tick: 20, minute: 1, kind: "goal", club: "Redvale FC", player: "h9", detail: "" }],
     };
@@ -26,17 +36,41 @@ describe("ballStory", () => {
     expect(goal!.x1).toBeCloseTo(1.005, 6); // ball nestles in the home-side net
   });
 
-  it("parks the ball across dead-ball gaps instead of drifting", () => {
+  it("walks the ball to the restart spot across dead-ball gaps (no teleporting)", () => {
     const dump = {
       ...syntheticDump,
       touches: [
-        { tick: 5, chain: 1, team: 0, kind: "pass", actor: 0, target: 1, success: true, x: 0.3, y: 0.5 },
-        { tick: 120, chain: 2, team: 0, kind: "pass", actor: 1, target: 2, success: true, x: 0.6, y: 0.5 },
+        {
+          tick: 5,
+          chain: 1,
+          team: 0,
+          kind: "pass",
+          actor: 0,
+          target: 1,
+          success: true,
+          x: 0.3,
+          y: 0.5,
+        },
+        {
+          tick: 120,
+          chain: 2,
+          team: 0,
+          kind: "pass",
+          actor: 1,
+          target: 2,
+          success: true,
+          x: 0.6,
+          y: 0.5,
+        },
       ],
     };
     const episodes = buildBallStory(dump);
     const idle = episodes.find((e) => e.kind === "idle");
     expect(idle).toBeDefined();
-    expect(idle!.x0).toBe(idle!.x1);
+    // The ball travels to where the restart happens — smoothly, not by teleport.
+    expect(idle!.x0).not.toBe(idle!.x1);
+    const midway = ballAt(episodes, (idle!.t0 + idle!.t1) / 2);
+    expect(midway!.x).toBeGreaterThan(idle!.x0);
+    expect(midway!.x).toBeLessThan(idle!.x1);
   });
 });

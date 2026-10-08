@@ -37,7 +37,8 @@ export function buildBallStory(dump: MatchDump): BallEpisode[] {
     const t0 = cur.tick * 1000;
 
     if (cur.kind === "shot") {
-      const homeScored = goalsByTick.get(cur.tick) ?? goalsByTick.get(cur.tick + 1) ?? goalsByTick.get(cur.tick - 1);
+      const homeScored =
+        goalsByTick.get(cur.tick) ?? goalsByTick.get(cur.tick + 1) ?? goalsByTick.get(cur.tick - 1);
       const goalX = cur.team === 0 ? 0.985 : 0.015;
       const kind: BallEpisode["kind"] = homeScored !== undefined ? "goal" : "shot";
       const netX = cur.team === 0 ? 1.005 : -0.005;
@@ -70,8 +71,8 @@ export function buildBallStory(dump: MatchDump): BallEpisode[] {
     const tNext = next.tick * 1000;
     const gap = tNext - t0;
     if (gap > GAP_CAP_MS) {
-      // Dead ball: the ball parks where it was until the next touch.
-      episodes.push({ t0, t1: tNext, kind: "idle", x0: cur.x, y0: cur.y, x1: cur.x, y1: cur.y });
+      // Dead ball: the ball WALKS to the restart spot (ball-boy physics, no teleport).
+      episodes.push({ t0, t1: tNext, kind: "idle", x0: cur.x, y0: cur.y, x1: next.x, y1: next.y });
       continue;
     }
     const flight = Math.min(gap, FLIGHT_MS);
