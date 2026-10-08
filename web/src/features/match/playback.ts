@@ -14,10 +14,10 @@ export type PlaybackAction =
   | { type: "speed"; speed: number };
 
 export const SPEED_CHOICES = [1, 5, 30, 60, 180] as const;
-export const DEFAULT_SPEED = 60;
+export const DEFAULT_SPEED = 30;
 
 export function initialPlayback(): PlaybackState {
-  return { tMs: 0, playing: true, speed: DEFAULT_SPEED };
+  return { tMs: 0, playing: false, speed: DEFAULT_SPEED };
 }
 
 /** Pure playback reducer; durationMs clamps every transition. */

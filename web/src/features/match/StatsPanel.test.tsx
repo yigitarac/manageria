@@ -21,4 +21,10 @@ describe("StatsPanel", () => {
     );
     expect(screen.queryByTestId("pattern-chip-away")).not.toBeInTheDocument();
   });
+
+  it("shows only known live statistics before full time", () => {
+    render(<StatsPanel dump={syntheticDump} tMs={0} />);
+    expect(screen.getByTestId("stat-home-Shots")).toHaveTextContent("0");
+    expect(screen.queryByTestId("stat-home-xG")).not.toBeInTheDocument();
+  });
 });

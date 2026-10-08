@@ -23,9 +23,9 @@ const GAP_CAP_MS = 4500;
 
 export function buildBallStory(dump: MatchDump): BallEpisode[] {
   const homeClub = dump.teams.home.club;
-  const goalsByTick = new Map<number, boolean>(); // tick → home scored
+  const goalsByTick = new Map<number, number>(); // tick → scoring team
   for (const ev of dump.events) {
-    if (ev.kind === "goal") goalsByTick.set(ev.tick, ev.club === homeClub);
+    if (ev.kind === "goal") goalsByTick.set(ev.tick, ev.club === homeClub ? 0 : 1);
   }
 
   const touches = [...dump.touches].sort((a, b) => a.tick - b.tick);
@@ -37,33 +37,47 @@ export function buildBallStory(dump: MatchDump): BallEpisode[] {
     const t0 = cur.tick * 1000;
 
     if (cur.kind === "shot") {
-      const homeScored =
+      const scoringTeam =
         goalsByTick.get(cur.tick) ?? goalsByTick.get(cur.tick + 1) ?? goalsByTick.get(cur.tick - 1);
+      const scored = scoringTeam === cur.team;
       const goalX = cur.team === 0 ? 0.985 : 0.015;
-      const kind: BallEpisode["kind"] = homeScored !== undefined ? "goal" : "shot";
+      const kind: BallEpisode["kind"] = scored ? "goal" : "shot";
       const netX = cur.team === 0 ? 1.005 : -0.005;
+      const landingX = scored ? netX : goalX;
+      const nextTime = next ? next.tick * 1000 : t0 + FLIGHT_MS + HOLD_MS;
+      const landingTime = Math.min(t0 + FLIGHT_MS, nextTime);
       episodes.push({
         t0,
-        t1: t0 + FLIGHT_MS,
+        t1: landingTime,
         kind,
         x0: cur.x,
         y0: cur.y,
-        x1: homeScored !== undefined ? netX : goalX,
+        x1: landingX,
         y1: 0.5,
       });
-      if (next && (next.tick + 1) * 1000 < t0 + FLIGHT_MS + HOLD_MS) {
-        // Following action (goal kick / restart) begins after the ball settles.
-        continue;
+      if (nextTime > landingTime) {
+        const holdEnd = Math.min(landingTime + HOLD_MS, nextTime);
+        episodes.push({
+          t0: landingTime,
+          t1: holdEnd,
+          kind: "idle",
+          x0: landingX,
+          y0: 0.5,
+          x1: landingX,
+          y1: 0.5,
+        });
+        if (next && nextTime > holdEnd) {
+          episodes.push({
+            t0: holdEnd,
+            t1: nextTime,
+            kind: "idle",
+            x0: landingX,
+            y0: 0.5,
+            x1: next.x,
+            y1: next.y,
+          });
+        }
       }
-      episodes.push({
-        t0: t0 + FLIGHT_MS,
-        t1: t0 + FLIGHT_MS + HOLD_MS,
-        kind: "idle",
-        x0: homeScored !== undefined ? netX : goalX,
-        y0: 0.5,
-        x1: homeScored !== undefined ? netX : goalX,
-        y1: 0.5,
-      });
       continue;
     }
 
@@ -97,10 +111,7 @@ export function buildBallStory(dump: MatchDump): BallEpisode[] {
     const dist = Math.hypot(next.x - cur.x, next.y - cur.y);
     // Flight duration scales with the pass length (a 40 m ball hangs longer).
     const flight = Math.min(gap, 500 + dist * 2200);
-    const kind: BallEpisode["kind"] =
-      cur.kind === "carry"
-        ? "carry"
-        : "pass";
+    const kind: BallEpisode["kind"] = cur.kind === "carry" ? "carry" : "pass";
     episodes.push({ t0, t1: t0 + flight, kind, x0: cur.x, y0: cur.y, x1: next.x, y1: next.y });
     if (t0 + flight < tNext) {
       episodes.push({

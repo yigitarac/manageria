@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Application, Container, Graphics, Text } from "pixi.js";
 import { ballAt, buildBallStory } from "./ballStory";
-import { cameraFrame, easeCamera } from "./camera";
+import { cameraFrame, easeCamera, timelineJump } from "./camera";
 import { sampleAt } from "./interpolate";
 import type { FrameSample } from "./interpolate";
 import type { MatchDump } from "./types";
@@ -72,13 +72,16 @@ export function MatchCanvas({ dump, getTimeMs }: Props) {
       // touch, shots fly at goal, goals nestle into the net — no invented motion.
       const ballStory = buildBallStory(dump);
       let cam = cameraFrame(app.screen.width, app.screen.height, WORLD_W, WORLD_H, 0.5, 0.5);
+      let previousTime = -1;
       app.ticker.add(() => {
         const tMs = timeRef.current();
         const sample = sampleAt(dump.keyframes, tMs);
         if (sample) {
-          applySample(scene, sample, tMs);
+          const jumped = timelineJump(previousTime, tMs);
           const b = ballAt(ballStory, tMs);
-          if (b) scene.ball.position.set(PAD + b.x * PITCH_W, PAD + b.y * PITCH_H);
+          const ball = b ?? { x: sample.ballX, y: sample.ballY };
+          applySample(scene, sample, ball, tMs, previousTime);
+          previousTime = tMs;
           // Broadcast camera: glide to frame the action like a TV truck.
           const target = cameraFrame(
             app.screen.width,
@@ -88,7 +91,7 @@ export function MatchCanvas({ dump, getTimeMs }: Props) {
             scene.ball.x / WORLD_W,
             scene.ball.y / WORLD_H,
           );
-          cam = easeCamera(cam, target);
+          cam = jumped ? target : easeCamera(cam, target);
           scene.root.scale.set(cam.scale);
           scene.root.position.set(cam.x, cam.y);
         }
@@ -186,8 +189,10 @@ function buildStands(): Graphics {
     [34, 0x223052],
     [68, 0x2a3a63],
   ] as const) {
-    g.rect(inset, inset, WORLD_W - 2 * inset, WORLD_H - 2 * inset)
-      .stroke({ width: 30, color: shade });
+    g.rect(inset, inset, WORLD_W - 2 * inset, WORLD_H - 2 * inset).stroke({
+      width: 30,
+      color: shade,
+    });
   }
   // Crowd texture: seated rows of heads (hash pattern, cheap and stable).
   for (let row = 0; row < 7; row++) {
@@ -274,7 +279,15 @@ function worldOf(nx: number, ny: number): { x: number; y: number } {
   return { x: PAD + nx * PITCH_W, y: PAD + ny * PITCH_H };
 }
 
-function applySample(scene: Scene, sample: FrameSample, tMs: number) {
+function applySample(
+  scene: Scene,
+  sample: FrameSample,
+  ball: { x: number; y: number },
+  tMs: number,
+  previousTime: number,
+) {
+  const bw = worldOf(ball.x, ball.y);
+  const nearby: { index: number; distance: number; x: number; y: number }[] = [];
   for (let i = 0; i < scene.dots.length; i++) {
     const p = sample.players[i];
     if (!p) continue;
@@ -287,10 +300,28 @@ function applySample(scene: Scene, sample: FrameSample, tMs: number) {
     scene.dots[i].position.set(x, y);
     scene.labels[i].position.set(x, y);
     scene.names[i].position.set(x, y + DOT_R + 4);
+    scene.names[i].visible = false;
     scene.shadows[i].position.set(x, y + DOT_R + 2);
+    const distance = Math.hypot(x - bw.x, y - bw.y);
+    if (distance < 160) nearby.push({ index: i, distance, x, y });
   }
-  const bw = worldOf(sample.ballX, sample.ballY);
+  // A broadcast labels the players in the action, not all 22 at once. Avoid
+  // stacking two long names when opponents contest the same ball.
+  nearby.sort((a, b) => a.distance - b.distance);
+  const labeled: typeof nearby = [];
+  for (const player of nearby) {
+    if (labeled.length >= 3) break;
+    if (
+      labeled.some(
+        (other) => Math.abs(other.x - player.x) < 90 && Math.abs(other.y - player.y) < 28,
+      )
+    )
+      continue;
+    scene.names[player.index].visible = true;
+    labeled.push(player);
+  }
   // Ball trail: a tapered ribbon of the last frames — motion readable at any speed.
+  if (timelineJump(previousTime, tMs)) scene.trailPts.length = 0;
   scene.trailPts.push(bw);
   if (scene.trailPts.length > 14) scene.trailPts.shift();
   scene.trail.clear();

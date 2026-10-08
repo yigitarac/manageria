@@ -2,6 +2,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { Pause, Play, Upload } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { BroadcastHud } from "../features/match/BroadcastHud";
+import { scoreAt } from "../features/match/liveMatch";
 import { CommentaryFeed } from "../features/match/CommentaryFeed";
 import { MatchCanvas } from "../features/match/MatchCanvas";
 import { StatsPanel } from "../features/match/StatsPanel";
@@ -34,6 +35,7 @@ export function ViewerPage() {
     undefined,
     initialPlayback,
   );
+  const score = dump ? scoreAt(dump, state.tMs) : null;
 
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -123,7 +125,7 @@ export function ViewerPage() {
               <p className="text-sm text-muted-foreground">
                 {dump.teams.home.club}{" "}
                 <span className="font-mono">
-                  {dump.score.home}–{dump.score.away}
+                  {score?.home}–{score?.away}
                 </span>{" "}
                 {dump.teams.away.club}
               </p>
@@ -194,7 +196,7 @@ export function ViewerPage() {
               <CommentaryFeed dump={dump} tMs={state.tMs} />
             </div>
           </div>
-          <StatsPanel dump={dump} />
+          <StatsPanel dump={dump} tMs={state.tMs} />
         </>
       ) : (
         <div

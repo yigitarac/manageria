@@ -5,8 +5,9 @@ const DURATION = 90_000;
 
 describe("playbackReducer", () => {
   it("accumulates game time while playing, scaled by speed", () => {
-    const state = playbackReducer(initialPlayback(), { type: "tick", dtMs: 100 }, DURATION);
-    expect(state.tMs).toBe(6000); // 100 real ms × speed 60
+    const playing = playbackReducer(initialPlayback(), { type: "play" }, DURATION);
+    const state = playbackReducer(playing, { type: "tick", dtMs: 100 }, DURATION);
+    expect(state.tMs).toBe(3000);
   });
 
   it("holds still while paused", () => {
@@ -16,7 +17,7 @@ describe("playbackReducer", () => {
   });
 
   it("stops at the end of the timeline", () => {
-    let state = initialPlayback();
+    let state = playbackReducer(initialPlayback(), { type: "play" }, DURATION);
     for (let i = 0; i < 100; i++)
       state = playbackReducer(state, { type: "tick", dtMs: 100 }, DURATION);
     expect(state.tMs).toBe(DURATION);

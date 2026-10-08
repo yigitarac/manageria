@@ -22,6 +22,8 @@ const resources = {
       "viewer.speed": "Playback speed",
       "viewer.commentary": "Commentary",
       "viewer.stats": "Statistics",
+      "viewer.fullStatsAfterWhistle":
+        "Possession, xG and player fatigue are available at full time.",
       "viewer.patternTag": "pattern: {{id}}",
       "viewer.patternStat": "{{club}}: {{shots}} pattern shots \u00b7 {{xg}} xG",
       "viewer.goalBanner": "GOAL! \u26bd {{scorer}} \u00b7 {{minute}}'",
@@ -31,6 +33,7 @@ const resources = {
       "stats.xg": "xG",
       "stats.corners": "Corners",
       "stats.fouls": "Fouls",
+      "stats.offsides": "Offsides",
       "stats.turnovers": "Turnovers",
       "stats.avgFatigue": "Fatigue",
       "event.kick_off": "Kick-off",

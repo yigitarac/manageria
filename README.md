@@ -35,7 +35,8 @@ Open <http://localhost:5173> — the page shows the API health status.
 pin a specific one with `make sample SEED=42`. Open <http://localhost:5173/viewer> — the
 sample auto-loads when present, and any `simcli -out match.json` dump can be dropped onto
 the page. Space plays/pauses, the timeline scrubs, playback speed goes up to 180×.
-It renders 2D circles on a pitch with synchronized commentary and stats.
+The replay starts paused at 30× speed. Score and commentary reveal as the match unfolds;
+live event statistics update in time, while final possession and xG appear at full time.
 
 ## Development
 

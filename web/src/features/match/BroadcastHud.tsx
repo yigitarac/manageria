@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { formatClock, halfOf } from "./playback";
+import { scoreAt } from "./liveMatch";
 import { playerNameLookup, type MatchDump } from "./types";
 
 /**
@@ -18,6 +19,7 @@ export function BroadcastHud({
 }) {
   const { t } = useTranslation();
   const names = useMemo(() => playerNameLookup(dump), [dump]);
+  const score = scoreAt(dump, tMs);
   const goal = dump.events.find(
     (ev) => ev.kind === "goal" && ev.tick * 1000 <= tMs && tMs - ev.tick * 1000 < 4000,
   );
@@ -28,7 +30,7 @@ export function BroadcastHud({
       <div className="pointer-events-none absolute left-3 top-3 z-10 flex items-center gap-2 rounded-md bg-black/75 px-3 py-1.5 font-mono text-sm text-white shadow-lg backdrop-blur">
         <span className="font-semibold">{short[0]}</span>
         <span className="tabular-nums">
-          {dump.score.home}–{dump.score.away}
+          {score.home}–{score.away}
         </span>
         <span className="font-semibold">{short[1]}</span>
         <span className="ml-2 text-xs text-white/70 tabular-nums">

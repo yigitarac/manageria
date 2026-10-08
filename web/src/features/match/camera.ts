@@ -6,6 +6,11 @@
 
 export const CAMERA_ZOOM = 1.9;
 
+/** A scrub must reset camera easing and ball trails; ordinary fast playback must not. */
+export function timelineJump(previousMs: number, nextMs: number): boolean {
+  return previousMs >= 0 && (nextMs < previousMs || nextMs - previousMs > 5000);
+}
+
 export interface CameraFrame {
   scale: number;
   x: number;

@@ -36,6 +36,61 @@ describe("ballStory", () => {
     expect(goal!.x1).toBeCloseTo(1.005, 6); // ball nestles in the home-side net
   });
 
+  it("keeps the ball on a continuous path from a shot to its restart", () => {
+    const dump = {
+      ...syntheticDump,
+      touches: [
+        {
+          tick: 20,
+          chain: 1,
+          team: 0,
+          kind: "shot",
+          actor: 9,
+          target: -1,
+          success: false,
+          x: 0.8,
+          y: 0.4,
+        },
+        {
+          tick: 30,
+          chain: 2,
+          team: 1,
+          kind: "pass",
+          actor: 0,
+          target: 2,
+          success: true,
+          x: 0.95,
+          y: 0.5,
+        },
+      ],
+      events: [],
+    };
+    const episodes = buildBallStory(dump);
+    expect(ballAt(episodes, 25_000)).not.toBeNull();
+    expect(ballAt(episodes, 29_900)?.x).toBeCloseTo(0.95, 2);
+  });
+
+  it("does not credit a nearby opponent goal to a shot", () => {
+    const dump = {
+      ...syntheticDump,
+      touches: [
+        {
+          tick: 20,
+          chain: 1,
+          team: 1,
+          kind: "shot",
+          actor: 9,
+          target: -1,
+          success: false,
+          x: 0.2,
+          y: 0.4,
+        },
+      ],
+      events: [{ tick: 21, minute: 1, kind: "goal", club: "Redvale FC", player: "h9", detail: "" }],
+    };
+    expect(buildBallStory(dump)[0].kind).toBe("shot");
+  });
+
   it("walks the ball to the restart spot across dead-ball gaps (no teleporting)", () => {
     const dump = {
       ...syntheticDump,
