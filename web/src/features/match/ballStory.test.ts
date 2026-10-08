@@ -36,6 +36,40 @@ describe("ballStory", () => {
     expect(goal!.x1).toBeCloseTo(1.005, 6); // ball nestles in the home-side net
   });
 
+  it("uses the centre-spot keyframes during the post-goal reset", () => {
+    const dump = {
+      ...syntheticDump,
+      touches: [
+        {
+          tick: 20,
+          chain: 1,
+          team: 0,
+          kind: "shot",
+          actor: 9,
+          target: -1,
+          success: true,
+          x: 0.9,
+          y: 0.5,
+        },
+        {
+          tick: 56,
+          chain: 2,
+          team: 1,
+          kind: "pass",
+          actor: 6,
+          target: 7,
+          success: true,
+          x: 0.5,
+          y: 0.5,
+        },
+      ],
+      events: [{ tick: 20, minute: 1, kind: "goal", club: "Redvale FC", player: "h9", detail: "" }],
+    };
+    const episodes = buildBallStory(dump);
+    expect(ballAt(episodes, 21_500)?.x).toBeCloseTo(1.005, 3);
+    expect(ballAt(episodes, 30_000)).toBeNull();
+  });
+
   it("keeps the ball on a continuous path from a shot to its restart", () => {
     const dump = {
       ...syntheticDump,

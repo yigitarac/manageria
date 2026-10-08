@@ -66,7 +66,7 @@ export function buildBallStory(dump: MatchDump): BallEpisode[] {
           x1: landingX,
           y1: 0.5,
         });
-        if (next && nextTime > holdEnd) {
+        if (next && nextTime > holdEnd && !scored) {
           episodes.push({
             t0: holdEnd,
             t1: nextTime,
