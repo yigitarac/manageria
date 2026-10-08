@@ -32,7 +32,7 @@ import (
 //	     geometry vs cover shadows, carry space, shoot windows; the dice-picker retires),
 //	     one coherent possession-retention budget, unit-aware regime classifier and honest
 //	     chain outcomes (T-014 possession-consolidation + chance-creation pass)
-const EngineVersion = 8
+const EngineVersion = 9
 
 // PlayerID identifies a player across a match (UUIDv7 string at the storage boundary).
 type PlayerID string
@@ -471,31 +471,33 @@ type Restart struct {
 // reproduces the straight run bit for bit. It is self-contained apart from the seed:
 // on-pitch player copies travel with it (substitutions change occupants).
 type Snapshot struct {
-	Tick       int32              `json:"tick"`
-	Score      Score              `json:"score"`
-	Events     []Event            `json:"events"`
-	Stats      MatchStats         `json:"stats"`
-	PossTicks  [2]int             `json:"possTicks"`
-	OnPitch    [22]PlayerSnapshot `json:"onPitch"`
-	Players    [22]PlayerState    `json:"players"`
-	Ratings    []PlayerRating     `json:"ratings"`
-	BallX      float64            `json:"ballX"`
-	BallY      float64            `json:"ballY"`
-	Owner      int8               `json:"owner"`
-	OwnerIdx   int8               `json:"ownerIdx"`
-	Cooldown   int8               `json:"cooldown"`
-	Restart    Restart            `json:"restart"`
-	Cards      [22]CardState      `json:"cards"`
-	Pattern    PatternCursor      `json:"pattern"`
-	ChainID    int32              `json:"chainId"`
-	ChainTeam  int8               `json:"chainTeam"`
-	ChainStart int32              `json:"chainStart"`
-	ChainReg   Regime             `json:"chainReg"`
-	ChainGone  int32              `json:"chainGone"`
-	Touches    []Touch            `json:"touches"`
-	Chains     []ChainInfo        `json:"chains"`
-	Stoppage   [2]float64         `json:"stoppage"`
-	SecondHalf bool               `json:"secondHalf"`
-	Tactics    [2]Tactics         `json:"tactics"`
-	RND        rng.State          `json:"rnd"`
+	Tick         int32              `json:"tick"`
+	Score        Score              `json:"score"`
+	Events       []Event            `json:"events"`
+	Stats        MatchStats         `json:"stats"`
+	PossTicks    [2]int             `json:"possTicks"`
+	OnPitch      [22]PlayerSnapshot `json:"onPitch"`
+	Players      [22]PlayerState    `json:"players"`
+	Ratings      []PlayerRating     `json:"ratings"`
+	BallX        float64            `json:"ballX"`
+	BallY        float64            `json:"ballY"`
+	Owner        int8               `json:"owner"`
+	OwnerIdx     int8               `json:"ownerIdx"`
+	Cooldown     int8               `json:"cooldown"`
+	KickoffTeam  int8               `json:"kickoffTeam"`
+	KickoffTicks int8               `json:"kickoffTicks"`
+	Restart      Restart            `json:"restart"`
+	Cards        [22]CardState      `json:"cards"`
+	Pattern      PatternCursor      `json:"pattern"`
+	ChainID      int32              `json:"chainId"`
+	ChainTeam    int8               `json:"chainTeam"`
+	ChainStart   int32              `json:"chainStart"`
+	ChainReg     Regime             `json:"chainReg"`
+	ChainGone    int32              `json:"chainGone"`
+	Touches      []Touch            `json:"touches"`
+	Chains       []ChainInfo        `json:"chains"`
+	Stoppage     [2]float64         `json:"stoppage"`
+	SecondHalf   bool               `json:"secondHalf"`
+	Tactics      [2]Tactics         `json:"tactics"`
+	RND          rng.State          `json:"rnd"`
 }

@@ -191,6 +191,12 @@ func (s *simState) defaultCorner(team int) {
 	defQ := s.skill(1-team, def, aerialFocus) + marking
 	if s.rnd.Float64() >= duelChance(attQ, defQ) {
 		s.wonDuel(1-team, def, 0.2)
+		// The defended corner stays live as often as football says it does:
+		// knockdowns and scrambles, not a clean walk-away.
+		if s.rnd.Float64() < deliveryScatterShare {
+			s.scatterLoose(1 - team)
+			return
+		}
 		s.restartIdxBall(1-team, def, "regain")
 		return
 	}

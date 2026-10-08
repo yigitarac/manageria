@@ -7,7 +7,7 @@ package engine
 // Outcome shaping
 const (
 	// shotBase scales shot conversion quality before goalkeeper opposition.
-	shotBase = 0.72
+	shotBase = 0.54
 	// gkSaveShare is how strongly goalkeeping cancels shot quality.
 	gkSaveShare = 0.55
 	// shotDistanceFalloff shrinks conversion with distance (0..1 of the shot zone).
@@ -78,6 +78,17 @@ const (
 	clearanceShare = 0.42
 	// secondBallShare falls to the edge of the box after a clearance (long-shot wave).
 	secondBallShare = 0.35
+	// deliveryScatterShare is the fraction of DEFENDED deliveries (crosses,
+	// corners) that stay live as a loose second ball instead of a controlled
+	// defensive win — knockdowns: crowded boxes stay dangerous, and the
+	// scramble belongs to whoever reads it first.
+	deliveryScatterShare = 0.45
+	// tackleScatterShare is the fraction of lost take-on duels that dislodge
+	// the ball live at the tackle spot (a poke, not a pin) — the dispossessor
+	// has to win the scramble too.
+	tackleScatterShare = 0.30
+	// looseScatter is how far a defended header knocks the loose ball (norm units).
+	looseScatter = 0.10
 	// offsideBase is the baseline chance a through-ball run is caught offside.
 	offsideBase = 0.12
 	// foulBase is the baseline chance a lost duel is a foul for the defender.
@@ -95,7 +106,7 @@ const (
 	// homeAdvantage is the familiar-ground/crowd multiplier (visible, documented).
 	// Cranked above intuition because duelChance() compresses quality gaps near
 	// parity — a visible ×perf multiplier needs muscle to move outcome bands.
-	homeAdvantage = 1.16
+	homeAdvantage = 1.13
 	// moraleGoalSwing is the visible morale shift after a goal (+winner / −conceder;
 	// the label in the goal event quotes this exact number). The PERFORMANCE band is
 	// kept thin (moraleBand) so leads do not snowball through confidence alone.
@@ -159,15 +170,15 @@ const (
 	// cuts it completely.
 	laneClearance = 0.09
 	// passLossBase is the calm-lane, unforced-error floor of the retention budget.
-	passLossBase = 0.075
+	passLossBase = 0.055
 	// passLossRisk weighs cut lanes (cover shadows) into the failure probability.
-	passLossRisk = 0.115
+	passLossRisk = 0.045
 	// passLossPressRisk amplifies lane danger under closing-down heat.
 	passLossPressRisk = 0.35
 	// passLossPress is the raw heat tax per point of pressure.
-	passLossPress = 0.015
+	passLossPress = 0.004
 	// passLossStretch taxes overhit services (distance beyond ten metres).
-	passLossStretch = 0.045
+	passLossStretch = 0.02
 	// passLossSkill subtracts craft: passing, composure and the receiver's touch.
 	passLossSkill = 0.115
 	// recycleSafety is the retention multiplier of square/back balls (teams keep the

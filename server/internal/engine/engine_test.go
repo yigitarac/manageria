@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"math"
 	"sync"
 	"testing"
 
@@ -23,10 +24,11 @@ func TestGoldenDigest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Digest: %v", err)
 	}
-	// v8 goldens — capped runner speed removes 3-second player leaps. Sample
-	// squads have distinct fictional names; shot and home-ground tuning retain
-	// the 800-match calibration bands after the movement change.
-	const want = "e173656d1b211fc17612097f87f5e7db66c832186377c1a75351f7d310a45e5a"
+	// v9 goldens — legal kick-off regrouping, active defending, honest carry
+	// pricing (regime-weighted), second-ball scrambles on defended deliveries
+	// and dispossessions, a passing model that resists reciprocal exchanges,
+	// and the v9 calibration retune (shotBase 0.54, homeAdvantage 1.13).
+	const want = "75d50b4ba7af98dd635d9237c3dc726fc76e408673a045f63aebc0ab6416a1d5"
 	if got != want {
 		t.Fatalf("golden digest = %s, want %s (update deliberately on EngineVersion bumps)", got, want)
 	}
@@ -46,6 +48,113 @@ func TestNoThreeSecondPlayerLeap(t *testing.T) {
 					t.Fatalf("seed %d, tick %d, slot %d: squared leap %.3f exceeds limit", seed, res.Keyframes[i].TMs/1000, slot, dx*dx+dy*dy)
 				}
 			}
+		}
+	}
+}
+
+func TestKickoffsHaveLegalPositions(t *testing.T) {
+	for _, seed := range []uint64{42, 123, 987} {
+		res := mustSimulate(t, func() (engine.MatchResult, []engine.Snapshot, error) {
+			return engine.Simulate(enginetest.SampleInput(seed))
+		})
+		kickoffs := 0
+		for _, event := range res.Events {
+			if event.Kind != engine.EventKickOff {
+				continue
+			}
+			kickoffs++
+			var frame *engine.Keyframe
+			for i := range res.Keyframes {
+				if res.Keyframes[i].TMs > uint32(event.Tick)*1000 {
+					break
+				}
+				frame = &res.Keyframes[i]
+			}
+			if frame == nil {
+				t.Fatalf("seed %d: no frame for kick-off tick %d", seed, event.Tick)
+			}
+			for slot, player := range frame.Players {
+				roster := res.Teams.Home.Players
+				if slot >= 11 {
+					roster = res.Teams.Away.Players
+				}
+				dismissed := false
+				for _, prior := range res.Events {
+					if prior.Tick <= event.Tick && prior.Kind == engine.EventRedCard && prior.Player == roster[slot%11].ID {
+						dismissed = true
+						break
+					}
+				}
+				if dismissed {
+					continue
+				}
+				if slot < 11 && player.X > 0.501 || slot >= 11 && player.X < 0.499 {
+					t.Fatalf("seed %d, tick %d: player %d crossed halfway at kick-off (x %.3f)", seed, event.Tick, slot, player.X)
+				}
+				if dx, dy := player.X-0.5, player.Y-0.5; dx*dx+dy*dy < 0.09*0.09 &&
+					(slot < 11) != (event.Club == res.Teams.Home.Club) {
+					t.Fatalf("seed %d, tick %d: opponent %d inside centre circle", seed, event.Tick, slot)
+				}
+			}
+		}
+		if kickoffs < 2 {
+			t.Fatalf("seed %d: expected initial and second-half kick-offs", seed)
+		}
+	}
+}
+
+func TestOpenPlayStaysActive(t *testing.T) {
+	for _, seed := range []uint64{42, 123, 987} {
+		res := mustSimulate(t, func() (engine.MatchResult, []engine.Snapshot, error) {
+			return engine.Simulate(enginetest.SampleInput(seed))
+		})
+		moving, observed := 0, 0
+		for i := 1; i < len(res.Keyframes); i++ {
+			before, after := res.Keyframes[i-1], res.Keyframes[i]
+			if before.BallOwner < 0 || before.BallOwner != after.BallOwner {
+				continue
+			}
+			defender := 1 - int(before.BallOwner)
+			for slot := defender*11 + 1; slot < defender*11+11; slot++ {
+				p, q := before.Players[slot], after.Players[slot]
+				if math.Hypot(p.X-q.X, p.Y-q.Y) > 0.005 {
+					moving++
+				}
+				observed++
+			}
+		}
+		if observed == 0 || float64(moving)/float64(observed) < 0.55 {
+			t.Fatalf("seed %d: defending movement %.1f%% of open-play frames", seed, 100*float64(moving)/float64(observed))
+		}
+
+		carries, repeat, longest := 0, 0, 0
+		lastPair := [3]int{-1, -1, -1}
+		for _, touch := range res.Touches {
+			if touch.Kind == engine.TouchCarry && touch.Success {
+				carries++
+			}
+			if touch.Kind != engine.TouchPass || !touch.Success {
+				repeat = 0
+				lastPair = [3]int{-1, -1, -1}
+				continue
+			}
+			a, b := int(touch.Actor), int(touch.Target)
+			if a > b {
+				a, b = b, a
+			}
+			pair := [3]int{int(touch.Team), a, b}
+			if pair == lastPair {
+				repeat++
+			} else {
+				repeat = 1
+				lastPair = pair
+			}
+			if repeat > longest {
+				longest = repeat
+			}
+		}
+		if carries < 120 || longest > 6 {
+			t.Fatalf("seed %d: %d carries, longest reciprocal pass run %d", seed, carries, longest)
 		}
 	}
 }

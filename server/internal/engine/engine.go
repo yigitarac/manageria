@@ -65,33 +65,35 @@ func run(in MatchInput, ivs []Intervention, snap *Snapshot) (MatchResult, []Snap
 
 // simState is the whole match machine. Everything in here must survive a snapshot.
 type simState struct {
-	in         MatchInput
-	rnd        *rng.Rand
-	tick       int32
-	onPitch    [22]PlayerSnapshot // current occupants: home 0..10, away 11..21
-	players    [22]PlayerState
-	ratings    []PlayerRating // deposited for substituted-off players
-	ballX      float64
-	ballY      float64
-	owner      int8 // 0 home, 1 away, -1 loose
-	ownerIdx   int8
-	cooldown   int8
-	restart    Restart
-	cards      [22]CardState
-	score      Score
-	events     []Event
-	stats      MatchStats
-	possTicks  [2]int
-	stoppage   [2]float64
-	secondHalf bool
-	tactics    [2]Tactics
-	anchors    [2][11][2]float64
-	snaps      []Snapshot
-	keyframes  []Keyframe
-	pending    []Intervention
-	present    PresenceFlags
-	pattern    PatternCursor
-	patTag     string // transient attribution tag (set/cleared within one tick's chain)
+	in           MatchInput
+	rnd          *rng.Rand
+	tick         int32
+	onPitch      [22]PlayerSnapshot // current occupants: home 0..10, away 11..21
+	players      [22]PlayerState
+	ratings      []PlayerRating // deposited for substituted-off players
+	ballX        float64
+	ballY        float64
+	owner        int8 // 0 home, 1 away, -1 loose
+	ownerIdx     int8
+	cooldown     int8
+	kickoffTeam  int8
+	kickoffTicks int8
+	restart      Restart
+	cards        [22]CardState
+	score        Score
+	events       []Event
+	stats        MatchStats
+	possTicks    [2]int
+	stoppage     [2]float64
+	secondHalf   bool
+	tactics      [2]Tactics
+	anchors      [2][11][2]float64
+	snaps        []Snapshot
+	keyframes    []Keyframe
+	pending      []Intervention
+	present      PresenceFlags
+	pattern      PatternCursor
+	patTag       string // transient attribution tag (set/cleared within one tick's chain)
 	// Possession-chain bookkeeping (sensory layer, ADR-0011).
 	chainID    int32
 	chainTeam  int8
@@ -131,6 +133,7 @@ func newSimState(in MatchInput, ivs []Intervention, snap *Snapshot) (*simState, 
 		s.ratings = slices.Clone(snap.Ratings)
 		s.ballX, s.ballY = snap.BallX, snap.BallY
 		s.owner, s.ownerIdx, s.cooldown = snap.Owner, snap.OwnerIdx, snap.Cooldown
+		s.kickoffTeam, s.kickoffTicks = snap.KickoffTeam, snap.KickoffTicks
 		s.restart = snap.Restart
 		s.cards = snap.Cards
 		s.stoppage = snap.Stoppage
@@ -159,7 +162,8 @@ func newSimState(in MatchInput, ivs []Intervention, snap *Snapshot) (*simState, 
 	for team := 0; team < 2; team++ {
 		for i := 0; i < 11; i++ {
 			ps := s.onPitch[team*11+i]
-			s.players[team*11+i] = PlayerState{X: s.anchors[team][i][0], Y: s.anchors[team][i][1], Morale: ps.Morale}
+			x, y := s.kickoffPosition(team, i, 0)
+			s.players[team*11+i] = PlayerState{X: x, Y: y, Morale: ps.Morale}
 		}
 	}
 	s.pending = pending
@@ -187,7 +191,7 @@ func (s *simState) loop() error {
 			s.closeChainIfLive("half")
 			s.restart = Restart{}
 			s.clearPattern()
-			s.kickOff(1)
+			s.beginKickoff(1)
 		}
 		if err := s.applyInterventions(); err != nil {
 			return err
@@ -201,6 +205,12 @@ func (s *simState) loop() error {
 		s.move()
 		s.fatigue()
 		switch {
+		case s.kickoffTicks > 0:
+			s.kickoffTicks--
+			if s.kickoffTicks == 0 {
+				s.kickOff(int(s.kickoffTeam))
+				s.appendEvent(EventKickOff, int(s.kickoffTeam), restartIdx(s.onPitchFor(int(s.kickoffTeam))), "")
+			}
 		case s.restart.Kind != RestartNone:
 			s.tickRestart()
 		case s.cooldown > 0:
@@ -329,7 +339,11 @@ func (s *simState) move() {
 			}
 			tx, ty := s.target(team, i, ps)
 			patterned := false
-			if pt, ok := s.patternTarget(team, i); ok {
+			if s.kickoffTicks > 0 {
+				tx, ty = s.kickoffPosition(team, i, int(s.kickoffTeam))
+				k = 0.32
+				patterned = true
+			} else if pt, ok := s.patternTarget(team, i); ok {
 				// Pattern runs are bursts: pace-scaled sprint easing toward the moving mark.
 				tx, ty = pt[0], pt[1]
 				k = 0.10 + 0.15*quality(s.onPitch[team*11+i].Attr.Pace)*eff
@@ -351,6 +365,9 @@ func (s *simState) move() {
 					tx, ty = ps.X, ps.Y
 				}
 			}
+			if s.kickoffTicks == 0 && s.owner == int8(1-team) && i > 0 && s.engagedRank(team, i) < int(s.tactics[team].Pressing) {
+				k = 0.14 + 0.10*quality(s.onPitch[team*11+i].Attr.Acceleration)*eff
+			}
 			if !patterned {
 				tx, ty = s.roleClamp(team, i, tx, ty)
 			}
@@ -367,6 +384,8 @@ func (s *simState) move() {
 		}
 	}
 	switch {
+	case s.kickoffTicks > 0:
+		s.ballX, s.ballY = 0.5, 0.5
 	case s.restart.Kind != RestartNone:
 		s.ballX, s.ballY = s.restart.X, s.restart.Y
 	case s.owner < 0:
@@ -457,7 +476,6 @@ func (s *simState) frontJobRun(team, idx int) ([2]float64, bool) {
 		}
 		return [2]float64{x, clamp(y, 0.04, 0.96)}, true
 	}
-
 	// Settled final-third attack: the jobs occupy complementary heights instead of
 	// a three-man goalmouth pile (that caricature fed itself to death).
 	switch job {
@@ -662,14 +680,46 @@ func (s *simState) kickOff(team int) {
 	s.cooldown = 0
 }
 
+// beginKickoff lets both teams return to legal halves before play resumes.
+func (s *simState) beginKickoff(team int) {
+	s.owner = -1
+	s.restart = Restart{}
+	s.clearPattern()
+	s.kickoffTeam = int8(team)
+	s.kickoffTicks = 36
+	s.ballX, s.ballY = 0.5, 0.5
+	s.cooldown = 0
+}
+
+func (s *simState) kickoffPosition(team, idx, takerTeam int) (float64, float64) {
+	x, y := s.anchors[team][idx][0], s.anchors[team][idx][1]
+	if team == takerTeam && idx == restartIdx(s.onPitchFor(team)) {
+		return 0.5, 0.5
+	}
+	if team == 0 {
+		return math.Min(x, 0.39), y
+	}
+	return math.Max(x, 0.61), y
+}
+
 // target computes one player's tactical destination in absolute coordinates.
-// Out of possession, defenders HOLD their zone: only the nearest few engage the ball
-// (that IS pressing) — the rest keeps shape. Ball magnets everywhere is what killed
-// space, chains and goals alike (T-014: unpack the pitch).
+// Defenders close the carrier in layers while the rest of the unit slides behind them.
 func (s *simState) target(team, idx int, ps *PlayerState) (float64, float64) {
-	// Stage-D mark discipline: a runner in YOUR box is your man. Zone shape resumes
-	// the moment the corridor empties.
-	if idx > 0 {
+	if idx > 0 && s.owner == int8(1-team) {
+		rank := s.engagedRank(team, idx)
+		if rank < int(s.tactics[team].Pressing) {
+			ownGoal := goalXFor(1 - team)
+			depth := 0.0
+			if rank == 1 {
+				depth = 0.28
+			} else if rank > 1 {
+				depth = 0.35
+			}
+			x := s.ballX + (ownGoal-s.ballX)*depth
+			y := s.ballY + (ps.Y-s.ballY)*float64(rank)*0.5
+			return clamp(x, 0.02, 0.98), clamp(y, 0.04, 0.96)
+		}
+		// Mark threatening runners while the nearest players challenge the ball.
 		if mk, ok := s.boxPickup(team, idx); ok {
 			return mk[0], mk[1]
 		}
@@ -692,6 +742,10 @@ func (s *simState) target(team, idx int, ps *PlayerState) (float64, float64) {
 			ax -= blockShift
 		}
 		ay = 0.5 + (ay-0.5)*width
+		if s.owner == int8(1-team) {
+			ax += clamp(s.ballX-0.5, -0.4, 0.4) * 0.12
+			ay += clamp(s.ballY-0.5, -0.45, 0.45) * 0.18
+		}
 	}
 
 	// Ball pull: attacking support bends toward the ball; defenders only the engaged
@@ -938,33 +992,35 @@ func (s *simState) sampleKeyframe() Keyframe {
 
 func (s *simState) snapshot() Snapshot {
 	return Snapshot{
-		Tick:       s.tick,
-		Score:      s.score,
-		Events:     slices.Clone(s.events),
-		Stats:      s.stats,
-		PossTicks:  s.possTicks,
-		OnPitch:    s.onPitch,
-		Players:    s.players,
-		Ratings:    slices.Clone(s.ratings),
-		BallX:      s.ballX,
-		BallY:      s.ballY,
-		Owner:      s.owner,
-		OwnerIdx:   s.ownerIdx,
-		Cooldown:   s.cooldown,
-		Restart:    s.restart,
-		Cards:      s.cards,
-		Pattern:    s.pattern,
-		ChainID:    s.chainID,
-		ChainTeam:  s.chainTeam,
-		ChainStart: s.chainStart,
-		ChainReg:   s.chainReg,
-		ChainGone:  s.chainGone,
-		Touches:    slices.Clone(s.touches),
-		Chains:     slices.Clone(s.chains),
-		Stoppage:   s.stoppage,
-		SecondHalf: s.secondHalf,
-		Tactics:    s.tactics,
-		RND:        s.rnd.State(),
+		Tick:         s.tick,
+		Score:        s.score,
+		Events:       slices.Clone(s.events),
+		Stats:        s.stats,
+		PossTicks:    s.possTicks,
+		OnPitch:      s.onPitch,
+		Players:      s.players,
+		Ratings:      slices.Clone(s.ratings),
+		BallX:        s.ballX,
+		BallY:        s.ballY,
+		Owner:        s.owner,
+		OwnerIdx:     s.ownerIdx,
+		Cooldown:     s.cooldown,
+		KickoffTeam:  s.kickoffTeam,
+		KickoffTicks: s.kickoffTicks,
+		Restart:      s.restart,
+		Cards:        s.cards,
+		Pattern:      s.pattern,
+		ChainID:      s.chainID,
+		ChainTeam:    s.chainTeam,
+		ChainStart:   s.chainStart,
+		ChainReg:     s.chainReg,
+		ChainGone:    s.chainGone,
+		Touches:      slices.Clone(s.touches),
+		Chains:       slices.Clone(s.chains),
+		Stoppage:     s.stoppage,
+		SecondHalf:   s.secondHalf,
+		Tactics:      s.tactics,
+		RND:          s.rnd.State(),
 	}
 }
 

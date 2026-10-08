@@ -48,7 +48,7 @@ func kpiReport(seed uint64, n int) {
 		median = chainLens[len(chainLens)/2]
 	}
 	fmt.Printf("behavioural KPIs over %d matches (seeds %d..%d)\n", n, seed, seed+uint64(n)-1)
-	fmt.Printf("  chains/match      : %.0f   (norm 100–150)\n", float64(chains)/f)
+	fmt.Printf("  chains/match      : %.0f   (norm 100–155, v9 era)\n", float64(chains)/f)
 	fmt.Printf("  touches/chain med : %d      (norm 4–8)\n", median)
 	fmt.Printf("  touches/match     : %.0f  (pass %d, carry %d, duel %d, regain %d)\n",
 		float64(touches)/f, int(float64(passes)/f), int(float64(carries)/f), int(float64(duels)/f), int(float64(regains)/f))
