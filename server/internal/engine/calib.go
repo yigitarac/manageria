@@ -7,7 +7,7 @@ package engine
 // Outcome shaping
 const (
 	// shotBase scales shot conversion quality before goalkeeper opposition.
-	shotBase = 0.68
+	shotBase = 0.72
 	// gkSaveShare is how strongly goalkeeping cancels shot quality.
 	gkSaveShare = 0.55
 	// shotDistanceFalloff shrinks conversion with distance (0..1 of the shot zone).
@@ -95,7 +95,7 @@ const (
 	// homeAdvantage is the familiar-ground/crowd multiplier (visible, documented).
 	// Cranked above intuition because duelChance() compresses quality gaps near
 	// parity — a visible ×perf multiplier needs muscle to move outcome bands.
-	homeAdvantage = 1.15
+	homeAdvantage = 1.16
 	// moraleGoalSwing is the visible morale shift after a goal (+winner / −conceder;
 	// the label in the goal event quotes this exact number). The PERFORMANCE band is
 	// kept thin (moraleBand) so leads do not snowball through confidence alone.

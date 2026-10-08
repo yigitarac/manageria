@@ -113,6 +113,16 @@ func sampleTeam(club string) engine.TeamSnapshot {
 		{"Rhys Calder", engine.PosW, 0},
 		{"Anzo Peres", engine.PosST, 1},
 	}
+	if club == "Stonebrook Athletic" {
+		awayNames := [...]string{
+			"Luca Venn", "Ari Solen", "Kellan Frost", "Rian Mercer", "Tavi Lorne",
+			"Jules Maren", "Noel Voss", "Sami Elian", "Felix Arden", "Ivo Senna",
+			"Rafi Calder", "Oren Hale", "Nico Sayer", "Leon Caspar", "Theo Varek", "Eli Marin",
+		}
+		for i := range specs {
+			specs[i].name = awayNames[i]
+		}
+	}
 	players := make([]engine.PlayerSnapshot, 0, len(specs))
 	for i, sp := range specs {
 		players = append(players, engine.PlayerSnapshot{

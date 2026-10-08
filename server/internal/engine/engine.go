@@ -354,8 +354,16 @@ func (s *simState) move() {
 			if !patterned {
 				tx, ty = s.roleClamp(team, i, tx, ty)
 			}
-			ps.X = clamp(ps.X+(tx-ps.X)*k, 0.02, 0.98)
-			ps.Y = clamp(ps.Y+(ty-ps.Y)*k, 0.04, 0.96)
+			stepX, stepY := (tx-ps.X)*k, (ty-ps.Y)*k
+			// Runner jobs may switch targets instantly, but feet cannot cross a
+			// quarter of the field between two 3-second viewer frames.
+			const maxMovePerTick = 0.049
+			if distance := math.Hypot(stepX, stepY); distance > maxMovePerTick {
+				stepX *= maxMovePerTick / distance
+				stepY *= maxMovePerTick / distance
+			}
+			ps.X = clamp(ps.X+stepX, 0.02, 0.98)
+			ps.Y = clamp(ps.Y+stepY, 0.04, 0.96)
 		}
 	}
 	switch {

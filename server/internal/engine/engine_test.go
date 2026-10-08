@@ -23,15 +23,30 @@ func TestGoldenDigest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Digest: %v", err)
 	}
-	// v7 goldens — the emergent behaviour layer (T-014 stages B/C/D-lite): options-based
-	// decisions with pass-lane geometry and shoot windows, one coherent retention budget,
-	// runner jobs (pin/held-width/edge), box mark discipline and honest chain outcomes.
-	// Calibration bands green (2.56 goals · 45.6/26.9/27.5), behavioural KPI contract
-	// green (chains ~125, median chain 4, ~860 passes) and the T-013 bunker paradox
-	// SOLVED (low blocks hold longer: 59.6′ vs 53.8′). Frozen deliberately.
-	const want = "491f51ec8fd1def9ec00ab89e9d308b6a66a83a7dff408aa865006b31b2b9d7b"
+	// v8 goldens — capped runner speed removes 3-second player leaps. Sample
+	// squads have distinct fictional names; shot and home-ground tuning retain
+	// the 800-match calibration bands after the movement change.
+	const want = "e173656d1b211fc17612097f87f5e7db66c832186377c1a75351f7d310a45e5a"
 	if got != want {
 		t.Fatalf("golden digest = %s, want %s (update deliberately on EngineVersion bumps)", got, want)
+	}
+}
+
+func TestNoThreeSecondPlayerLeap(t *testing.T) {
+	for _, seed := range []uint64{42, 123, 987} {
+		res := mustSimulate(t, func() (engine.MatchResult, []engine.Snapshot, error) {
+			return engine.Simulate(enginetest.SampleInput(seed))
+		})
+		for i := 1; i < len(res.Keyframes); i++ {
+			for slot := range res.Keyframes[i].Players {
+				a := res.Keyframes[i-1].Players[slot]
+				b := res.Keyframes[i].Players[slot]
+				dx, dy := b.X-a.X, b.Y-a.Y
+				if dx*dx+dy*dy > 0.15*0.15 {
+					t.Fatalf("seed %d, tick %d, slot %d: squared leap %.3f exceeds limit", seed, res.Keyframes[i].TMs/1000, slot, dx*dx+dy*dy)
+				}
+			}
+		}
 	}
 }
 

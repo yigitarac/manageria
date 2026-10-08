@@ -32,7 +32,7 @@ import (
 //	     geometry vs cover shadows, carry space, shoot windows; the dice-picker retires),
 //	     one coherent possession-retention budget, unit-aware regime classifier and honest
 //	     chain outcomes (T-014 possession-consolidation + chance-creation pass)
-const EngineVersion = 7
+const EngineVersion = 8
 
 // PlayerID identifies a player across a match (UUIDv7 string at the storage boundary).
 type PlayerID string
