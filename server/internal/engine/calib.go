@@ -7,7 +7,7 @@ package engine
 // Outcome shaping
 const (
 	// shotBase scales shot conversion quality before goalkeeper opposition.
-	shotBase = 0.42
+	shotBase = 0.68
 	// gkSaveShare is how strongly goalkeeping cancels shot quality.
 	gkSaveShare = 0.55
 	// shotDistanceFalloff shrinks conversion with distance (0..1 of the shot zone).
@@ -86,7 +86,7 @@ const (
 	// deflectCornerShare sends off-target efforts behind for a corner instead of a goal kick.
 	deflectCornerShare = 0.08
 	// homeAdvantage is the familiar-ground/crowd multiplier (visible, documented).
-	homeAdvantage = 1.06
+	homeAdvantage = 1.08
 	// moraleGoalSwing is the visible morale shift after a goal (+winner / −conceder).
 	moraleGoalSwing = 4.0
 	// gameStateShift moves the block with the scoreboard: trailing teams push up,

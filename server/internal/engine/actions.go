@@ -56,14 +56,15 @@ type situation struct {
 }
 
 func (s *simState) situation(team, idx int) situation {
-	ps := s.players[team*11+idx]
+	// The game's location is the BALL (players chase it; distance and wings are
+	// judged where the ball actually is).
 	goalX := 1.0
 	if team == 1 {
 		goalX = 0.0
 	}
 	return situation{
-		goalDist:  absf(goalX - ps.X),
-		wide:      absf(ps.Y-0.5) > 0.28,
+		goalDist:  absf(goalX - s.ballX),
+		wide:      absf(s.ballY-0.5) > 0.28,
 		press:     s.pressure(team, idx),
 		gapBehind: absf(s.defensiveLineX(1-team) - goalXFor(1-team)),
 	}
@@ -81,19 +82,19 @@ func (s *simState) pickAction(team, idx int, sit situation) actionKind {
 		w[actionThrough] *= 1.25
 	}
 	w[actionCross] *= quality(carrier.Crossing) * float64(tac.Width) / 3
-	if !sit.wide {
+	if absf(s.ballY-0.5) <= 0.24 {
 		w[actionCross] = 0
 	}
 	w[actionDribble] *= quality(carrier.Dribbling) * (1 + 0.2*sit.press)
-	// Shooting happens inside the shooting zones (0.30 from goal); no pots from distance.
+	// Shooting happens in the shooting zones (0.36 ≈ 35 m); no pots from distance.
 	// Under heavy closing-down the shot appetite drops — players lay off instead of
 	// snatching at it (chronic box squatters therefore circulate rather than unload).
 	w[actionShoot] = 0
 	switch {
 	case sit.goalDist < 0.16:
 		w[actionShoot] = wShoot * 0.84 * quality(carrier.Finishing) * (0.6 + 0.4*(1-sit.goalDist/0.16)) / (1 + 0.22*sit.press)
-	case sit.goalDist < 0.30:
-		w[actionShoot] = wShoot * 1.05 * quality(carrier.LongShots) * (0.2 + 0.3*(1-sit.goalDist/0.30)) * (1 + 0.08*float64(tac.Mentality-3)) / (1 + 0.22*sit.press)
+	case sit.goalDist < 0.36:
+		w[actionShoot] = wShoot * 0.5 * quality(carrier.LongShots) * (0.2 + 0.3*(1-sit.goalDist/0.36)) * (1 + 0.08*float64(tac.Mentality-3)) / (1 + 0.22*sit.press)
 	}
 	if d := s.scoreDiff(team); d < 0 {
 		// Chasing a deficit: more shot appetite (the scoreboard is visible to everyone).
@@ -169,7 +170,7 @@ func (s *simState) skill(team, idx int, focus func(Attributes) float64) float64 
 }
 
 func (s *simState) shortPass(team, idx int, sit situation) {
-	length := 0.07 + 0.03*float64(s.tactics[team].PassingStyle)/3
+	length := minf(0.07+0.03*float64(s.tactics[team].PassingStyle)/3, 0.1)
 	s.deliverPass(team, idx, sit, length, false)
 }
 
@@ -182,7 +183,7 @@ func (s *simState) deliverPass(team, idx int, sit situation, length float64, lon
 	interQ := s.bestOpponentAttr(team, func(a Attributes) float64 {
 		return quality(a.Positioning)
 	})
-	pIntercept := clamp(0.22*duelChance(interQ, passQ), 0.02, 0.25) * (1 + 0.15*sit.press)
+	pIntercept := clamp(0.18*duelChance(interQ, passQ), 0.02, 0.25) * (1 + 0.15*sit.press)
 	pMisplace := clamp(0.05*(1+0.4*sit.press)-0.06*quality(carrier.Composure)+
 		0.025*float64(maxInt(int(s.tactics[team].Tempo)-3, 0)), 0.01, 0.25)
 
@@ -617,16 +618,16 @@ func (s *simState) nearestTo(team int, x, y float64) int {
 	return best
 }
 
-// pickReceiver draws a playable teammate (skips sent-off slots; index order).
+// pickReceiver draws a playable teammate (skips keepers and sent-off slots).
 func (s *simState) pickReceiver(team int) int {
 	active := make([]int, 0, 11)
 	for i := 0; i < 11; i++ {
-		if !s.cards[team*11+i].Off {
+		if !s.cards[team*11+i].Off && s.onPitch[team*11+i].Pos != PosGK {
 			active = append(active, i)
 		}
 	}
 	if len(active) == 0 {
-		return 0
+		return 1
 	}
 	return active[s.rnd.Intn(len(active))]
 }
@@ -650,18 +651,26 @@ func (s *simState) nearestDistTo(team int, x, y float64) float64 {
 // "through on goal, squares it to the corner flag". Deterministic argmax (index-order
 // ties) so snapshots stay reproducible.
 func (s *simState) pickSmartReceiver(team, fromIdx int) int {
-	bx := s.ballX
 	dir := 1 - 2*float64(team)
 	best, bestW := fromIdx, -1.0e9
 	for i := 0; i < 11; i++ {
 		if i == fromIdx || s.cards[team*11+i].Off {
 			continue
 		}
+		if s.onPitch[team*11+i].Pos == PosGK {
+			continue // keepers stay home; they are not passing outlets
+		}
 		ps := s.players[team*11+i]
+		// Reachable support only: nobody laces 40 m balls at a distant silhouette.
+		reach := absf(ps.X-s.ballX) + absf(ps.Y-s.ballY)
+		if reach > 0.35 {
+			continue
+		}
 		open := clamp(s.nearestDistTo(1-team, ps.X, ps.Y)/0.15, 0, 1)
-		gain := (ps.X - bx) * dir
+		gain := (ps.X - s.ballX) * dir
 		boxPresence := math.Max(0, 0.22-absf(goalXFor(team)-ps.X))
-		w := 0.3 + 2.2*math.Max(gain, 0) + 1.2*open + 2.0*boxPresence - 0.9*math.Max(-gain, 0)
+		// Nearby, open, helpful men win passes; speculative deep targets lose them.
+		w := 0.5 + 1.1*math.Max(gain, 0) + 1.6*open + 0.6*boxPresence - 0.9*math.Max(-gain, 0) - 0.8*reach
 		if w > bestW {
 			bestW, best = w, i
 		}
@@ -711,8 +720,8 @@ func (s *simState) advanceBall(team, receiver int, length float64) {
 	// Landing obeys role discipline: a centre-back cannot control beyond his cap —
 	// the pass out-runs him and dies (all reception call-sites share this funnel).
 	s.ballX, s.ballY = s.roleClamp(team, receiver, s.ballX, s.ballY)
-	s.players[team*11+receiver].X = s.ballX
-	s.players[team*11+receiver].Y = s.ballY
+	// The ball flies to the landing spot; the receiver RUNS to it (no teleporting
+	// athletes — motion is earned at pace).
 	s.owner, s.ownerIdx = int8(team), int8(receiver)
 }
 

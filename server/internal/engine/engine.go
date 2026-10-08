@@ -338,8 +338,11 @@ func (s *simState) move() {
 				k = 0.10 + 0.15*quality(s.onPitch[team*11+i].Attr.Pace)*eff
 				patterned = true
 			} else if s.owner == int8(team) && s.ownerIdx == int8(i) {
-				// Leisurely carry only with breathing room; crowded carriers hold.
-				if s.nearestDistTo(1-team, ps.X, ps.Y) > carryBrakeDist {
+				// Collect first (sprint to where the ball landed), then carry with
+				// breathing room — no teleporting, no ball-on-a-leash dragging.
+				if absf(ps.X-s.ballX)+absf(ps.Y-s.ballY) >= 0.05 {
+					tx, ty = s.ballX, s.ballY
+				} else if s.nearestDistTo(1-team, ps.X, ps.Y) > carryBrakeDist {
 					tx = clamp(ps.X+dir*0.015, 0.02, 0.98)
 					ty = clamp(ps.Y+(0.5-ps.Y)*0.05, 0.04, 0.96)
 				} else {
@@ -361,7 +364,11 @@ func (s *simState) move() {
 		s.ballY = clamp(s.ballY+(0.5-s.ballY)*0.05, 0.04, 0.96)
 	default:
 		op := &s.players[int(s.owner)*11+int(s.ownerIdx)]
-		s.ballX, s.ballY = op.X, op.Y
+		// The ball waits where it landed until the receiver collects it — flight is
+		// faster than feet, and dragging it back to his hips erases the pass's progress.
+		if absf(op.X-s.ballX)+absf(op.Y-s.ballY) < 0.05 {
+			s.ballX, s.ballY = op.X, op.Y
+		}
 	}
 }
 
@@ -528,6 +535,9 @@ func (s *simState) finalChains() []ChainInfo {
 }
 
 // target computes one player's tactical destination in absolute coordinates.
+// Out of possession, defenders HOLD their zone: only the nearest few engage the ball
+// (that IS pressing) — the rest keeps shape. Ball magnets everywhere is what killed
+// space, chains and goals alike (T-014: unpack the pitch).
 func (s *simState) target(team, idx int, ps *PlayerState) (float64, float64) {
 	ax, ay := s.anchors[team][idx][0], s.anchors[team][idx][1]
 
@@ -549,10 +559,38 @@ func (s *simState) target(team, idx int, ps *PlayerState) (float64, float64) {
 		ay = 0.5 + (ay-0.5)*width
 	}
 
+	// Ball pull: attacking support bends toward the ball; defenders only the engaged
+	// few (ranked by distance — a fixed-count press), the rest hold their zones.
+	pull := 0.10
+	if int8(team) != s.owner {
+		pull = 0.03
+		if s.engagedRank(team, idx) < 2+int(tac.Pressing) {
+			pull = 0.10
+		}
+	}
 	dx, dy := s.ballX-ax, s.ballY-ay
 	d2 := dx*dx + dy*dy
-	pull := 0.10 / (1 + 8*d2)
-	return clamp(ax+dx*pull, 0.02, 0.98), clamp(ay+dy*pull, 0.04, 0.96)
+	f := pull / (1 + 8*d2)
+	return clamp(ax+dx*f, 0.02, 0.98), clamp(ay+dy*f, 0.04, 0.96)
+}
+
+// engagedRank: 0 = closest to the ball among the defending side (fixed-count press).
+func (s *simState) engagedRank(team, idx int) int {
+	if s.cards[team*11+idx].Off {
+		return 99
+	}
+	me := absf(s.players[team*11+idx].X-s.ballX) + absf(s.players[team*11+idx].Y-s.ballY)
+	rank := 0
+	for i := 0; i < 11; i++ {
+		if i == idx || s.cards[team*11+i].Off {
+			continue
+		}
+		d := absf(s.players[team*11+i].X-s.ballX) + absf(s.players[team*11+i].Y-s.ballY)
+		if d < me {
+			rank++
+		}
+	}
+	return rank
 }
 
 // fatigue drains condition shaped by work rate, pressing, tempo and stamina.
@@ -795,7 +833,11 @@ func (s *simState) recomputeAnchors(team int) {
 	rows := s.tactics[team].Formation
 	xs := [3]float64{0.22, 0.45, 0.68}
 	table := [11][2]float64{}
-	table[0] = [2]float64{0.05, 0.5} // goalkeeper
+	gkX := 0.05
+	if team == 1 {
+		gkX = 0.95 // the keeper anchor must mirror too (he mans his OWN goal!)
+	}
+	table[0] = [2]float64{gkX, 0.5}
 	i := 1
 	for row, n := range rows {
 		for j := 0; j < n && i < 11; j++ {

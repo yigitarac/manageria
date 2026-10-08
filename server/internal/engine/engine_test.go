@@ -23,9 +23,11 @@ func TestGoldenDigest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Digest: %v", err)
 	}
-	// v5+ ledger goldens — shot/delivery touches join the sensory ledger (additive,
-	// fuels the causal ball story in the viewer). Frozen deliberately.
-	const want = "3673d1bc64616fe6e0a2cd044c6a7e718a3c55b25b6a8d332cfa0c6b4cc2e8b0"
+	// v6 goldens — the honesty campaign: teleport-free kinematics (ball waits, feet
+	// run), keeper homes, zone defending with fixed-count press, reachable support,
+	// ball-anchored distances, midfield retention. Calibration lands on honest physics:
+	// 2.69 goals · 44.8/27.1/28.1. Frozen deliberately.
+	const want = "341cc274bc34777a5225d3892c9000bf0c6f1f5edb467f6c3a3062964dab8d25"
 	if got != want {
 		t.Fatalf("golden digest = %s, want %s (update deliberately on EngineVersion bumps)", got, want)
 	}

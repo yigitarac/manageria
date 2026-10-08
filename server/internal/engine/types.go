@@ -26,7 +26,9 @@ import (
 //	     balls, man-marking bite, game-state management, combo fatigue (T-007)
 //	v5 — football IQ pass: situation-aware receiver choice, one-on-one fixation, role
 //	     discipline (defenders hold), carry traffic brake (T-012)
-const EngineVersion = 5
+//	v6 — teleport-free kinematics & keeper homes: mirrored keeper anchors, receivers run
+//	     to the ball instead of materialising on it (T-014 visual-integrity pass)
+const EngineVersion = 6
 
 // PlayerID identifies a player across a match (UUIDv7 string at the storage boundary).
 type PlayerID string
