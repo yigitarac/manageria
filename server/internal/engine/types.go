@@ -28,7 +28,11 @@ import (
 //	     discipline (defenders hold), carry traffic brake (T-012)
 //	v6 — teleport-free kinematics & keeper homes: mirrored keeper anchors, receivers run
 //	     to the ball instead of materialising on it (T-014 visual-integrity pass)
-const EngineVersion = 6
+//	v7 — emergent behaviour layer stages B/C (T-014): options-based decisions (pass-lane
+//	     geometry vs cover shadows, carry space, shoot windows; the dice-picker retires),
+//	     one coherent possession-retention budget, unit-aware regime classifier and honest
+//	     chain outcomes (T-014 possession-consolidation + chance-creation pass)
+const EngineVersion = 7
 
 // PlayerID identifies a player across a match (UUIDv7 string at the storage boundary).
 type PlayerID string

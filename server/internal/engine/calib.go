@@ -12,8 +12,14 @@ const (
 	gkSaveShare = 0.55
 	// shotDistanceFalloff shrinks conversion with distance (0..1 of the shot zone).
 	shotDistanceFalloff = 0.55
-	// shotZoneDist is the normalization distance for the falloff (≈ box edge to goal).
-	shotZoneDist = 0.34
+	// shotZoneDist is the normalization distance for the falloff (≈ box edge to goal);
+	// boxFinishDist is the penalty area — inside it finishing rules, outside it is
+	// long-shot merchant country (honest shooting ranges).
+	shotZoneDist  = 0.34
+	boxFinishDist = 0.34
+	longShotDist  = 0.50
+	// longShotMin gates outside-the-box potshots to long-shot merchants (attr/20).
+	longShotMin = 0.70
 	// shotPressureShare dilutes shot quality under closing-down pressure.
 	shotPressureShare = 0.14
 	// blockBase is the baseline chance a defender blocks a strike.
@@ -41,8 +47,9 @@ const (
 // Football IQ (T-012): legibility of moments, not just distributions.
 const (
 	// fixationBoost powers the shot when a player is through on goal (beat the line,
-	// keeper looming) — nobody squares that to the corner flag.
-	fixationBoost = 4.0
+	// keeper looming) — nobody squares that to the corner flag. Kept at ×2.5 (not 4):
+	// giant multipliers made the shoot/pass menu cliff-edge and wrecked calibration.
+	fixationBoost = 2.5
 	// oneOnOneDist / oneOnOnePress gate the through-on-goal read.
 	oneOnOneDist  = 0.12
 	oneOnOnePress = 1.2
@@ -62,47 +69,53 @@ const (
 	// carryBrakeDist: no leisurely forward carry with an opponent in your shirt.
 	carryBrakeDist = 0.06
 	// headerShotPenalty reduces headed attempts vs struck shots.
-	headerShotPenalty = 0.75
+	headerShotPenalty = 0.62
 	// penaltyBaseGoal is the baseline penalty conversion before duels.
 	penaltyBaseGoal = 0.76
 	// keeperClaimShare is the chance a keeper punches/holds a delivered cross.
 	keeperClaimShare = 0.45
 	// clearanceShare is the chance defenders clear a cross before a header duel.
-	clearanceShare = 0.35
+	clearanceShare = 0.42
 	// secondBallShare falls to the edge of the box after a clearance (long-shot wave).
 	secondBallShare = 0.35
 	// offsideBase is the baseline chance a through-ball run is caught offside.
-	offsideBase = 0.20
+	offsideBase = 0.12
 	// foulBase is the baseline chance a lost duel is a foul for the defender.
 	foulBase = 0.26
 	// penaltyAreaFoulShare converts defender fouls inside the box into penalties.
 	penaltyAreaFoulShare = 0.85
 	// cardBase is the baseline booking chance on a foul (aggression & hard tackling raise it).
-	cardBase = 0.30
+	cardBase = 0.22
 	// injuryBase is the per-tick injury hazard at fatigue 0 (grows with fatigue & duels).
 	injuryBase = 0.00012
 	// errorEventShare is how many lost balls are severe enough to log as a visible gift.
 	errorEventShare = 0.03
 	// deflectCornerShare sends off-target efforts behind for a corner instead of a goal kick.
-	deflectCornerShare = 0.08
+	deflectCornerShare = 0.32
 	// homeAdvantage is the familiar-ground/crowd multiplier (visible, documented).
-	homeAdvantage = 1.08
-	// moraleGoalSwing is the visible morale shift after a goal (+winner / −conceder).
-	moraleGoalSwing = 4.0
+	// Cranked above intuition because duelChance() compresses quality gaps near
+	// parity — a visible ×perf multiplier needs muscle to move outcome bands.
+	homeAdvantage = 1.15
+	// moraleGoalSwing is the visible morale shift after a goal (+winner / −conceder;
+	// the label in the goal event quotes this exact number). The PERFORMANCE band is
+	// kept thin (moraleBand) so leads do not snowball through confidence alone.
+	moraleGoalSwing = 3.0
 	// gameStateShift moves the block with the scoreboard: trailing teams push up,
 	// leaders manage the game (visible, explainable — the scoreboard is public).
-	gameStateShift = 0.015
+	// Gentle: heavy scoreboard management starves equalisers (and the draw band).
+	gameStateShift = 0.008
 	// leaderManage is the extra drop for teams protecting a lead (leads get managed
 	// harder than deficits get chased — the classic anti-blowout force).
-	leaderManage = 0.008
-	// gameStateChase tilts shot appetite for chasing teams late.
-	gameStateChase = 0.10
+	leaderManage = 0.005
+	// gameStateChase tilts shot appetite for chasing teams late. Kept modest: heavy
+	// chase spirals turn deficits into routs and starve the draw band.
+	gameStateChase = 0.06
 	// hurtPenalty reduces a player's contribution while carrying an injury.
 	hurtPenalty = 0.15
 	// presenceBoost is the live-presence performance multiplier.
 	presenceBoost = 1.03
 	// moraleBand is the max morale-driven performance swing at morale 0/100.
-	moraleBand = 0.03
+	moraleBand = 0.02
 )
 
 // Pattern execution (T-009 spike, see ADR-0009).
@@ -120,14 +133,81 @@ const (
 	patternAimSpread = 1.0
 )
 
-// Action weights (selection priors; attributes & tactics shift them).
+// Play-menu scales (option evaluation, not dice weights — the carrier compares real
+// candidates and these scale how loudly each play competes).
 const (
-	wPass    = 1.7
-	wThrough = 1.0
-	wCross   = 1.25
-	wDribble = 0.9
-	wShoot   = 2.2
-	wHold    = 0.5
+	wCross = 1.0
+	wShoot = 1.85
+	wHold  = 0.5
+)
+
+// Possession retention & option evaluation (T-014 stage B/C): ONE coherent failure
+// budget instead of stacked dice channels. Safe build-up football keeps the ball
+// ~95% of the time; gambles in the thick of it die far more often — WHERE the ball
+// is lost emerges from WHICH option was chosen.
+const (
+	// passReach is the Manhattan reach of a service to feet (normalized pitch).
+	passReach = 0.30
+	// throughReach admits through-balls into space behind (runners only).
+	throughReach = 0.42
+	// behindGapMin is the minimum grass behind the opponent's line for a through ball.
+	behindGapMin = 0.32
+	// laneProbes is the number of segment probes measuring cover-shadow danger
+	// (square-root-free geometry, portable determinism rule).
+	laneProbes = 6
+	// laneClearance is the cover-shadow radius: an opponent this close to the lane
+	// cuts it completely.
+	laneClearance = 0.09
+	// passLossBase is the calm-lane, unforced-error floor of the retention budget.
+	passLossBase = 0.075
+	// passLossRisk weighs cut lanes (cover shadows) into the failure probability.
+	passLossRisk = 0.115
+	// passLossPressRisk amplifies lane danger under closing-down heat.
+	passLossPressRisk = 0.35
+	// passLossPress is the raw heat tax per point of pressure.
+	passLossPress = 0.015
+	// passLossStretch taxes overhit services (distance beyond ten metres).
+	passLossStretch = 0.045
+	// passLossSkill subtracts craft: passing, composure and the receiver's touch.
+	passLossSkill = 0.115
+	// recycleSafety is the retention multiplier of square/back balls (teams keep the
+	// ball by recycling — this is what consolidates possession).
+	recycleSafety = 0.50
+	// throughRisk amplifies failure on through-ball services (weighted gambles).
+	throughRisk = 1.35
+	// misplaceShare is the failed-pass flavour that reads as misplacement (the rest
+	// splits between lane interceptions and heavy first touches).
+	misplaceShare = 0.30
+	// tempoRush is the haste tax per tempo point beyond 3: fast-tempo football buys
+	// extra touches with sloppier ones (the physical cost of rushing).
+	tempoRush = 0.008
+	// foulOnRegain is the late-challenge foul chance when a defender wins the ball
+	// THROUGH the man — where football's open-play fouls actually come from.
+	foulOnRegain = 0.45
+	// holdLossShare is how often shielding against a challenger loses the wrestle.
+	holdLossShare = 0.25
+	// carryProbe is the grass probed ahead when grading carry space.
+	carryProbe = 0.08
+	// decisionsArgmaxFloor/Share: P(the carrier takes the best read) = floor + share·q².
+	decisionsArgmaxFloor = 0.30
+	decisionsArgmaxShare = 0.60
+	// decisionGap flattens the misranking draw (bigger = greedier for the best read).
+	decisionGap = 3.0
+	// throughLead is the extra service lead of a through ball (runners collect).
+	throughLead = 0.035
+	// counterSurge is how far beyond the ball a transition runner breaks toward goal.
+	counterSurge = 0.10
+	// boxPinDepth is how far from the goal line strikers pin the corridor (the edge of
+	// the six-yard lane: arrivals hop in on crosses — nobody camps on the goalmouth).
+	boxPinDepth = 0.22
+	// widthHoldDepth is the byline distance wingers hold while stretching the back line.
+	widthHoldDepth = 0.30
+	// arriveEdgeDepth is the cutback zone distance AMs arrive onto (box edge).
+	arriveEdgeDepth = 0.30
+	// boxPickupReach is the central corridor (from own goal) inside which runners get
+	// picked up by their nearest defender — nobody camps unmarked in your six-yard
+	// lane, while width and edge ghosts stay the zone's business.
+	boxPickupReach = 0.24
 )
 
 // Experience/RNG pacing
@@ -135,7 +215,6 @@ const (
 	baseCooldown      = 8 // ticks between touches at Tempo 3
 	minCooldown       = 2
 	restartPauseTicks = 3 // "walk over" delay before a dead-ball delivery
-	manMarkRadius     = 0.06
 )
 
 // quality maps a 1–20 attribute to 0.05..1.0.

@@ -3,8 +3,11 @@ package engine
 // Dead-ball machinery: pending restarts, delivery tables for goal kicks, throw-ins,
 // corners, free kicks and penalties. Deliveries resolve after a short "walk over".
 
-// queueRestart freezes play and schedules a dead-ball delivery.
+// queueRestart freezes play and schedules a dead-ball delivery. The live possession
+// chain dies here with an honest "dead_ball" outcome (shots close as "shot" first at
+// their own call sites — outcome precedence: goal > shot > dead ball).
 func (s *simState) queueRestart(kind RestartKind, team int, x, y float64) {
+	s.closeChainIfLive("dead_ball")
 	s.restart = Restart{Kind: kind, Team: int8(team), X: clamp(x, 0.02, 0.98), Y: clamp(y, 0.04, 0.96), Ticks: restartPauseTicks}
 	s.owner = -1
 	s.cooldown = 0
@@ -26,12 +29,21 @@ func (s *simState) tickRestart() {
 	s.resolveRestart()
 }
 
-// resolveRestart plays out the dead-ball situation.
+// resolveRestart plays out the dead-ball situation. The delivery itself is the birth
+// of a fresh possession chain: corners/free kicks/penalties read as setPiece play,
+// goal kicks and throw-ins classify by zone (rebuild or restart).
 func (s *simState) resolveRestart() {
 	r := s.restart
 	s.restart = Restart{Kind: RestartNone}
-	s.pendingCau = "setpiece"
 	team := int(r.Team)
+
+	cause := "setpiece"
+	if r.Kind == RestartGoalKick || r.Kind == RestartThrowIn {
+		cause = "restart"
+	}
+	if !s.liveChain() {
+		s.openChain(int8(team), cause)
+	}
 
 	switch r.Kind {
 	case RestartGoalKick:
@@ -48,15 +60,13 @@ func (s *simState) resolveRestart() {
 	s.cooldown = s.actionCooldown(team)
 }
 
-// restartIdxBall hands possession to a player (loose-ball and interception ends).
-// Possession flips count as turnovers for the losing team (tactical sanity stats).
-func (s *simState) restartIdxBall(team, idx int) {
-	if s.owner >= 0 && s.owner != int8(team) {
-		s.statsFor(int(s.owner)).Turnovers++
-	}
-	s.owner, s.ownerIdx = int8(team), int8(idx)
+// restartIdxBall hands possession to a player (dead-ball claims and duel wins): the
+// ball arrives at his feet — a claim, not a teleported pass. The `cause` names the
+// newborn chain's regime ("" → regain).
+func (s *simState) restartIdxBall(team, idx int, cause string) {
 	op := &s.players[team*11+idx]
 	s.ballX, s.ballY = op.X, op.Y
+	s.setOwner(team, idx, cause)
 }
 
 // ballOut awards the restart implied by the ball leaving the pitch. Attacker dribbles
@@ -99,8 +109,7 @@ func (s *simState) goalKick(team int) {
 	})
 	s.players[team*11].Acc += 0.05
 	if s.rnd.Float64() < 0.5+0.2*(distrQ-0.5) {
-		to := s.bestSlot(team, func(a Attributes) float64 { return quality(a.Passing) })
-		s.advanceBall(team, to, 0.05)
+		s.retainPass(team, 0) // rolled short: the best visible outlet at feet
 		return
 	}
 	// Route one: long ball up for a physical duel.
@@ -113,22 +122,14 @@ func (s *simState) goalKick(team int) {
 		return
 	}
 	s.wonDuel(1-team, def, 0.15)
-	s.restartIdxBall(1-team, def)
+	s.restartIdxBall(1-team, def, "regain")
 }
 
-// throwIn: cheap retention with a small contest risk.
+// throwIn: launched to the best visible option (the options model owns retention).
 func (s *simState) throwIn(team int, r Restart) {
 	thrower := s.bestSlot(team, func(a Attributes) float64 { return quality(a.Passing) })
 	s.ballX, s.ballY = r.X, r.Y
-	s.recordTouch(TouchPass, int8(thrower), -1, true)
-	pLost := 0.25 - 0.10*quality(s.onPitch[team*11+thrower].Attr.Passing)
-	if s.rnd.Float64() < pLost {
-		defIdx := s.nearestTo(1-team, r.X, r.Y)
-		s.restartIdxBall(1-team, defIdx)
-		return
-	}
-	to := s.pickReceiver(team)
-	s.advanceBall(team, to, 0.03)
+	s.retainPass(team, thrower)
 	s.players[team*11+thrower].Acc += 0.05
 }
 
@@ -151,7 +152,7 @@ func (s *simState) cornerEntry(team int, delivery float64) bool {
 	gk := s.onPitch[(1-team)*11]
 	if s.rnd.Float64() < keeperClaimShare*duelChance(quality(gk.Attr.Handling)*s.perf(1-team, 0), delivery) {
 		s.players[(1-team)*11].Acc += 0.1
-		s.restartIdxBall(1-team, 0)
+		s.restartIdxBall(1-team, 0, "restart")
 		return false
 	}
 	if s.rnd.Float64() < clearanceShare {
@@ -173,7 +174,7 @@ func (s *simState) defaultCorner(team int) {
 	if s.tactics[team].SetPieces.CornerRoutine == 4 {
 		// Short corner: recycle into open play around the box.
 		s.ballX, s.ballY = s.cornerSpot(team, 0.72)
-		s.advanceBall(team, s.pickReceiver(team), 0.02)
+		s.retainPass(team, taker)
 		return
 	}
 	if !s.cornerEntry(team, delivery) {
@@ -190,7 +191,7 @@ func (s *simState) defaultCorner(team int) {
 	defQ := s.skill(1-team, def, aerialFocus) + marking
 	if s.rnd.Float64() >= duelChance(attQ, defQ) {
 		s.wonDuel(1-team, def, 0.2)
-		s.restartIdxBall(1-team, def)
+		s.restartIdxBall(1-team, def, "regain")
 		return
 	}
 	s.players[team*11+att].Acc += 0.25
@@ -199,8 +200,13 @@ func (s *simState) defaultCorner(team int) {
 		s.finishShot(team, att, true, 0.10, 0)
 		return
 	}
-	support := s.pickReceiver(team)
-	s.advanceBall(team, support, 0.03)
+	supportOpts := s.passOptions(team, att, s.situation(team, att))
+	if len(supportOpts) == 0 {
+		s.advanceBall(team, att, 0.02)
+		return
+	}
+	support := s.safestOption(supportOpts)
+	s.advanceBall(team, support.to, 0.03)
 }
 
 // freeKick: shoot, cross or lay-off per the routine.
@@ -217,9 +223,9 @@ func (s *simState) freeKick(team int, r Restart) {
 
 	switch s.tactics[team].SetPieces.FreeKickRoutine {
 	case 3:
-		// Lay-off: quick restart into feet.
+		// Lay-off: quick restart into feet (best visible option, ordinary pass).
 		s.players[team*11+taker].Acc += 0.05
-		s.deliverPass(team, taker, situation{goalDist: dist, press: 0.3}, 0.06, false)
+		s.retainPass(team, taker)
 	case 2:
 		// Wide free kick treated as an early cross.
 		s.players[team*11+taker].Acc += 0.05
@@ -257,9 +263,11 @@ func (s *simState) directFreeKick(team, taker int, dist float64) {
 	case roll < pGoal+0.35:
 		ts.OnTarget++
 		s.appendEvent(EventShotSaved, team, taker, "free_kick")
-		s.restartIdxBall(1-team, 0)
+		s.closeChainIfLive("shot")
+		s.restartIdxBall(1-team, 0, "restart")
 	default:
 		s.appendEvent(EventShotOffTarget, team, taker, "free_kick")
+		s.closeChainIfLive("shot")
 		s.queueRestart(RestartGoalKick, 1-team, 0.08+0.84*float64(1-team), 0.5)
 	}
 }
@@ -289,7 +297,8 @@ func (s *simState) penalty(team int) {
 		return
 	}
 	s.appendEvent(EventShotSaved, team, taker, "penalty")
-	s.restartIdxBall(1-team, 0)
+	s.closeChainIfLive("shot")
+	s.restartIdxBall(1-team, 0, "restart")
 }
 
 // cornerSpot returns a corner-taking coordinate for the attacking team.

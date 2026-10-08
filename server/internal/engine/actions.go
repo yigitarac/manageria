@@ -2,14 +2,48 @@ package engine
 
 import "math"
 
-// This file holds the open-play action tables: selection (with the `decisions`
-// override), pass/through-ball/cross/dribble/shot resolution, duels, fouls, cards
-// and injuries. Set pieces live in restarts.go.
+// This file holds the open-play behaviour layer (ADR-0011 stage C): the carrier
+// enumerates REAL options (pass lanes versus cover shadows, carry space, shoot
+// windows), scores them with attributes and the chain regime's goal, and executes
+// the chosen play. The weighted-dice action picker is retired: no more rolling for
+// action KINDS, only situation evaluations that happen to involve chance.
 //
-// Draw-order rule: every action resolves its random draws in a fixed code order and
-// participant picks scan slices in index order — no draw depends on map iteration.
+// Failure model: one coherent retention budget (calib.go: passLoss*) instead of three
+// stacked dice channels. WHERE the ball is lost emerges from WHICH option was picked —
+// cut lanes become interceptions, heat becomes misplacement, mixed company becomes a
+// heavy first touch.
+//
+// Draw-order rule: every play resolves its random draws in a fixed code order and
+// option enumeration scans slots in index order — no draw depends on map iteration.
 
-// act resolves one open-play action for the ball carrier.
+// Play kinds (candidate courses of action).
+const (
+	playPass = iota
+	playThrough
+	playCross
+	playCarry
+	playShoot
+	playHold
+)
+
+// passOption is one concrete pass candidate the carrier can see.
+type passOption struct {
+	to       int
+	dist     float64 // travel distance (Manhattan, normalized pitch)
+	gain     float64 // attack-normalized forward progress
+	risk     float64 // 0..1 lane danger: cover shadows cutting the passing lane
+	openness float64 // 0..1 receiver freedom from markers
+	longRun  bool    // served into space behind the line (offside applies)
+}
+
+// play is a candidate course of action with its evaluated utility.
+type play struct {
+	kind int
+	opt  passOption
+	util float64
+}
+
+// act resolves one open-play possession tick: enumerate, evaluate, choose, execute.
 func (s *simState) act() {
 	if s.owner < 0 {
 		s.contestLoose()
@@ -19,33 +53,12 @@ func (s *simState) act() {
 	s.maybeInjury(team, idx)
 
 	sit := s.situation(team, idx)
-	switch s.pickAction(team, idx, sit) {
-	case actionShoot:
-		s.finishShot(team, idx, false, sit.goalDist, 0)
-	case actionCross:
-		s.cross(team, idx, sit)
-	case actionThrough:
-		s.throughBall(team, idx, sit)
-	case actionDribble:
-		s.dribble(team, idx, sit)
-	case actionHold:
-		s.holdUp(team, idx, sit)
-	default:
-		s.shortPass(team, idx, sit)
-	}
+	opts := s.passOptions(team, idx, sit)
+	plays := s.buildPlays(team, idx, sit, opts)
+	p := s.choosePlay(team, idx, plays)
+	s.executePlay(team, idx, p, sit)
 	s.cooldown = s.actionCooldown(team)
 }
-
-type actionKind int
-
-const (
-	actionPass actionKind = iota
-	actionThrough
-	actionCross
-	actionDribble
-	actionShoot
-	actionHold
-)
 
 // situation gathers the carrier's tactical context (explainable inputs to tables).
 type situation struct {
@@ -70,74 +83,416 @@ func (s *simState) situation(team, idx int) situation {
 	}
 }
 
-// pickAction draws a weighted action; `decisions` lets smart players override the
-// draw with the situational best choice (visible improvement, no hidden momentum).
-func (s *simState) pickAction(team, idx int, sit situation) actionKind {
-	tac := s.tactics[team]
-	carrier := s.onPitch[team*11+idx].Attr
+// ---- option enumeration (stage C: real candidates, not action kinds) ----
 
-	w := [6]float64{wPass, wThrough, wCross, wDribble, wShoot, wHold}
-	w[actionThrough] *= quality(carrier.Vision) * (1 + 0.3*float64(tac.Mentality-3)/2) * (1 + 1.8*(sit.gapBehind-0.3))
-	if tac.CounterAttack {
-		w[actionThrough] *= 1.25
+// passOptions enumerates every reachable teammate as a concrete pass candidate,
+// scored for lane danger (cover shadows), receiver freedom and forward gain.
+// Scanning slots in index order keeps the draw order deterministic.
+func (s *simState) passOptions(team, idx int, sit situation) []passOption {
+	dir := 1.0
+	if team == 1 {
+		dir = -1
 	}
-	w[actionCross] *= quality(carrier.Crossing) * float64(tac.Width) / 3
-	if absf(s.ballY-0.5) <= 0.24 {
-		w[actionCross] = 0
-	}
-	w[actionDribble] *= quality(carrier.Dribbling) * (1 + 0.2*sit.press)
-	// Shooting happens in the shooting zones (0.36 ≈ 35 m); no pots from distance.
-	// Under heavy closing-down the shot appetite drops — players lay off instead of
-	// snatching at it (chronic box squatters therefore circulate rather than unload).
-	w[actionShoot] = 0
-	switch {
-	case sit.goalDist < 0.16:
-		w[actionShoot] = wShoot * 0.84 * quality(carrier.Finishing) * (0.6 + 0.4*(1-sit.goalDist/0.16)) / (1 + 0.22*sit.press)
-	case sit.goalDist < 0.36:
-		w[actionShoot] = wShoot * 0.5 * quality(carrier.LongShots) * (0.2 + 0.3*(1-sit.goalDist/0.36)) * (1 + 0.08*float64(tac.Mentality-3)) / (1 + 0.22*sit.press)
-	}
-	if d := s.scoreDiff(team); d < 0 {
-		// Chasing a deficit: more shot appetite (the scoreboard is visible to everyone).
-		w[actionShoot] *= 1 + gameStateChase*float64(minInt(-d, 2))/2
-	}
-	// Football IQ: nobody squares a through-on-goal chance — power the shot home.
-	if sit.goalDist < oneOnOneDist && sit.press < oneOnOnePress && s.isAheadOfDefense(team, idx) {
-		w[actionShoot] *= fixationBoost
-	}
-	// Role discipline: keepers never shoot, centre-backs rarely (headed threat stays).
-	w[actionShoot] *= s.strikeFactor(team, idx)
-	w[actionHold] *= quality(carrier.Composure) * (1 + 0.3*sit.press)
-	w[actionPass] *= quality(carrier.Passing) * (1 + 0.2*(2-float64(tac.PassingStyle)))
-
-	best := actionPass
-	for i := actionPass; i <= actionHold; i++ {
-		if w[i] > w[best] {
-			best = i
+	bx, by := s.ballX, s.ballY
+	desperate := sit.press > 2.2
+	opts := make([]passOption, 0, 10)
+	for i := 0; i < 11; i++ {
+		if i == idx || s.cards[team*11+i].Off {
+			continue
 		}
+		isGK := s.onPitch[team*11+i].Pos == PosGK
+		ps := s.players[team*11+i]
+		dist := absf(ps.X-bx) + absf(ps.Y-by)
+		gain := dir * (ps.X - bx)
+		// Keepers are emergency outlets only: a retreat ball under heavy heat, or
+		// the sweeper sweeping. Nobody lasoons forty metres at his goalkeeper.
+		if isGK && !(desperate || gain <= 0) {
+			continue
+		}
+		longRun := false
+		switch {
+		case dist <= passReach:
+		case dist <= throughReach && s.runnerBehindLine(team, i) && sit.gapBehind > behindGapMin:
+			longRun = true
+		default:
+			continue
+		}
+		opts = append(opts, passOption{
+			to:       i,
+			dist:     dist,
+			gain:     gain,
+			risk:     s.laneRisk(team, bx, by, ps.X, ps.Y),
+			openness: clamp(s.nearestDistTo(1-team, ps.X, ps.Y)/0.12, 0, 1),
+			longRun:  longRun,
+		})
 	}
-	q := quality(carrier.Decisions)
-	if s.rnd.Float64() < q*q*0.6 {
-		return best
-	}
-	return s.drawWeighted(w)
+	return opts
 }
 
-func (s *simState) drawWeighted(w [6]float64) actionKind {
-	total := 0.0
-	for _, v := range w {
-		total += v
-	}
-	if total <= 0 {
-		return actionPass
-	}
-	r := s.rnd.Float64() * total
-	for i, v := range w {
-		r -= v
-		if r <= 0 {
-			return actionKind(i)
+// laneRisk measures how badly the DEFENDING side cuts the passing lane (their cover
+// shadows): 0 = a clean lane, 1 = played through a wall. Six segment probes keep the
+// geometry square-root free and bit-trivial (portable determinism rule). The owning
+// team is explicit — dead-ball walks have no owner yet.
+func (s *simState) laneRisk(team int, x1, y1, x2, y2 float64) float64 {
+	best := math.MaxFloat64
+	opp := 1 - team
+	for i := 0; i < 11; i++ {
+		if s.cards[opp*11+i].Off {
+			continue
+		}
+		ps := s.players[opp*11+i]
+		for k := 1; k <= laneProbes; k++ {
+			u := float64(k) / float64(laneProbes+1)
+			sx := x1 + (x2-x1)*u
+			sy := y1 + (y2-y1)*u
+			if d := absf(ps.X-sx) + absf(ps.Y-sy); d < best {
+				best = d
+			}
 		}
 	}
-	return actionPass
+	return clamp(1-best/laneClearance, 0, 1)
+}
+
+// laneCutter returns the opponent most likely to intercept this lane (the deepest
+// cover shadow on the segment) — the honest beneficiary of a cut pass.
+func (s *simState) laneCutter(team int, x1, y1, x2, y2 float64) int {
+	opp := 1 - team
+	best, bestD := s.nearestTo(opp, x1, y1), math.MaxFloat64
+	for i := 0; i < 11; i++ {
+		if s.cards[opp*11+i].Off {
+			continue
+		}
+		ps := s.players[opp*11+i]
+		d := math.MaxFloat64
+		for k := 1; k <= laneProbes; k++ {
+			u := float64(k) / float64(laneProbes+1)
+			sx := x1 + (x2-x1)*u
+			sy := y1 + (y2-y1)*u
+			if dd := absf(ps.X-sx) + absf(ps.Y-sy); dd < d {
+				d = dd
+			}
+		}
+		if d < bestD {
+			best, bestD = i, d
+		}
+	}
+	return best
+}
+
+// runnerBehindLine reports a teammate already beyond the opponent's defensive line
+// (the trigger for a through-ball service into the space behind).
+func (s *simState) runnerBehindLine(team, idx int) bool {
+	line := s.defensiveLineX(1 - team)
+	return (1-2*float64(team))*(s.players[team*11+idx].X-line) > 0
+}
+
+// shootWindow grades the shooting window (0 = no window): distance honesty first —
+// INSIDE the box finishing rules (closer is sweeter), OUTSIDE it is long-shot
+// merchant country — then the traffic and pressure between ball and goal.
+func (s *simState) shootWindow(team, idx int, sit situation) (float64, bool) {
+	carrier := s.onPitch[team*11+idx].Attr
+	switch {
+	case sit.goalDist < boxFinishDist:
+		// Inside the box: finishing instincts, priced by proximity to goal.
+		w := quality(carrier.Finishing) * (0.5 + 0.5*(1-sit.goalDist/boxFinishDist))
+		return w / (1 + 0.22*sit.press), true
+	case sit.goalDist < longShotDist:
+		// Outside the box: the right foot for the range (attr gate) or lay off.
+		ls := quality(carrier.LongShots)
+		if ls < longShotMin {
+			return 0, false
+		}
+		w := (ls - longShotMin) * (0.25 + 0.35*(1-(sit.goalDist-boxFinishDist)/(longShotDist-boxFinishDist)))
+		return w / (1 + 0.22*sit.press), true
+	}
+	return 0, false
+}
+
+// carrySpace grades the grass ahead of the carrier (0 = a thicket).
+func (s *simState) carrySpace(team, idx int, sit situation) float64 {
+	dir := 1.0
+	if team == 1 {
+		dir = -1
+	}
+	ps := s.players[team*11+idx]
+	tx := clamp(ps.X+dir*carryProbe, 0.02, 0.98)
+	lane := s.laneRisk(team, ps.X, ps.Y, tx, ps.Y)
+	open := clamp(s.nearestDistTo(1-team, ps.X, ps.Y)/0.1, 0, 1)
+	space := (1-lane)*0.55 + open*0.45
+	if s.boxCongestion(1-team) > 0.8 {
+		space *= 0.5 // traffic drag: packed zones jam carries too
+	}
+	_ = sit
+	return space
+}
+
+// boxPresence counts teammates attacking the shooting corridor (cross hunger).
+func (s *simState) boxPresence(team int) int {
+	gx := goalXFor(team)
+	n := 0
+	for i := 0; i < 11; i++ {
+		if s.cards[team*11+i].Off {
+			continue
+		}
+		ps := s.players[team*11+i]
+		if absf(gx-ps.X) < 0.25 && absf(ps.Y-0.5) < 0.3 {
+			n++
+		}
+	}
+	return n
+}
+
+// ---- evaluation & selection (vision widens, decisions ranks, composure steadies) ----
+
+// passUtility scores one pass candidate against the regime's goal and the manager's
+// knobs. Build-up protects (risk punished), transition spears (gain rewarded), the
+// final third hunts the box.
+func (s *simState) passUtility(team, idx int, o passOption, sit situation) float64 {
+	tac := s.tactics[team]
+	gainW, riskW, openW, boxW := 1.0, 1.0, 1.0, 0.6
+	switch s.chainReg {
+	case RegimeBuildUp:
+		gainW, riskW = 0.55, 1.6
+	case RegimeProgression:
+		gainW, riskW, boxW = 1.0, 1.25, 0.9
+	case RegimeFinalThird:
+		gainW, riskW, openW, boxW = 1.15, 1.0, 1.3, 1.5
+	case RegimeTransition:
+		gainW, riskW, boxW = 1.7, 0.75, 1.2
+	case RegimeRegroup:
+		gainW, riskW = 0.4, 1.8 // settle, do not gamble
+	}
+	// Manager knobs: attacking minds buy gain with risk; direct play travels.
+	// Every mentality premium shares one modest slope (0.06): a dugout shout is not
+	// a force multiplier (giant premiums detonated the preset goal bands).
+	gainW *= 1 + 0.06*float64(tac.Mentality-3)
+	riskW *= 1 + 0.06*float64(3-tac.Mentality)
+	switch tac.PassingStyle {
+	case 1: // short: safety first
+		riskW *= 1.15
+	case 3: // direct: risk tolerated for progress
+		riskW *= 0.85
+		gainW *= 1.15
+	}
+	if o.longRun {
+		gainW *= 1 + behindSpaceGain*(sit.gapBehind-0.3)
+		if tac.CounterAttack {
+			gainW *= 1.25
+		}
+		riskW *= 1.3
+	}
+
+	// Box presence: a FREE man in the corridor is worth feeding (final third
+	// especially) — feeding a marked pin is a hopeful ball, not a gift.
+	gx := goalXFor(team)
+	boxBonus := 0.0
+	if absf(gx-s.players[team*11+o.to].X) < 0.25 {
+		boxBonus = boxW * (0.15 + 0.85*o.openness)
+	}
+	// Square/back balls are retention: valued when the lane is clean and the
+	// regime wants patience (this is how chains consolidate instead of dying).
+	recycle := 0.0
+	if o.gain <= 0 && o.risk < 0.25 {
+		recycle = 0.35 * riskW
+	}
+	return 1.9*gainW*clamp(o.gain, -0.25, 0.5) +
+		1.6*openW*o.openness +
+		boxBonus -
+		riskW*o.risk*(1+0.35*sit.press) -
+		0.6*o.dist +
+		recycle
+}
+
+// buildPlays turns the visible candidates into the carrier's actual menu.
+func (s *simState) buildPlays(team, idx int, sit situation, opts []passOption) []play {
+	tac := s.tactics[team]
+	plays := make([]play, 0, len(opts)+4)
+	for _, o := range opts {
+		kind := playPass
+		if o.longRun {
+			kind = playThrough
+		}
+		plays = append(plays, play{kind: kind, opt: o, util: s.passUtility(team, idx, o, sit)})
+	}
+
+	// Carry: eat the space ahead yourself.
+	if space := s.carrySpace(team, idx, sit); space > 0.2 {
+		carrier := s.onPitch[team*11+idx].Attr
+		u := 1.1*quality(carrier.Dribbling)*space + 0.35*(space-0.45) - 0.25*sit.press
+		u *= 1 + 0.06*float64(tac.Mentality-3)
+		plays = append(plays, play{kind: playCarry, util: u})
+	}
+
+	// Shoot: only inside an open window, and only with the right foot for it.
+	if win, ok := s.shootWindow(team, idx, sit); ok {
+		u := wShoot * win * s.strikeFactor(team, idx)
+		// A tightly marked shooter is squeezed — snatching through a shirt is a
+		// worse read than laying off or pinning it (options: windows include your
+		// own freedom). Unmarked men bang away; prisoners wrestle and recycle).
+		marked := clamp(s.nearestDistTo(1-team, s.ballX, s.ballY)/0.12, 0, 1)
+		u *= 0.65 + 0.35*marked
+		u *= 1 + 0.04*float64(tac.Mentality-3)
+		if d := s.scoreDiff(team); d < 0 {
+			u *= 1 + gameStateChase*float64(minInt(-d, 2))/2
+		}
+		// Nobody squares a through-on-goal chance — power the shot home.
+		if sit.goalDist < oneOnOneDist && sit.press < oneOnOnePress && s.isAheadOfDefense(team, idx) {
+			u *= fixationBoost
+		}
+		// A clean hit-your-marks contact with the keeper unsighted is a green light.
+		u *= 1 + 0.5*s.shootSightline(team, idx)
+		if u > 0 {
+			plays = append(plays, play{kind: playShoot, util: u})
+		}
+	}
+
+	// Cross: from the wide lanes, hungry box.
+	if sit.wide && absf(s.ballY-0.5) > 0.24 {
+		carrier := s.onPitch[team*11+idx].Attr
+		if np := s.boxPresence(team); np > 0 {
+			u := wCross * quality(carrier.Crossing) * float64(minInt(np, 3)) / 3 * float64(tac.Width) / 3
+			plays = append(plays, play{kind: playCross, util: u})
+		}
+	}
+
+	// Hold: under the cosh with nothing on — pin it, let support arrive.
+	if sit.press > 0.8 {
+		carrier := s.onPitch[team*11+idx].Attr
+		u := wHold * quality(carrier.Composure) * sit.press * 0.5
+		// Holding only pays if SOMEONE is eventually playable.
+		if len(opts) > 0 {
+			plays = append(plays, play{kind: playHold, opt: s.safestOption(opts), util: u})
+		}
+	}
+	return plays
+}
+
+// shootSightline grades how obscured the sightline to goal is (0 clean, 1 smothered)
+// — inverted into a bonus when the lane is clear.
+func (s *simState) shootSightline(team, idx int) float64 {
+	ps := s.players[team*11+idx]
+	gx := goalXFor(team)
+	return 1 - s.laneRisk(team, ps.X, ps.Y, gx, 0.5)
+}
+
+// safestOption picks the retention ball (least danger, closest) — the escape valve.
+func (s *simState) safestOption(opts []passOption) passOption {
+	best, bestU := opts[0], math.MaxFloat64
+	for _, o := range opts {
+		u := o.risk*2 + o.dist
+		if u < bestU {
+			bestU, best = u, o
+		}
+	}
+	return best
+}
+
+// choosePlay applies the mental gate: `vision` widens the menu actually seen,
+// `decisions` ranks it (or fumbles the ranking), composure is consumed at execution.
+// The weighted-dice action picker is gone: options compete, brains pick.
+func (s *simState) choosePlay(team, idx int, plays []play) play {
+	if len(plays) == 0 {
+		// Nothing humanly visible: poke it to the nearest shirt (rare — the hold
+		// play covers most crowding scenarios).
+		to := s.nearestSupport(team, idx)
+		ps := s.players[team*11+to]
+		emergency := passOption{to: to, openness: 0.2}
+		emergency.dist = absf(ps.X-s.ballX) + absf(ps.Y-s.ballY)
+		emergency.gain = (ps.X - s.ballX) * (1 - 2*float64(team))
+		emergency.risk = s.laneRisk(team, s.ballX, s.ballY, ps.X, ps.Y)
+		return play{kind: playPass, opt: emergency, util: 0}
+	}
+	attr := s.onPitch[team*11+idx].Attr
+	// Vision: how much of the menu the player perceives (best options first).
+	seen := 2 + int(4*quality(attr.Vision)+0.5)
+	if seen > len(plays) {
+		seen = len(plays)
+	}
+	ordered := make([]play, len(plays))
+	copy(ordered, plays)
+	sortPlaysByUtil(ordered)
+	menu := ordered[:seen]
+
+	// Decisions: the probability he actually takes the best read.
+	if s.rnd.Float64() < decisionsArgmaxFloor+decisionsArgmaxShare*quality(attr.Decisions)*quality(attr.Decisions) {
+		return menu[0]
+	}
+	// Misranking draw: favours near-best reads, never the absurd ones.
+	best := menu[0].util
+	total := 0.0
+	for _, p := range menu {
+		total += 1 / (1 + decisionGap*(best-p.util))
+	}
+	r := s.rnd.Float64() * total
+	for _, p := range menu {
+		r -= 1 / (1 + decisionGap*(best-p.util))
+		if r <= 0 {
+			return p
+		}
+	}
+	return menu[0]
+}
+
+// sortPlaysByUtil orders plays by utility descending; ties keep enumeration order
+// (stable sort ⇒ deterministic).
+func sortPlaysByUtil(plays []play) {
+	for i := 1; i < len(plays); i++ {
+		for j := i; j > 0 && plays[j].util > plays[j-1].util; j-- {
+			plays[j], plays[j-1] = plays[j-1], plays[j]
+		}
+	}
+}
+
+// retainPass executes the best-visible pass for a set-piece taker (throw-in, goal
+// kick, free-kick lay-off): a restart's first ball is an ordinary evaluated pass —
+// the options model owns it like any other touch.
+func (s *simState) retainPass(team, idx int) {
+	sit := s.situation(team, idx)
+	opts := s.passOptions(team, idx, sit)
+	if len(opts) == 0 {
+		s.advanceBall(team, idx, 0.02) // turn with it
+		return
+	}
+	best, bestU := opts[0], s.passUtility(team, idx, opts[0], sit)
+	for _, o := range opts[1:] {
+		if u := s.passUtility(team, idx, o, sit); u > bestU {
+			best, bestU = o, u
+		}
+	}
+	s.executePass(team, idx, best, best.longRun)
+}
+
+// nearestSupport is the closest playable teammate (scramble fallback).
+func (s *simState) nearestSupport(team, idx int) int {
+	best, bestD := idx, math.MaxFloat64
+	for i := 0; i < 11; i++ {
+		if i == idx || s.cards[team*11+i].Off || s.onPitch[team*11+i].Pos == PosGK {
+			continue
+		}
+		ps := s.players[team*11+i]
+		if d := absf(ps.X-s.ballX) + absf(ps.Y-s.ballY); d < bestD {
+			best, bestD = i, d
+		}
+	}
+	return best
+}
+
+// executePlay dispatches the chosen play.
+func (s *simState) executePlay(team, idx int, p play, sit situation) {
+	switch p.kind {
+	case playShoot:
+		s.finishShot(team, idx, false, sit.goalDist, 0)
+	case playCross:
+		s.cross(team, idx, sit)
+	case playCarry:
+		s.carry(team, idx, sit)
+	case playHold:
+		s.holdUp(team, idx, sit, p.opt)
+	case playThrough:
+		s.executePass(team, idx, p.opt, true)
+	default:
+		s.executePass(team, idx, p.opt, false)
+	}
 }
 
 // duelChance turns two quality inputs (0..1) into a win probability for a.
@@ -169,76 +524,156 @@ func (s *simState) skill(team, idx int, focus func(Attributes) float64) float64 
 	return focus(s.onPitch[team*11+idx].Attr) * s.perf(team, idx)
 }
 
-func (s *simState) shortPass(team, idx int, sit situation) {
-	length := minf(0.07+0.03*float64(s.tactics[team].PassingStyle)/3, 0.1)
-	s.deliverPass(team, idx, sit, length, false)
-}
+// ---- execution: one retention budget, failure flavour from the situation ----
 
-// deliverPass resolves a pass (through-balls set longRun), with first-touch checks.
-func (s *simState) deliverPass(team, idx int, sit situation, length float64, longRun bool) {
+// executePass resolves the chosen pass. The failure probability is the honest
+// retention budget: lane danger, heat, stretch and first-touch company subtract
+// craft (passing, composure, receiver control). On failure the SITUATION names the
+// flavour: cut lanes are interceptions, heat is misplacement, else heavy touch.
+func (s *simState) executePass(team, idx int, opt passOption, longRun bool) {
 	carrier := s.onPitch[team*11+idx].Attr
 	passQ := s.skill(team, idx, func(a Attributes) float64 {
 		return 0.7*quality(a.Passing) + 0.3*quality(a.Vision)
 	})
-	interQ := s.bestOpponentAttr(team, func(a Attributes) float64 {
-		return quality(a.Positioning)
-	})
-	pIntercept := clamp(0.18*duelChance(interQ, passQ), 0.02, 0.25) * (1 + 0.15*sit.press)
-	pMisplace := clamp(0.05*(1+0.4*sit.press)-0.06*quality(carrier.Composure)+
-		0.025*float64(maxInt(int(s.tactics[team].Tempo)-3, 0)), 0.01, 0.25)
-
-	receiver := s.pickSmartReceiver(team, idx)
-	roll := s.rnd.Float64()
-	switch {
-	case roll < pMisplace:
-		s.recordTouch(TouchPass, int8(idx), -1, false)
-		s.lapseConsequence(team, idx)
-		return
-	case roll < pMisplace+pIntercept:
-		defIdx := s.pickReceiver(1 - team)
-		s.recordTouch(TouchPass, int8(idx), int8(defIdx), false)
-		s.wonDuel(1-team, defIdx, 0.2)
-		s.restartIdxBall(1-team, defIdx)
-		return
-	}
-
-	recvQ := s.skill(team, receiver, func(a Attributes) float64 {
+	recvQ := s.skill(team, opt.to, func(a Attributes) float64 {
 		return quality(a.FirstTouch)
 	})
-	pHeavy := clamp(0.08+0.08*sit.press-0.10*recvQ, 0.01, 0.3) * (1 - 0.7*max(0, sit.gapBehind-0.3))
+	press := s.pressure(team, idx)
+	composure := quality(carrier.Composure) * s.perf(team, idx)
+
+	stretch := clamp((opt.dist-0.10)/0.25, 0, 1)
+	pFail := passLossBase +
+		passLossRisk*opt.risk*(1+passLossPressRisk*press) +
+		passLossPress*press +
+		passLossStretch*stretch -
+		passLossSkill*(0.5*passQ+0.25*composure+0.25*recvQ)
+	if opt.gain <= 0 {
+		pFail *= recycleSafety // square/back balls retain by design
+	}
 	if longRun {
-		pHeavy += 0.03
+		pFail *= throughRisk
 	}
-	if s.rnd.Float64() < pHeavy {
-		s.recordTouch(TouchPass, int8(idx), int8(receiver), false)
-		s.lapseConsequence(team, receiver)
+	pFail += tempoRush * float64(maxInt(int(s.tactics[team].Tempo)-3, 0))
+	pFail = clamp(pFail, 0.01, 0.5)
+
+	if s.rnd.Float64() < pFail {
+		// Flavour roll (fixed order): the failure names itself from the geometry.
+		icptShare := clamp(opt.risk, 0.15, 0.7)
+		roll := s.rnd.Float64()
+		switch {
+		case roll < icptShare:
+			defIdx := s.laneCutter(team, s.ballX, s.ballY, s.players[team*11+opt.to].X, s.players[team*11+opt.to].Y)
+			s.recordTouch(TouchPass, int8(idx), int8(defIdx), false)
+			s.wonDuel(1-team, defIdx, 0.2)
+			if s.foulAftermath(1-team, defIdx, idx) {
+				return
+			}
+			s.setOwner(1-team, defIdx, "regain")
+			s.recordTouch(TouchRegain, int8(defIdx), int8(idx), true)
+		case roll < icptShare+misplaceShare:
+			s.recordTouch(TouchPass, int8(idx), int8(opt.to), false)
+			s.lapseConsequence(team, idx)
+		default:
+			s.recordTouch(TouchPass, int8(idx), int8(opt.to), false)
+			s.lapseConsequence(team, opt.to)
+		}
 		return
 	}
 
-	s.recordTouch(TouchPass, int8(idx), int8(receiver), true)
-	s.players[team*11+idx].Acc += 0.05
-	traffic := 1 - trafficDrag*minf(s.boxCongestion(1-team), 1)
-	s.advanceBall(team, receiver, length*traffic)
-	if longRun && s.offsideCheck(team, receiver) {
+	s.recordTouch(TouchPass, int8(idx), int8(opt.to), true)
+	if opt.gain > 0.05 {
+		s.players[team*11+idx].Acc += 0.08 // a progressive ball is a valuable ball
+	} else {
+		s.players[team*11+idx].Acc += 0.04
+	}
+	s.advanceBall(team, opt.to, s.serviceLead(team, opt, longRun))
+	if longRun && s.offsideCheck(team, opt.to) {
 		return
 	}
-	s.ownerIdx = int8(receiver)
 }
 
-func (s *simState) throughBall(team, idx int, sit situation) {
-	// Space behind the opponent's line rewards runners — high lines gamble on the trap.
-	gapBehind := absf(s.defensiveLineX(1-team) - goalXFor(1-team))
-	length := (0.14 + 0.06*quality(s.onPitch[team*11+idx].Attr.Vision)) * (1 + behindSpaceGain*(gapBehind-0.3))
-	if s.tactics[team].CounterAttack {
-		length += 0.05
+// serviceLead is the ball's landing beyond the receiver — he runs onto it (passes
+// lead runners; retreat balls arrive at his feet).
+func (s *simState) serviceLead(team int, opt passOption, longRun bool) float64 {
+	lead := 0.006
+	if opt.gain > 0 {
+		lead += 0.012 * quality(s.onPitch[team*11+opt.to].Attr.Acceleration)
 	}
-	s.deliverPass(team, idx, sit, length, true)
+	if longRun {
+		lead += throughLead
+	}
+	return lead
 }
 
+// carry eats the grass ahead with the ball at the feet (dribbling/agility versus
+// the nearest challenger's tackling/positioning).
+func (s *simState) carry(team, idx int, sit situation) {
+	_ = sit
+	att := s.skill(team, idx, func(a Attributes) float64 {
+		return 0.6*quality(a.Dribbling) + 0.4*quality(a.Agility)
+	})
+	defIdx := s.nearestOpponent(team, idx)
+	def := s.onPitch[(1-team)*11+defIdx].Attr
+	defQ := (0.6*quality(def.Tackling) + 0.4*quality(def.Positioning)) * s.perf(1-team, defIdx)
+	hard := float64(s.tactics[1-team].Tackling) - 1 // 0 fair, 1 hard
+
+	if s.rnd.Float64() < duelChance(att, defQ) {
+		s.players[team*11+idx].Acc += 0.15
+		s.recordTouch(TouchCarry, int8(idx), -1, true)
+		traffic := 1 - trafficDrag*minf(s.boxCongestion(1-team), 1)
+		s.advanceBall(team, idx, (0.06+0.05*quality(s.onPitch[team*11+idx].Attr.Dribbling))*traffic)
+		if s.rnd.Float64() < foulBase*0.5*(0.4+0.3*quality(def.Aggression))*(1+hard) {
+			s.foulConsequence(1-team, defIdx, team, idx)
+		}
+		return
+	}
+
+	if s.rnd.Float64() < foulBase*(0.5+0.5*quality(def.Aggression))*(0.6+0.7*hard) {
+		s.recordTouch(TouchCarry, int8(idx), -1, false)
+		s.foulConsequence(1-team, defIdx, team, idx)
+		return
+	}
+	s.recordTouch(TouchDuel, int8(idx), int8(defIdx), false)
+	s.wonDuel(1-team, defIdx, 0.25)
+	if s.foulAftermath(1-team, defIdx, idx) {
+		return
+	}
+	s.setOwner(1-team, defIdx, "regain")
+	s.recordTouch(TouchRegain, int8(defIdx), int8(idx), true)
+}
+
+// holdUp pins the ball against the challenger and lays it off to the safest option
+// (the target-man's bread and butter).
+func (s *simState) holdUp(team, idx int, sit situation, opt passOption) {
+	strength := s.skill(team, idx, func(a Attributes) float64 {
+		return 0.6*quality(a.Strength) + 0.4*quality(a.Composure)
+	})
+	defIdx := s.nearestOpponent(team, idx)
+	defQ := quality(s.onPitch[(1-team)*11+defIdx].Attr.Strength) * s.perf(1-team, defIdx)
+	s.recordTouch(TouchCarry, int8(idx), -1, true)
+	if s.rnd.Float64() < holdLossShare*duelChance(defQ, strength) {
+		s.recordTouch(TouchDuel, int8(idx), int8(defIdx), false)
+		s.wonDuel(1-team, defIdx, 0.2)
+		if s.foulAftermath(1-team, defIdx, idx) {
+			return
+		}
+		s.setOwner(1-team, defIdx, "regain")
+		s.recordTouch(TouchRegain, int8(defIdx), int8(idx), true)
+		return
+	}
+	s.players[team*11+idx].Acc += 0.04
+	s.executePass(team, idx, opt, false)
+	_ = sit
+}
+
+// cross delivers from the wide lane into the box battle (early clearance, keeper
+// claim, then the aerial duel — shared vocabulary with set-piece deliveries).
 func (s *simState) cross(team, idx int, sit situation) {
 	crossQ := s.skill(team, idx, func(a Attributes) float64 {
 		return quality(a.Crossing)
 	})
+	s.recordTouch(TouchPass, int8(idx), -1, true)
+	s.players[team*11+idx].Acc += 0.05
 
 	// Early clearance by the covering defenders (packed boxes smother deliveries).
 	congestion := 1 + 0.25*s.boxCongestion(1-team)
@@ -253,7 +688,7 @@ func (s *simState) cross(team, idx int, sit situation) {
 	// Keeper claim on the cross.
 	gk := s.onPitch[(1-team)*11]
 	if s.rnd.Float64() < minf(keeperClaimShare*congestion, 0.6)*duelChance(quality(gk.Attr.Handling)*s.perf(1-team, 0), crossQ) {
-		s.restartIdxBall(1-team, 0)
+		s.restartIdxBall(1-team, 0, "restart") // GK distribution rebuilds from the back
 		return
 	}
 
@@ -263,65 +698,27 @@ func (s *simState) cross(team, idx int, sit situation) {
 	attQ := s.skill(team, att, aerialFocus)
 	defQ := s.skill(1-team, def, aerialFocus) + s.manMarkBonus(1-team)
 	if s.rnd.Float64() >= duelChance(attQ, defQ) {
+		s.recordTouch(TouchDuel, int8(att), int8(def), false)
+		s.setOwner(1-team, def, "regain")
+		s.recordTouch(TouchRegain, int8(def), int8(att), true)
 		s.wonDuel(1-team, def, 0.2)
-		s.restartIdxBall(1-team, def)
 		return
 	}
 
 	s.players[team*11+att].Acc += 0.25
 	s.ballX, s.ballY = s.players[team*11+att].X, s.players[team*11+att].Y
-	if s.rnd.Float64() < 0.55 {
-		s.finishShot(team, att, true, 0.12, 0)
+	s.recordTouch(TouchDuel, int8(att), int8(def), true)
+	if s.rnd.Float64() < 0.45 {
+		s.finishShot(team, att, true, absf(goalXFor(team)-s.players[team*11+att].X), 0)
 		return
 	}
-	support := s.pickReceiver(team)
-	s.advanceBall(team, support, 0.03)
-	s.ownerIdx = int8(support)
-}
-
-func (s *simState) dribble(team, idx int, sit situation) {
-	_ = sit
-	att := s.skill(team, idx, func(a Attributes) float64 {
-		return 0.6*quality(a.Dribbling) + 0.4*quality(a.Agility)
-	})
-	defIdx := s.nearestOpponent(team, idx)
-	def := s.onPitch[(1-team)*11+defIdx].Attr
-	defQ := (0.6*quality(def.Tackling) + 0.4*quality(def.Positioning)) * s.perf(1-team, defIdx)
-	hard := float64(s.tactics[1-team].Tackling) - 1 // 0 fair, 1 hard
-
-	if s.rnd.Float64() < duelChance(att, defQ) {
-		s.players[team*11+idx].Acc += 0.15
-		s.recordTouch(TouchCarry, int8(idx), -1, true)
-		traffic := 1 - trafficDrag*minf(s.boxCongestion(1-team), 1)
-		s.advanceBall(team, idx, (0.08+0.04*quality(s.onPitch[team*11+idx].Attr.Dribbling))*traffic)
-		if s.rnd.Float64() < foulBase*0.5*(0.4+0.3*quality(def.Aggression))*(1+hard) {
-			s.foulConsequence(1-team, defIdx, team, idx)
-		}
+	supportOpts := s.passOptions(team, att, s.situation(team, att))
+	if len(supportOpts) == 0 {
+		s.advanceBall(team, att, 0.02) // cushion it down for himself
 		return
 	}
-
-	if s.rnd.Float64() < foulBase*(0.5+0.5*quality(def.Aggression))*(0.6+0.7*hard) {
-		s.foulConsequence(1-team, defIdx, team, idx)
-		return
-	}
-	s.wonDuel(1-team, defIdx, 0.25)
-	s.recordTouch(TouchDuel, int8(idx), int8(defIdx), false)
-	s.restartIdxBall(1-team, defIdx)
-}
-
-func (s *simState) holdUp(team, idx int, sit situation) {
-	strength := s.skill(team, idx, func(a Attributes) float64 {
-		return 0.6*quality(a.Strength) + 0.4*quality(a.Composure)
-	})
-	defIdx := s.nearestOpponent(team, idx)
-	defQ := quality(s.onPitch[(1-team)*11+defIdx].Attr.Strength) * s.perf(1-team, defIdx)
-	if s.rnd.Float64() < 0.25*duelChance(defQ, strength) {
-		s.wonDuel(1-team, defIdx, 0.2)
-		s.restartIdxBall(1-team, defIdx)
-		return
-	}
-	s.players[team*11+idx].Acc += 0.04
-	s.deliverPass(team, idx, sit, 0.04, false)
+	support := s.safestOption(supportOpts)
+	s.advanceBall(team, support.to, 0.03)
 }
 
 // finishShot resolves strikes and headers (shared by open play, crosses, set pieces).
@@ -333,8 +730,8 @@ func (s *simState) finishShot(team, idx int, header bool, goalDist, markFree flo
 	switch {
 	case header:
 		attr = 0.5*float64(carrier.Finishing) + 0.5*float64(carrier.Heading)
-	case goalDist >= 0.16:
-		attr = float64(carrier.LongShots)
+	case goalDist >= boxFinishDist:
+		attr = float64(carrier.LongShots) // outside the box is specialist ground
 	}
 	press := s.pressure(team, idx)
 	// Saturating pressure: a packed six-yard box must not multiply-shot-shy forever —
@@ -381,6 +778,7 @@ func (s *simState) finishShot(team, idx int, header bool, goalDist, markFree flo
 	// Block attempts: packed defences smother strikes. Chance value already booked
 	// post-block above; this roll decides the outcome (loose ball or deflection).
 	if s.rnd.Float64() < blockProb {
+		s.closeChainIfLive("shot")
 		if s.rnd.Float64() < deflectCornerShare {
 			cx, cy := s.cornerSpot(team, 0.95)
 			s.queueRestart(RestartCorner, team, cx, cy)
@@ -399,6 +797,7 @@ func (s *simState) finishShot(team, idx int, header bool, goalDist, markFree flo
 		ts.OnTarget++
 		s.appendEvent(EventShotSaved, team, idx, s.patTag)
 		s.players[(1-team)*11].Acc += 0.1
+		s.closeChainIfLive("shot")
 		if s.rnd.Float64() < (1-quality(gk.Attr.Handling))*0.3 {
 			// Spilled save: scramble in the six-yard box.
 			s.owner = -1
@@ -406,8 +805,9 @@ func (s *simState) finishShot(team, idx int, header bool, goalDist, markFree flo
 			s.ballX, s.ballY = s.players[(1-team)*11].X, s.players[(1-team)*11].Y
 			return
 		}
-		s.restartIdxBall(1-team, 0)
+		s.setOwner(1-team, 0, "restart") // GK distribution rebuilds from the back
 	default:
+		s.closeChainIfLive("shot")
 		if s.rnd.Float64() < deflectCornerShare {
 			// Deflected behind: corner instead of a goal kick.
 			cx, cy := s.cornerSpot(team, 0.95)
@@ -419,17 +819,34 @@ func (s *simState) finishShot(team, idx int, header bool, goalDist, markFree flo
 	}
 }
 
+// foulAftermath rolls the late-challenge foul when a defender wins the ball THROUGH
+// the man — where football's open-play fouls actually come from (cards follow).
+// Returns true when the foul kills the contest before any possession changed hands.
+func (s *simState) foulAftermath(winnerTeam, winner, loser int) bool {
+	hard := float64(s.tactics[winnerTeam].Tackling) - 1
+	aggro := quality(s.onPitch[winnerTeam*11+winner].Attr.Aggression)
+	if s.rnd.Float64() < foulOnRegain*(0.4+0.3*aggro)*(0.6+0.7*hard) {
+		s.foulConsequence(winnerTeam, winner, 1-winnerTeam, loser)
+		return true
+	}
+	return false
+}
+
 // lapseConsequence turns a heavy touch or misplaced pass into a turnover; the worst
 // ones surface as visible error events (rare — matches are judged by their highlights).
 func (s *simState) lapseConsequence(team, idx int) {
 	opp := 1 - team
-	defIdx := s.nearestOpponent(opp, idx)
+	defIdx := s.nearestOpponent(team, idx) // nearest opponent to the culprit
 	if s.rnd.Float64() < errorEventShare {
 		s.appendEvent(EventError, team, idx, "")
 	}
 	s.players[team*11+idx].Acc -= 0.25
 	s.wonDuel(opp, defIdx, 0.1)
-	s.restartIdxBall(opp, defIdx)
+	if s.foulAftermath(opp, defIdx, idx) {
+		return // fouled as he lost it — the ball never changed hands
+	}
+	s.setOwner(opp, defIdx, "regain")
+	s.recordTouch(TouchRegain, int8(defIdx), int8(idx), true)
 }
 
 // foulConsequence: foul (and possible card/penalty) by defIdx on the attacker.
@@ -491,6 +908,7 @@ func (s *simState) wonDuel(team, idx int, acc float64) {
 
 // addGoal books a goal with visible morale swings and a kick-off for the conceding side.
 func (s *simState) addGoal(team, idx int) {
+	s.closeChainIfLive("goal")
 	s.score = addScore(s.score, team)
 	ts := s.statsFor(team)
 	ts.Goals++
@@ -499,7 +917,7 @@ func (s *simState) addGoal(team, idx int) {
 
 	s.shiftMorale(team, +moraleGoalSwing)
 	s.shiftMorale(1-team, -moraleGoalSwing)
-	detail := "morale:+4|-4"
+	detail := "morale:+3|-3"
 	if s.patTag != "" {
 		detail += ";" + s.patTag
 	}
@@ -512,9 +930,7 @@ func (s *simState) addGoal(team, idx int) {
 	s.stoppage[half] = minf(s.stoppage[half]+20+float64(s.rnd.Intn(21)), maxHalfStoppage)
 
 	s.ballX, s.ballY = 0.5, 0.5
-	s.owner = int8(1 - team)
-	s.ownerIdx = int8(restartIdx(s.onPitchFor(1 - team)))
-	s.cooldown = s.actionCooldown(1 - team)
+	s.kickOff(1 - team)
 }
 
 func (s *simState) shiftMorale(team int, delta float64) {
@@ -538,6 +954,7 @@ func (s *simState) maybeInjury(team, idx int) {
 }
 
 // contestLoose resolves a scramble for a loose ball (positioning decides the lean).
+// The winner takes over WHERE THE BALL IS — feet collect, the ball never teleports.
 func (s *simState) contestLoose() {
 	n0 := s.nearestToBall(0)
 	n1 := s.nearestToBall(1)
@@ -547,9 +964,9 @@ func (s *simState) contestLoose() {
 	if s.rnd.Float64() >= duelChance(q0, q1) {
 		side, idx = 1, n1
 	}
-	s.wonDuel(side, idx, 0.1)
+	s.setOwner(side, idx, "regain")
 	s.recordTouch(TouchRegain, int8(idx), -1, true)
-	s.restartIdxBall(side, idx)
+	s.wonDuel(side, idx, 0.1)
 	s.cooldown = s.actionCooldown(side)
 }
 
@@ -618,20 +1035,6 @@ func (s *simState) nearestTo(team int, x, y float64) int {
 	return best
 }
 
-// pickReceiver draws a playable teammate (skips keepers and sent-off slots).
-func (s *simState) pickReceiver(team int) int {
-	active := make([]int, 0, 11)
-	for i := 0; i < 11; i++ {
-		if !s.cards[team*11+i].Off && s.onPitch[team*11+i].Pos != PosGK {
-			active = append(active, i)
-		}
-	}
-	if len(active) == 0 {
-		return 1
-	}
-	return active[s.rnd.Intn(len(active))]
-}
-
 // nearestDistTo returns the |dx|+|dy| distance to the closest active opponent.
 func (s *simState) nearestDistTo(team int, x, y float64) float64 {
 	best := math.MaxFloat64
@@ -642,37 +1045,6 @@ func (s *simState) nearestDistTo(team int, x, y float64) float64 {
 		ps := s.players[team*11+i]
 		if d := absf(ps.X-x) + absf(ps.Y-y); d < best {
 			best = d
-		}
-	}
-	return best
-}
-
-// pickSmartReceiver chooses a pass target by openness and forward gain — the fix for
-// "through on goal, squares it to the corner flag". Deterministic argmax (index-order
-// ties) so snapshots stay reproducible.
-func (s *simState) pickSmartReceiver(team, fromIdx int) int {
-	dir := 1 - 2*float64(team)
-	best, bestW := fromIdx, -1.0e9
-	for i := 0; i < 11; i++ {
-		if i == fromIdx || s.cards[team*11+i].Off {
-			continue
-		}
-		if s.onPitch[team*11+i].Pos == PosGK {
-			continue // keepers stay home; they are not passing outlets
-		}
-		ps := s.players[team*11+i]
-		// Reachable support only: nobody laces 40 m balls at a distant silhouette.
-		reach := absf(ps.X-s.ballX) + absf(ps.Y-s.ballY)
-		if reach > 0.35 {
-			continue
-		}
-		open := clamp(s.nearestDistTo(1-team, ps.X, ps.Y)/0.15, 0, 1)
-		gain := (ps.X - s.ballX) * dir
-		boxPresence := math.Max(0, 0.22-absf(goalXFor(team)-ps.X))
-		// Nearby, open, helpful men win passes; speculative deep targets lose them.
-		w := 0.5 + 1.1*math.Max(gain, 0) + 1.6*open + 0.6*boxPresence - 0.9*math.Max(-gain, 0) - 0.8*reach
-		if w > bestW {
-			bestW, best = w, i
 		}
 	}
 	return best
@@ -702,27 +1074,24 @@ func (s *simState) strikeFactor(team, idx int) float64 {
 	}
 }
 
-// advanceBall moves ball and possession to a receiver. Progression is linear from
-// the current ball position (a pass gains `length` upfield) — chains can build.
-func (s *simState) advanceBall(team, receiver int, length float64) {
-	_, ty := s.target(team, receiver, &s.players[team*11+receiver])
+// advanceBall moves ball and possession to a receiver, landing `lead` beyond him in
+// the direction of play — he runs onto the service (no teleporting athletes).
+// Landing obeys role discipline: a centre-back cannot collect beyond his cap.
+func (s *simState) advanceBall(team, receiver int, lead float64) {
 	dir := 1.0
 	if team == 1 {
 		dir = -1
 	}
-	rawX := s.ballX + dir*length
-	if outOfPlay(rawX, ty) {
-		s.ballOut(team, rawX, ty)
+	ps := s.players[team*11+receiver]
+	rawX := ps.X + dir*lead
+	rawY := s.ballY + (ps.Y-s.ballY)*0.7 // bent toward the receiver's lane
+	if outOfPlay(rawX, rawY) {
+		s.ballOut(team, rawX, rawY)
 		return
 	}
-	s.ballX = clamp(rawX, 0.02, 0.98)
-	s.ballY = clamp(ty, 0.04, 0.96)
-	// Landing obeys role discipline: a centre-back cannot control beyond his cap —
-	// the pass out-runs him and dies (all reception call-sites share this funnel).
+	s.ballX, s.ballY = clamp(rawX, 0.02, 0.98), clamp(rawY, 0.04, 0.96)
 	s.ballX, s.ballY = s.roleClamp(team, receiver, s.ballX, s.ballY)
-	// The ball flies to the landing spot; the receiver RUNS to it (no teleporting
-	// athletes — motion is earned at pace).
-	s.owner, s.ownerIdx = int8(team), int8(receiver)
+	s.setOwner(team, receiver, "")
 }
 
 // offsideCheck flags runs behind the defensive line (deep lines trap better).
@@ -764,18 +1133,20 @@ func (s *simState) defensiveLineX(defTeam int) float64 {
 func (s *simState) defensiveClear(attTeam int) {
 	defTeam := 1 - attTeam
 	idx := s.bestSlot(defTeam, func(a Attributes) float64 { return quality(a.Heading) * 0.6 })
+	s.recordTouch(TouchDuel, int8(idx), -1, true)
 	s.wonDuel(defTeam, idx, 0.15)
 	dir := 1.0
 	if defTeam == 1 {
 		dir = -1
 	}
 	s.ballX = clamp(s.players[defTeam*11+idx].X+dir*0.2, 0.02, 0.98)
+	s.closeChainIfLive("dead_ball")
 	if s.rnd.Float64() < secondBallShare {
-		s.owner = int8(attTeam)
-		s.ownerIdx = int8(s.bestSlot(attTeam, aerialFocus))
+		// The clearance fell short: second ball at the edge (transition flash).
+		s.setOwner(attTeam, s.bestSlot(attTeam, aerialFocus), "regain")
 		return
 	}
-	s.restartIdxBall(defTeam, idx)
+	s.setOwner(defTeam, idx, "regroup")
 }
 
 func minutesOutLabel(minutes int) string {

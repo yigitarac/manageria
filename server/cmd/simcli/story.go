@@ -106,10 +106,10 @@ func storyMatch(seed uint64) {
 			short[c.Team], c.Regime, c.Touches,
 			"@", fx, fromY, "→", tx, toY, c.Outcome)
 
-		// Narrate this chain's events (half-open window [start,end) — boundaries never
-		// belong to two chains).
+		// Narrate this chain's events (window [start,end] — the terminating event
+		// (goal, shot, foul) lands exactly on End and belongs to THIS chain's story).
 		for _, ev := range res.Events {
-			if ev.Tick < c.Start || ev.Tick >= c.End {
+			if ev.Tick < c.Start || ev.Tick > c.End {
 				continue
 			}
 			if ev.Kind == engine.EventKickOff {

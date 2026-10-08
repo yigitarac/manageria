@@ -23,11 +23,13 @@ func TestGoldenDigest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Digest: %v", err)
 	}
-	// v6 goldens — the honesty campaign: teleport-free kinematics (ball waits, feet
-	// run), keeper homes, zone defending with fixed-count press, reachable support,
-	// ball-anchored distances, midfield retention. Calibration lands on honest physics:
-	// 2.69 goals · 44.8/27.1/28.1. Frozen deliberately.
-	const want = "341cc274bc34777a5225d3892c9000bf0c6f1f5edb467f6c3a3062964dab8d25"
+	// v7 goldens — the emergent behaviour layer (T-014 stages B/C/D-lite): options-based
+	// decisions with pass-lane geometry and shoot windows, one coherent retention budget,
+	// runner jobs (pin/held-width/edge), box mark discipline and honest chain outcomes.
+	// Calibration bands green (2.56 goals · 45.6/26.9/27.5), behavioural KPI contract
+	// green (chains ~125, median chain 4, ~860 passes) and the T-013 bunker paradox
+	// SOLVED (low blocks hold longer: 59.6′ vs 53.8′). Frozen deliberately.
+	const want = "491f51ec8fd1def9ec00ab89e9d308b6a66a83a7dff408aa865006b31b2b9d7b"
 	if got != want {
 		t.Fatalf("golden digest = %s, want %s (update deliberately on EngineVersion bumps)", got, want)
 	}

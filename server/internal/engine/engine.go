@@ -98,7 +98,6 @@ type simState struct {
 	chainStart int32
 	chainReg   Regime
 	chainGone  int32
-	pendingCau string // transient: birth cause for the imminent chain ("setpiece")
 	touches    []Touch
 	chains     []ChainInfo
 }
@@ -185,12 +184,10 @@ func (s *simState) loop() error {
 		if s.tick == halfTicks && !s.secondHalf {
 			s.secondHalf = true
 			s.appendEvent(EventHalfTime, 1, restartIdx(s.onPitchFor(1)), "")
-			s.ballX, s.ballY = 0.5, 0.5
-			s.owner = 1
-			s.ownerIdx = int8(restartIdx(s.onPitchFor(1)))
-			s.cooldown = 0
+			s.closeChainIfLive("half")
 			s.restart = Restart{}
 			s.clearPattern()
+			s.kickOff(1)
 		}
 		if err := s.applyInterventions(); err != nil {
 			return err
@@ -337,6 +334,11 @@ func (s *simState) move() {
 				tx, ty = pt[0], pt[1]
 				k = 0.10 + 0.15*quality(s.onPitch[team*11+i].Attr.Pace)*eff
 				patterned = true
+			} else if rt, ok := s.frontJobRun(team, i); ok {
+				// Runner jobs burst too: breaking runs and box arrivals are sprints.
+				tx, ty = rt[0], rt[1]
+				k = 0.07 + 0.12*quality(s.onPitch[team*11+i].Attr.Pace)*eff
+				patterned = true
 			} else if s.owner == int8(team) && s.ownerIdx == int8(i) {
 				// Collect first (sprint to where the ball landed), then carry with
 				// breathing room — no teleporting, no ball-on-a-leash dragging.
@@ -397,6 +399,69 @@ func (s *simState) patternActiveFor(team, idx int) bool {
 	return ok
 }
 
+// frontJobRun is the stage-B runner job (T-014 units & jobs): the front cast does
+// NOT shuffle with the block when the chain's playbook calls for movement. Jobs per
+// the ADR-0011 vocabulary: ST pins the box corridor (pinCBs), W HOLDS WIDTH on the
+// flank (holdWidth), AM arrives on the edge (arriveEdge); transition raids let all of
+// them break BEHIND the ball (counters have runners). Returns the run target when the
+// job fires.
+func (s *simState) frontJobRun(team, idx int) ([2]float64, bool) {
+	// The carrier owns the ball's story (collect, then carry) — runners run FOR him.
+	if s.owner != int8(team) || s.ownerIdx == int8(idx) {
+		return [2]float64{}, false
+	}
+	var job byte
+	switch s.onPitch[team*11+idx].Pos {
+	case PosST:
+		job = 1 // pinCBs
+	case PosW:
+		job = 2 // holdWidth
+	case PosAM:
+		job = 3 // arriveEdge
+	default:
+		return [2]float64{}, false
+	}
+	switch s.chainReg {
+	case RegimeTransition, RegimeFinalThird:
+	default:
+		return [2]float64{}, false
+	}
+	dir := 1.0
+	if team == 1 {
+		dir = -1
+	}
+	ps := s.players[team*11+idx]
+	parity := float64(idx % 2) // deterministic near/far assignment
+	gx := goalXFor(team)
+
+	if s.chainReg == RegimeTransition {
+		// Break into the space ahead of the ball — the counter's spearhead.
+		// Wingers run the flanks, strikers the channels, AM trails the wave.
+		x := clamp(s.ballX+dir*counterSurge*(1+0.3*parity), 0.02, 0.98)
+		y := ps.Y
+		switch job {
+		case 1:
+			y = 0.42 + 0.16*parity
+		case 2:
+			y = 0.12 + 0.76*parity // hugging one flank
+		case 3:
+			y = ps.Y + (0.5-ps.Y)*0.4
+		}
+		return [2]float64{x, clamp(y, 0.04, 0.96)}, true
+	}
+
+	// Settled final-third attack: the jobs occupy complementary heights instead of
+	// a three-man goalmouth pile (that caricature fed itself to death).
+	switch job {
+	case 1: // pinCBs: the striker holds the corridor at the six-yard lane.
+		return [2]float64{clamp(gx-dir*boxPinDepth, 0.02, 0.98), 0.38 + 0.24*parity}, true
+	case 2: // holdWidth: the winger hugs the flank and stretches the back line.
+		return [2]float64{clamp(gx-dir*widthHoldDepth, 0.02, 0.98), 0.08 + 0.84*parity}, true
+	default: // arriveEdge: the AM ghosts onto the cutback zone at the box edge.
+		return [2]float64{clamp(gx-dir*arriveEdgeDepth, 0.02, 0.98), 0.44 + 0.12*parity}, true
+	}
+}
+
 // roleClamp keeps open-play shape honest: goalkeepers and centre-backs do not holiday
 // upfield (pattern actors are routed separately and bypass this).
 func (s *simState) roleClamp(team, idx int, tx, ty float64) (float64, float64) {
@@ -419,29 +484,52 @@ func (s *simState) roleClamp(team, idx int, tx, ty float64) (float64, float64) {
 
 // ---- possession-chain lifecycle (sensory layer, ADR-0011) ----
 
-// senseChain closes and opens possession chains at ownership changes and classifies
-// each newborn chain into a game regime from its birth circumstances.
+// setOwner hands possession to (team, idx) and maintains the chain lifecycle at the
+// flip: the old chain dies with an honest outcome, the newborn one is classified by
+// its birth circumstances (the `cause`). Turnover bookkeeping happens here too —
+// ownership flips are the losing team's turnovers.
+func (s *simState) setOwner(team, idx int, cause string) {
+	if s.owner >= 0 && s.owner != int8(team) {
+		s.statsFor(int(s.owner)).Turnovers++
+	}
+	if s.liveChain() && s.chainTeam != int8(team) {
+		s.closeChain("turnover")
+	}
+	s.owner, s.ownerIdx = int8(team), int8(idx)
+	if !s.liveChain() {
+		if cause == "" {
+			cause = "regain"
+		}
+		s.openChain(int8(team), cause)
+	}
+}
+
+// closeChainIfLive ends the live chain with the given outcome (a shot, a goal, a
+// dead ball). Safe when the chain already ended (e.g. a goal after the shot touch).
+func (s *simState) closeChainIfLive(outcome string) {
+	if s.liveChain() {
+		s.closeChain(outcome)
+	}
+}
+
+// senseChain is the per-tick safety net: ownership normally already carries a chain
+// (setOwner opens them at the flip), and a loose ball that vanishes into limbo ends
+// the stalled chain as a dead ball.
 func (s *simState) senseChain() {
 	if s.owner < 0 {
 		s.chainGone++
 		if s.chainGone > 15 {
-			s.closeChain("dead_ball")
+			s.closeChainIfLive("dead_ball")
 		}
 		return
 	}
 	s.chainGone = 0
-	if s.liveChain() && s.owner == s.chainTeam {
-		return
-	}
-	if s.liveChain() {
+	if !s.liveChain() {
+		s.openChain(s.owner, "regain")
+	} else if s.chainTeam != s.owner {
 		s.closeChain("turnover")
+		s.openChain(s.owner, "regain")
 	}
-	cause := "regain"
-	if s.pendingCau != "" {
-		cause = s.pendingCau
-		s.pendingCau = ""
-	}
-	s.openChain(s.owner, cause)
 }
 
 // recordTouch writes one on-ball action into the sensory ledger.
@@ -500,7 +588,9 @@ func (s *simState) liveChain() bool {
 }
 
 // classifyRegime reads the playbook the newborn possession should run: where and why
-// it was born decides everything (v6 spec — regimes, not dice).
+// it was born decides everything (v6 spec — regimes, not dice). A fresh win high up
+// against a stretched opponent is a counter window (transition); a settled win in the
+// attacking third is sustained pressure (finalThird) — they are not the same play.
 func (s *simState) classifyRegime(team int8, cause string) Regime {
 	switch cause {
 	case "setpiece":
@@ -508,13 +598,14 @@ func (s *simState) classifyRegime(team int8, cause string) Regime {
 	case "regroup":
 		return RegimeRegroup
 	}
-	x := s.ballX
-	if team == 1 {
-		x = 1 - x
-	}
-	// Fresh regain high up = counter window; deep win = build up; else progression.
-	if cause == "regain" && x > 0.62 {
-		return RegimeTransition
+	x := s.attackX(int(team))
+	if cause == "regain" && s.counterWindow(int(team)) {
+		// Counter windows: a ball won anywhere in space is a raid for prepared
+		// counter-punch outfits (their depth chart IS the counter), a bit further
+		// upfield for everybody else.
+		if x > 0.45 || (s.tactics[team].CounterAttack && x > 0.35) {
+			return RegimeTransition
+		}
 	}
 	switch {
 	case x < 0.35:
@@ -526,6 +617,27 @@ func (s *simState) classifyRegime(team int8, cause string) Regime {
 	}
 }
 
+// attackX maps an absolute x to the team's attacking frame (0 own goal → 1 theirs).
+func (s *simState) attackX(team int) float64 {
+	if team == 0 {
+		return s.ballX
+	}
+	return 1 - s.ballX
+}
+
+// counterWindow reports a raid opportunity: counter-attack football always hunts it,
+// and any side finds it when the opponent's line is caught upfield.
+func (s *simState) counterWindow(team int) bool {
+	if s.tactics[team].CounterAttack {
+		return true
+	}
+	line := s.defensiveLineX(1 - team)
+	if team == 1 {
+		line = 1 - line
+	}
+	return line > 0.60
+}
+
 // finalChains flushes the live chain (with its outcome) at full time.
 func (s *simState) finalChains() []ChainInfo {
 	if s.liveChain() {
@@ -534,15 +646,30 @@ func (s *simState) finalChains() []ChainInfo {
 	return s.chains
 }
 
+// kickOff restarts play from the centre spot (kick-off after a goal, or half time).
+func (s *simState) kickOff(team int) {
+	s.ballX, s.ballY = 0.5, 0.5
+	s.owner = -1
+	s.setOwner(team, restartIdx(s.onPitchFor(team)), "kickoff")
+	s.cooldown = 0
+}
+
 // target computes one player's tactical destination in absolute coordinates.
 // Out of possession, defenders HOLD their zone: only the nearest few engage the ball
 // (that IS pressing) — the rest keeps shape. Ball magnets everywhere is what killed
 // space, chains and goals alike (T-014: unpack the pitch).
 func (s *simState) target(team, idx int, ps *PlayerState) (float64, float64) {
+	// Stage-D mark discipline: a runner in YOUR box is your man. Zone shape resumes
+	// the moment the corridor empties.
+	if idx > 0 {
+		if mk, ok := s.boxPickup(team, idx); ok {
+			return mk[0], mk[1]
+		}
+	}
 	ax, ay := s.anchors[team][idx][0], s.anchors[team][idx][1]
 
 	tac := s.tactics[team]
-	blockShift := (float64(tac.Mentality)-3)*0.02 + (float64(tac.DefensiveLine)-2)*0.03
+	blockShift := (float64(tac.Mentality)-3)*0.01 + (float64(tac.DefensiveLine)-2)*0.03
 	blockShift += s.gameStateShift(team)
 	if int8(team) == s.owner {
 		blockShift += 0.04
@@ -591,6 +718,52 @@ func (s *simState) engagedRank(team, idx int) int {
 		}
 	}
 	return rank
+}
+
+// boxPickup assigns dangerous runners in the own box to their nearest available
+// defender: zone defending owns SPACES, but nobody camps unmarked on the six-yard
+// lane — a runner in the corridor is always someone's man (stage-D mark discipline,
+// the guard against the unmarked-pin feeding frenzy). The lead presser stays on the
+// ball. Returns the marker's target (goal-side of his runner).
+func (s *simState) boxPickup(team, idx int) ([2]float64, bool) {
+	if s.owner != 1-int8(team) || s.cards[team*11+idx].Off {
+		return [2]float64{}, false
+	}
+	gx := goalXFor(1 - team) // the goal this team DEFENDS
+	me := s.players[team*11+idx]
+	mine, mineD := -1, math.MaxFloat64
+	for j := 0; j < 11; j++ {
+		if s.cards[(1-team)*11+j].Off {
+			continue
+		}
+		oj := s.players[(1-team)*11+j]
+		// The DANGEROUS corridor only: central and close. Wide men and edge ghosts
+		// belong to the zone — gluing everybody kills the shape you're defending.
+		if absf(gx-oj.X) > boxPickupReach || absf(oj.Y-0.5) > 0.30 {
+			continue
+		}
+		dMe := absf(me.X-oj.X) + absf(me.Y-oj.Y)
+		mineRunner := true // the pickup belongs to the closest defender (ties: index order)
+		for i := 0; i < 11; i++ {
+			if i == idx || s.cards[team*11+i].Off {
+				continue
+			}
+			ps := s.players[team*11+i]
+			if d := absf(ps.X-oj.X) + absf(ps.Y-oj.Y); d < dMe {
+				mineRunner = false
+				break
+			}
+		}
+		if mineRunner && dMe < mineD {
+			mine, mineD = j, dMe
+		}
+	}
+	if mine < 0 {
+		return [2]float64{}, false
+	}
+	o := s.players[(1-team)*11+mine]
+	// Tuck goal-side of the runner (body between man and net).
+	return [2]float64{o.X + (gx-o.X)*0.15, o.Y}, true
 }
 
 // fatigue drains condition shaped by work rate, pressing, tempo and stamina.
