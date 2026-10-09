@@ -16,19 +16,25 @@ import (
 // deliberately whenever EngineVersion behaviour changes (see the testing rules).
 func TestGoldenDigest(t *testing.T) {
 	t.Parallel()
-
-	res := mustSimulate(t, func() (engine.MatchResult, []engine.Snapshot, error) {
-		return engine.Simulate(enginetest.SampleInput(42))
-	})
-	got, err := enginetest.Digest(res)
-	if err != nil {
-		t.Fatalf("Digest: %v", err)
-	}
-	// v11 goldens — v10 plus middle-third support runs (progression regime front-cast
-	// outlets; T-020 OFF-1/OFF-2).
-	const want = "8faf2f172fdcbf68655575b6d15f2e8d1d6f6adb0c097ea937c7d193db0249b4"
-	if got != want {
-		t.Fatalf("golden digest = %s, want %s (update deliberately on EngineVersion bumps)", got, want)
+	// v12: seed 42 still follows its v11 story; seed 987 exercises striker
+	// recovery from a defensive wide zone and pins the changed replay.
+	for _, tc := range []struct {
+		seed uint64
+		want string
+	}{
+		{42, "8faf2f172fdcbf68655575b6d15f2e8d1d6f6adb0c097ea937c7d193db0249b4"},
+		{987, "d858943093cea7885a5b7632b9583639bbed1dfd21b9db82ae2b784d7c3730a0"},
+	} {
+		res := mustSimulate(t, func() (engine.MatchResult, []engine.Snapshot, error) {
+			return engine.Simulate(enginetest.SampleInput(tc.seed))
+		})
+		got, err := enginetest.Digest(res)
+		if err != nil {
+			t.Fatalf("Digest: %v", err)
+		}
+		if got != tc.want {
+			t.Fatalf("seed %d golden digest = %s, want %s (update deliberately on EngineVersion bumps)", tc.seed, got, tc.want)
+		}
 	}
 }
 

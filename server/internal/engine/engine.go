@@ -370,6 +370,7 @@ func (s *simState) move() {
 			}
 			if !patterned {
 				tx, ty = s.roleClamp(team, i, tx, ty)
+				tx, ty = s.defensiveRoleTarget(team, i, tx, ty)
 			}
 			stepX, stepY := (tx-ps.X)*k, (ty-ps.Y)*k
 			// Runner jobs may switch targets instantly, but feet cannot cross a
@@ -521,6 +522,29 @@ func (s *simState) roleClamp(team, idx int, tx, ty float64) (float64, float64) {
 		tx = math.Max(tx, 1-maxAttack)
 	}
 	return tx, ty
+}
+
+// defensiveRoleTarget brings a striker back toward the central outlet after a
+// defensive restart or chase. He can help in his own half, but cannot become a
+// permanent full-back just because he happened to be nearest during a scramble.
+// Dead balls and rehearsed runs keep their own targets until play resumes.
+func (s *simState) defensiveRoleTarget(team, idx int, tx, ty float64) (float64, float64) {
+	if s.owner != int8(1-team) || s.restart.Kind != RestartNone || s.onPitch[team*11+idx].Pos != PosST {
+		return tx, ty
+	}
+	attackX := tx
+	if team == 1 {
+		attackX = 1 - tx
+	}
+	if attackX >= 0.30 || (ty >= 0.20 && ty <= 0.80) {
+		return tx, ty
+	}
+	if team == 0 {
+		tx = math.Max(tx, 0.30)
+	} else {
+		tx = math.Min(tx, 0.70)
+	}
+	return tx, clamp(ty, 0.20, 0.80)
 }
 
 // ---- possession-chain lifecycle (sensory layer, ADR-0011) ----

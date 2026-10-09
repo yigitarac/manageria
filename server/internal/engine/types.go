@@ -42,7 +42,9 @@ import (
 //	v11 — middle-third support runs: in the progression regime the front cast offers forward
 //	     outlets (strikers check into the channel, wingers drop level on the flank, the AM
 //	     drifts between the lines) instead of holding anchors (T-020, OFF-1/OFF-2)
-const EngineVersion = 11
+//	v12 — striker defensive recovery: a striker who drifts into his own full-back
+//	     corridor returns toward a central outlet after the restart (T-027)
+const EngineVersion = 12
 
 // PlayerID identifies a player across a match (UUIDv7 string at the storage boundary).
 type PlayerID string
