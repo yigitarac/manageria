@@ -15,6 +15,7 @@ import (
 // kpiReport prints the behavioural KPIs of N matches — the v0.1 progress meter.
 func kpiReport(seed uint64, n int) {
 	var chains, touches, passes, carries, duels, regains int
+	var longStalls, emptyChains int
 	regimeMix := map[string]int{}
 	var chainLens []int
 	for i := 0; i < n; i++ {
@@ -23,9 +24,27 @@ func kpiReport(seed uint64, n int) {
 			fatal(err)
 		}
 		chains += len(res.Chains)
+		spans := make(map[int32][2]float64, len(res.Chains))
+		for _, touch := range res.Touches {
+			span, exists := spans[touch.Chain]
+			if !exists {
+				span[0] = touch.X
+			}
+			span[1] = touch.X
+			spans[touch.Chain] = span
+		}
 		for _, c := range res.Chains {
 			chainLens = append(chainLens, c.Touches)
 			regimeMix[c.Regime]++
+			if c.Touches == 0 {
+				emptyChains++
+				continue
+			}
+			span := spans[c.ID]
+			progress := (span[1] - span[0]) * (1 - 2*float64(c.Team))
+			if c.Touches >= 20 && progress < 0.10 {
+				longStalls++
+			}
 		}
 		for _, t := range res.Touches {
 			touches++
@@ -52,6 +71,8 @@ func kpiReport(seed uint64, n int) {
 	fmt.Printf("  touches/chain med : %d      (norm 4–8)\n", median)
 	fmt.Printf("  touches/match     : %.0f  (pass %d, carry %d, duel %d, regain %d)\n",
 		float64(touches)/f, int(float64(passes)/f), int(float64(carries)/f), int(float64(duels)/f), int(float64(regains)/f))
+	fmt.Printf("  long stalls/match : %.1f  (20+ touches, <0.10 net pitch progress; 0-touch chains %.1f)\n",
+		float64(longStalls)/f, float64(emptyChains)/f)
 	fmt.Printf("  regime mix        :")
 	for _, r := range []string{"buildUp", "progression", "finalThird", "transition", "setPiece", "regroup"} {
 		fmt.Printf(" %s %d", r, regimeMix[r])
@@ -86,12 +107,14 @@ func storyMatch(seed uint64) {
 	_ = names
 
 	frameAt := func(sec int32) (float64, float64) {
+		x, y := 0.5, 0.5
 		for _, kf := range res.Keyframes {
-			if int32(kf.TMs/1000) >= sec {
-				return kf.BallX, kf.BallY
+			if int32(kf.TMs/1000) > sec {
+				break
 			}
+			x, y = kf.BallX, kf.BallY
 		}
-		return 0.5, 0.5
+		return x, y
 	}
 
 	fmt.Printf("MATCH STORY — RVA vs STB (seed %d)\n", seed)
@@ -100,6 +123,19 @@ func storyMatch(seed uint64) {
 	for _, c := range res.Chains {
 		fromX, fromY := frameAt(c.Start)
 		toX, toY := frameAt(c.End)
+		// Keyframes straddling a turnover can belong to the next side. Touches
+		// carry the chain ID and record where this side actually played the ball.
+		first := true
+		for _, touch := range res.Touches {
+			if touch.Chain != c.ID {
+				continue
+			}
+			if first {
+				fromX, fromY = touch.X, touch.Y
+				first = false
+			}
+			toX, toY = touch.X, touch.Y
+		}
 		fx, tx := orient(fromX, c.Team), orient(toX, c.Team)
 		line := fmt.Sprintf("%2d:%02d-%2d:%02d [%s/%s] %2dt %s %.2f %.2f %s %.2f %.2f  %s",
 			c.Start/60, c.Start%60, c.End/60, c.End%60,
