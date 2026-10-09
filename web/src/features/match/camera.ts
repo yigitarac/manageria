@@ -11,6 +11,13 @@ export function timelineJump(previousMs: number, nextMs: number): boolean {
   return previousMs >= 0 && (nextMs < previousMs || nextMs - previousMs > 5000);
 }
 
+export const TRAIL_WINDOW_MS = 1200;
+
+/** A ribbon only connects samples close enough in game time to show one action. */
+export function trailJump(previousMs: number, nextMs: number): boolean {
+  return previousMs >= 0 && (nextMs < previousMs || nextMs - previousMs > TRAIL_WINDOW_MS);
+}
+
 export interface CameraFrame {
   scale: number;
   x: number;

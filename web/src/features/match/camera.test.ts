@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cameraFrame, easeCamera, timelineJump } from "./camera";
+import { cameraFrame, easeCamera, timelineJump, trailJump } from "./camera";
 
 describe("cameraFrame", () => {
   it("keeps the camera inside the pitch at every extreme", () => {
@@ -42,5 +42,13 @@ describe("timelineJump", () => {
     expect(timelineJump(10_000, 16_000)).toBe(true);
     expect(timelineJump(10_000, 2_000)).toBe(true);
     expect(timelineJump(-1, 0)).toBe(false);
+  });
+});
+
+describe("trailJump", () => {
+  it("does not join unrelated touches during fast playback", () => {
+    expect(trailJump(10_000, 10_900)).toBe(false);
+    expect(trailJump(10_000, 13_000)).toBe(true);
+    expect(trailJump(10_000, 2_000)).toBe(true);
   });
 });

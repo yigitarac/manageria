@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Application, Container, Graphics, Text } from "pixi.js";
 import { ballAt, buildBallStory } from "./ballStory";
-import { cameraFrame, easeCamera, timelineJump } from "./camera";
+import { cameraFrame, easeCamera, timelineJump, trailJump, TRAIL_WINDOW_MS } from "./camera";
 import { sampleAt } from "./interpolate";
 import type { FrameSample } from "./interpolate";
 import type { MatchDump } from "./types";
@@ -122,7 +122,7 @@ interface Scene {
   ball: Graphics;
   ballShadow: Graphics;
   trail: Graphics;
-  trailPts: { x: number; y: number }[];
+  trailPts: { x: number; y: number; tMs: number }[];
 }
 
 function buildScene(stage: Container, dump: MatchDump): Scene {
@@ -282,7 +282,7 @@ function worldOf(nx: number, ny: number): { x: number; y: number } {
 function applySample(
   scene: Scene,
   sample: FrameSample,
-  ball: { x: number; y: number },
+  ball: { x: number; y: number; visible?: boolean },
   tMs: number,
   previousTime: number,
 ) {
@@ -321,8 +321,14 @@ function applySample(
     labeled.push(player);
   }
   // Ball trail: a tapered ribbon of the last frames — motion readable at any speed.
-  if (timelineJump(previousTime, tMs)) scene.trailPts.length = 0;
-  scene.trailPts.push(bw);
+  const ballVisible = ball.visible !== false;
+  scene.ball.visible = ballVisible;
+  scene.ballShadow.visible = ballVisible;
+  if (trailJump(previousTime, tMs) || !ballVisible) scene.trailPts.length = 0;
+  if (ballVisible) scene.trailPts.push({ ...bw, tMs });
+  while (scene.trailPts.length > 0 && tMs - scene.trailPts[0].tMs > TRAIL_WINDOW_MS) {
+    scene.trailPts.shift();
+  }
   if (scene.trailPts.length > 14) scene.trailPts.shift();
   scene.trail.clear();
   for (let i = 1; i < scene.trailPts.length; i++) {

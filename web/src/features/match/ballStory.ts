@@ -10,7 +10,7 @@ import type { MatchDump } from "./types";
 export interface BallEpisode {
   t0: number;
   t1: number;
-  kind: "pass" | "carry" | "duel" | "regain" | "shot" | "goal" | "idle";
+  kind: "pass" | "carry" | "duel" | "regain" | "shot" | "goal" | "idle" | "deadBall";
   x0: number;
   y0: number;
   x1: number;
@@ -19,7 +19,6 @@ export interface BallEpisode {
 
 const FLIGHT_MS = 1100;
 const HOLD_MS = 900;
-const GAP_CAP_MS = 4500;
 
 export function buildBallStory(dump: MatchDump): BallEpisode[] {
   const homeClub = dump.teams.home.club;
@@ -29,6 +28,7 @@ export function buildBallStory(dump: MatchDump): BallEpisode[] {
   }
 
   const touches = [...dump.touches].sort((a, b) => a.tick - b.tick);
+  const outcomes = new Map(dump.chains.map((chain) => [chain.id, chain.outcome]));
   const episodes: BallEpisode[] = [];
 
   for (let i = 0; i < touches.length; i++) {
@@ -66,11 +66,11 @@ export function buildBallStory(dump: MatchDump): BallEpisode[] {
           x1: landingX,
           y1: 0.5,
         });
-        if (next && nextTime > holdEnd && !scored) {
+        if (next && nextTime > holdEnd) {
           episodes.push({
             t0: holdEnd,
-            t1: nextTime,
-            kind: "idle",
+            t1: Math.max(holdEnd, nextTime - 1),
+            kind: "deadBall",
             x0: landingX,
             y0: 0.5,
             x1: next.x,
@@ -85,9 +85,19 @@ export function buildBallStory(dump: MatchDump): BallEpisode[] {
     const tNext = next.tick * 1000;
     const gap = tNext - t0;
     const sameMove = next.chain === cur.chain && next.team === cur.team;
-    if (gap > GAP_CAP_MS) {
-      // Dead ball: the ball WALKS to the restart spot (ball-boy physics, no teleport).
-      episodes.push({ t0, t1: tNext, kind: "idle", x0: cur.x, y0: cur.y, x1: next.x, y1: next.y });
+    const outcome = outcomes.get(cur.chain);
+    if (!sameMove && (outcome === "dead_ball" || outcome === "half")) {
+      // Placement happens off camera during a stoppage. A slow ball sliding
+      // across the pitch to the restart spot reads as an invented pass.
+      episodes.push({
+        t0,
+        t1: Math.max(t0, tNext - 1),
+        kind: "deadBall",
+        x0: cur.x,
+        y0: cur.y,
+        x1: next.x,
+        y1: next.y,
+      });
       continue;
     }
     if (!sameMove) {
@@ -129,7 +139,10 @@ export function buildBallStory(dump: MatchDump): BallEpisode[] {
 }
 
 /** Samples the ball path at playback time (null = fall back to keyframes). */
-export function ballAt(episodes: BallEpisode[], tMs: number): { x: number; y: number } | null {
+export function ballAt(
+  episodes: BallEpisode[],
+  tMs: number,
+): { x: number; y: number; visible: boolean } | null {
   let lo = 0;
   let hi = episodes.length - 1;
   let found = -1;
@@ -150,7 +163,7 @@ export function ballAt(episodes: BallEpisode[], tMs: number): { x: number; y: nu
     const u = span > 0 ? (tMs - ep.t0) / span : 1;
     // Passes arc (sine bow); carries and flights are straight.
     const bow = ep.kind === "pass" ? Math.sin(Math.PI * u) * 0.02 : 0;
-    return { x: lerp(ep.x0, ep.x1, u), y: lerp(ep.y0, ep.y1, u) - bow };
+    return { x: lerp(ep.x0, ep.x1, u), y: lerp(ep.y0, ep.y1, u) - bow, visible: ep.kind !== "deadBall" };
   }
   return null;
 }
