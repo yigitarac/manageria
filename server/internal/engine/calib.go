@@ -7,7 +7,10 @@ package engine
 // Outcome shaping
 const (
 	// shotBase scales shot conversion quality before goalkeeper opposition.
-	shotBase = 0.54
+	// Refrozen 0.54 → 0.52 with engine v13 (menu stabiliser, 2026-10-09): scale-free
+	// selection and menu diversity raise shot QUALITY per window, so conversion sheds
+	// two points to land both calibration windows and the preset goal bands together.
+	shotBase = 0.52
 	// gkSaveShare is how strongly goalkeeping cancels shot quality.
 	gkSaveShare = 0.55
 	// shotDistanceFalloff shrinks conversion with distance (0..1 of the shot zone).
@@ -104,9 +107,12 @@ const (
 	// deflectCornerShare sends off-target efforts behind for a corner instead of a goal kick.
 	deflectCornerShare = 0.32
 	// homeAdvantage is the familiar-ground/crowd multiplier (visible, documented).
+	// Refrozen 2026-10-09 with engine v13 (menu stabiliser): scale-free selection
+	// converted small situational edges into cleaner wins, so the ground bonus sheds
+	// two points to keep both calibration windows inside 43–47% home wins.
 	// Cranked above intuition because duelChance() compresses quality gaps near
 	// parity — a visible ×perf multiplier needs muscle to move outcome bands.
-	homeAdvantage = 1.13
+	homeAdvantage = 1.11
 	// moraleGoalSwing is the visible morale shift after a goal (+winner / −conceder;
 	// the label in the goal event quotes this exact number). The PERFORMANCE band is
 	// kept thin (moraleBand) so leads do not snowball through confidence alone.
@@ -209,8 +215,23 @@ const (
 	// decisionsArgmaxFloor/Share: P(the carrier takes the best read) = floor + share·q².
 	decisionsArgmaxFloor = 0.30
 	decisionsArgmaxShare = 0.60
-	// decisionGap flattens the misranking draw (bigger = greedier for the best read).
-	decisionGap = 3.0
+	// decisionGap is the greed of the misranking draw PER MENU-SPREAD UNIT (T-016 menu
+	// stabiliser): competing reads are graded on the shared scale of the offered menu
+	// (its utility spread), never on raw utility points. Posture and manager multipliers
+	// can tilt the menu's shape but can no longer amplify the odds ratio without bound —
+	// raw-unit grading was the elastic-sensitivity culprit. The hyperbolic FAT TAIL stays
+	// deliberate: it is the upset/chaos variance that keeps favourites from grinding every
+	// weaker block down (an exponential draw starved the underdog and broke the counter
+	// probes upward).
+	decisionGap = 1.2
+	// decisionNoiseFloor is the psychometric noise of choice (utility points): below
+	// this spread a menu honestly reads as a toss-up, so near-ties stay near-ties
+	// instead of being normalised into decisive-looking gaps.
+	decisionNoiseFloor = 0.06
+	// knobArmour is the saturation budget of posture/manager multiplier stacks (T-016).
+	// A dugout shout biases a read; it never becomes a force multiplier: composite
+	// stacks bend toward 1+knobArmour instead of compounding into an arms race.
+	knobArmour = 1.5
 	// throughLead is the extra service lead of a through ball (runners collect).
 	throughLead = 0.035
 	// counterSurge is how far beyond the ball a transition runner breaks toward goal.

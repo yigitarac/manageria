@@ -268,22 +268,29 @@ func (s *simState) passUtility(team, idx int, o passOption, sit situation) float
 	// Manager knobs: attacking minds buy gain with risk; direct play travels.
 	// Every mentality premium shares one modest slope (0.06): a dugout shout is not
 	// a force multiplier (giant premiums detonated the preset goal bands).
-	gainW *= 1 + 0.06*float64(tac.Mentality-3)
-	riskW *= 1 + 0.06*float64(3-tac.Mentality)
+	gainKnob, riskKnob := 1.0, 1.0
+	gainKnob *= 1 + 0.06*float64(tac.Mentality-3)
+	riskKnob *= 1 + 0.06*float64(3-tac.Mentality)
 	switch tac.PassingStyle {
 	case 1: // short: safety first
-		riskW *= 1.15
+		riskKnob *= 1.15
 	case 3: // direct: risk tolerated for progress
-		riskW *= 0.85
-		gainW *= 1.15
+		riskKnob *= 0.85
+		gainKnob *= 1.15
 	}
 	if o.longRun {
-		gainW *= 1 + behindSpaceGain*(sit.gapBehind-0.3)
+		gainKnob *= 1 + behindSpaceGain*(sit.gapBehind-0.3)
 		if tac.CounterAttack {
-			gainW *= 1.25
+			gainKnob *= 1.25
 		}
-		riskW *= 1.3
+		riskKnob *= 1.3
 	}
+	// The manager's whole stack shares one armour budget (T-016): stacked aggressive
+	// knobs compound no further, so preset extremes bend toward the calibrated core
+	// instead of detonating past it. Regime weights stay OUTSIDE the armour — they
+	// are the football meaning of the phase, not a shouted instruction.
+	gainW *= armour(gainKnob)
+	riskW *= armour(riskKnob)
 
 	// Box presence: a FREE man in the corridor is worth feeding (final third
 	// especially) — feeding a marked pin is a hopeful ball, not a gift.
@@ -294,17 +301,22 @@ func (s *simState) passUtility(team, idx int, o passOption, sit situation) float
 	}
 	// Square/back balls are retention: valued when the lane is clean and the
 	// regime wants patience (this is how chains consolidate instead of dying).
+	// The credit FADES with lane danger across a wide band (T-016): the old hard cut
+	// at risk 0.25 flipped near-identical options, and a narrow transition band proved
+	// insufficient — measured 2026-10-09, narrowing the bands heated aggressive preset
+	// rows by +0.2..0.4 goals. A wide fade keeps borderline candidates COMPETING in the
+	// menu instead of flipping; menu diversity absorbs extremism.
 	recycle := 0.0
-	if o.gain <= 0 && o.risk < 0.25 {
-		recycle = 0.12 * riskW
+	if o.gain <= 0 {
+		recycle = 0.12 * riskW * clamp((0.35-o.risk)/0.25, 0, 1)
 	}
 	// Recency/repetition penalty: handing the ball straight back to a recent
 	// supplier without a genuine escape reason keeps a two- or three-man loop
 	// spinning forever (ping-pong). The penalty fades with how far back the supplier
-	// was, is exempted by a progressive return, and eases under heavy heat where a
-	// backward outlet is a legitimate escape.
+	// was, is exempted by a progressive return (a wide fade over gain — no cliff at
+	// 0.05), and eases under heavy heat where a backward outlet is a legitimate escape.
 	returnPenalty := 0.0
-	if o.gain < 0.05 {
+	if ramp := clamp((0.10-o.gain)/0.10, 0, 1); ramp > 0 {
 		n := len(s.touches)
 		for back := 1; back <= recencyWindow && back <= n; back++ {
 			t := s.touches[n-back]
@@ -313,7 +325,7 @@ func (s *simState) passUtility(team, idx int, o passOption, sit situation) float
 				break
 			}
 		}
-		returnPenalty *= clamp(1-0.25*sit.press, 0.2, 1)
+		returnPenalty *= ramp * clamp(1-0.25*sit.press, 0.2, 1)
 	}
 	return 1.9*gainW*clamp(o.gain, -0.25, 0.5) +
 		1.6*openW*o.openness +
@@ -342,7 +354,11 @@ func (s *simState) buildPlays(team, idx int, sit situation, opts []passOption) [
 	// Regime weights mirror passUtility's: build-up protects (a CB dribbling out
 	// through the press is a highlight, not a plan), transition spears (counters
 	// RUN with the ball).
-	if space := s.carrySpace(team, idx, sit); space > 0.2 {
+	// Carry admittance fades in from space 0.05 (T-016): the old hard gate at 0.2
+	// made near-identical geometry flip the whole carry option on and off. The wide
+	// fade doubles as menu diversity — see the recycle note (narrow bands were
+	// measured worse for aggressive presets).
+	if space := s.carrySpace(team, idx, sit); space > 0.05 {
 		carrier := s.onPitch[team*11+idx].Attr
 		sep := clamp(s.nearestDistTo(1-team, s.ballX, s.ballY)/0.13, 0, 1)
 		u := 0.30 + 0.9*quality(carrier.Dribbling)*space + 0.30*(space-0.45) - 0.20*sit.press + 0.55*sep
@@ -357,7 +373,10 @@ func (s *simState) buildPlays(team, idx int, sit situation, opts []passOption) [
 			u *= 1.15
 		}
 		u *= 1 + 0.06*float64(tac.Mentality-3)
-		plays = append(plays, play{kind: playCarry, util: u})
+		u *= clamp((space-0.05)/0.15, 0, 1)
+		if u > 0 {
+			plays = append(plays, play{kind: playCarry, util: u})
+		}
 	}
 
 	// Shoot: only inside an open window, and only with the right foot for it.
@@ -367,17 +386,20 @@ func (s *simState) buildPlays(team, idx int, sit situation, opts []passOption) [
 		// worse read than laying off or pinning it (options: windows include your
 		// own freedom). Unmarked men bang away; prisoners wrestle and recycle).
 		marked := clamp(s.nearestDistTo(1-team, s.ballX, s.ballY)/0.12, 0, 1)
-		u *= 0.65 + 0.35*marked
-		u *= 1 + 0.04*float64(tac.Mentality-3)
+		read := 0.65 + 0.35*marked
+		read *= 1 + 0.04*float64(tac.Mentality-3)
 		if d := s.scoreDiff(team); d < 0 {
-			u *= 1 + gameStateChase*float64(minInt(-d, 2))/2
+			read *= 1 + gameStateChase*float64(minInt(-d, 2))/2
 		}
 		// Nobody squares a through-on-goal chance — power the shot home.
 		if sit.goalDist < oneOnOneDist && sit.press < oneOnOnePress && s.isAheadOfDefense(team, idx) {
-			u *= fixationBoost
+			read *= fixationBoost
 		}
 		// A clean hit-your-marks contact with the keeper unsighted is a green light.
-		u *= 1 + 0.5*s.shootSightline(team, idx)
+		read *= 1 + 0.5*s.shootSightline(team, idx)
+		// The whole read stack shares the armour budget (T-016): a green-light
+		// cascade bends toward 1+knobArmour instead of compounding to ×4+.
+		u *= armour(read)
 		if u > 0 {
 			plays = append(plays, play{kind: playShoot, util: u})
 		}
@@ -463,20 +485,46 @@ func (s *simState) choosePlay(team, idx int, plays []play) play {
 	if s.rnd.Float64() < decisionsArgmaxFloor+decisionsArgmaxShare*quality(attr.Decisions)*quality(attr.Decisions) {
 		return menu[0]
 	}
-	// Misranking draw: favours near-best reads, never the absurd ones.
+	// Misranking draw: favours near-best reads — graded on the SHARED scale of the
+	// offered menu (its utility spread) with a psychometric noise floor below which two
+	// reads are honestly indistinguishable. Odds depend on the menu's shape alone:
+	// stacked multipliers tilt the menu but can no longer amplify the odds ratio
+	// without bound (T-016 menu stabiliser).
 	best := menu[0].util
+	mean := 0.0
+	for _, p := range plays {
+		mean += p.util
+	}
+	mean /= float64(len(plays))
+	variance := 0.0
+	for _, p := range plays {
+		d := p.util - mean
+		variance += d * d
+	}
+	spread := math.Sqrt(variance / float64(len(plays)))
+	unit := math.Sqrt(spread*spread + decisionNoiseFloor*decisionNoiseFloor)
+	weight := func(p play) float64 {
+		return 1 / (1 + decisionGap*(best-p.util)/unit)
+	}
 	total := 0.0
 	for _, p := range menu {
-		total += 1 / (1 + decisionGap*(best-p.util))
+		total += weight(p)
 	}
 	r := s.rnd.Float64() * total
 	for _, p := range menu {
-		r -= 1 / (1 + decisionGap*(best-p.util))
+		r -= weight(p)
 		if r <= 0 {
 			return p
 		}
 	}
 	return menu[0]
+}
+
+// armour saturates a composite posture multiplier (T-016): mild stacks pass through
+// nearly unchanged, compounding stacks bend toward 1+knobArmour. Downsides survive —
+// armour only stops the upward arms race.
+func armour(m float64) float64 {
+	return 1 + knobArmour*math.Tanh((m-1)/knobArmour)
 }
 
 // sortPlaysByUtil orders plays by utility descending; ties keep enumeration order

@@ -44,7 +44,7 @@ import (
 //	     drifts between the lines) instead of holding anchors (T-020, OFF-1/OFF-2)
 //	v12 — striker defensive recovery: a striker who drifts into his own full-back
 //	     corridor returns toward a central outlet after the restart (T-027)
-const EngineVersion = 12
+const EngineVersion = 13
 
 // PlayerID identifies a player across a match (UUIDv7 string at the storage boundary).
 type PlayerID string

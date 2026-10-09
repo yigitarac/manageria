@@ -16,14 +16,15 @@ import (
 // deliberately whenever EngineVersion behaviour changes (see the testing rules).
 func TestGoldenDigest(t *testing.T) {
 	t.Parallel()
-	// v12: seed 42 still follows its v11 story; seed 987 exercises striker
-	// recovery from a defensive wide zone and pins the changed replay.
+	// v13: both seeds re-pinned after the T-016 menu stabiliser (scale-free selection,
+	// knob armour, smooth option fades) and the paired calibration refreeze
+	// (shotBase 0.54→0.52, homeAdvantage 1.13→1.11). v12 digests in history.
 	for _, tc := range []struct {
 		seed uint64
 		want string
 	}{
-		{42, "8faf2f172fdcbf68655575b6d15f2e8d1d6f6adb0c097ea937c7d193db0249b4"},
-		{987, "d858943093cea7885a5b7632b9583639bbed1dfd21b9db82ae2b784d7c3730a0"},
+		{42, "7fb11ad03fb3a849ebe1cc720cb3979a74e323d8025c56209405804af358ef7d"},
+		{987, "598a1aca2dacf3f97c748d0a28e100d377e8be6b23f0fe15d5b273d57f62dbe7"},
 	} {
 		res := mustSimulate(t, func() (engine.MatchResult, []engine.Snapshot, error) {
 			return engine.Simulate(enginetest.SampleInput(tc.seed))
