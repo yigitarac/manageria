@@ -32,7 +32,14 @@ import (
 //	     geometry vs cover shadows, carry space, shoot windows; the dice-picker retires),
 //	     one coherent possession-retention budget, unit-aware regime classifier and honest
 //	     chain outcomes (T-014 possession-consolidation + chance-creation pass)
-const EngineVersion = 9
+//	v8 — capped kinematics (one-second step ≤ 0.049, no 3-second runner leaps) and mirrored
+//	     keeper homes (T-018 visual-integrity follow-up)
+//	v9 — coordinated lines and honest dueling (T-017): kick-off regrouping, layered depth-band
+//	     press + ball-side slide, honest carry pricing, second-ball scrambles, cross aerial
+//	     pricing, KPI norms as tests
+//	v10 — decision-engine repetition guard: the return-to-recent-supplier penalty now spans a
+//	      window of prior passes (not just the last one) and eases under heat (DEC-1)
+const EngineVersion = 10
 
 // PlayerID identifies a player across a match (UUIDv7 string at the storage boundary).
 type PlayerID string

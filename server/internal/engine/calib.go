@@ -184,6 +184,13 @@ const (
 	// recycleSafety is the retention multiplier of square/back balls (teams keep the
 	// ball by recycling — this is what consolidates possession).
 	recycleSafety = 0.50
+	// recencyWindow / recencyPenalty: the repetition tax on handing the ball straight
+	// back to a recent supplier (within `recencyWindow` prior passes), divided by how
+	// far back the supplier was. Progressive returns are exempt; heavy heat eases it
+	// (a backward outlet is a legitimate escape under the cosh). This breaks the
+	// A→B→A ping-pong loop the option menu would otherwise spin forever.
+	recencyWindow  = 2
+	recencyPenalty = 0.80
 	// throughRisk amplifies failure on through-ball services (weighted gambles).
 	throughRisk = 1.35
 	// misplaceShare is the failed-pass flavour that reads as misplacement (the rest

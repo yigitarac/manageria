@@ -24,11 +24,9 @@ func TestGoldenDigest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Digest: %v", err)
 	}
-	// v9 goldens — legal kick-off regrouping, active defending, honest carry
-	// pricing (regime-weighted), second-ball scrambles on defended deliveries
-	// and dispossessions, a passing model that resists reciprocal exchanges,
-	// and the v9 calibration retune (shotBase 0.54, homeAdvantage 1.13).
-	const want = "75d50b4ba7af98dd635d9237c3dc726fc76e408673a045f63aebc0ab6416a1d5"
+	// v10 goldens — v9 behaviour plus the decision-engine repetition guard (the
+	// return-to-recent-supplier penalty spans a window of prior passes; DEC-1).
+	const want = "c1d323fdb9e97ce584e4aa256616c26bf085fa69b4406f0ea04246b9724cf6cc"
 	if got != want {
 		t.Fatalf("golden digest = %s, want %s (update deliberately on EngineVersion bumps)", got, want)
 	}

@@ -298,15 +298,22 @@ func (s *simState) passUtility(team, idx int, o passOption, sit situation) float
 	if o.gain <= 0 && o.risk < 0.25 {
 		recycle = 0.12 * riskW
 	}
-	// A return ball to the teammate who just supplied the carrier should need a
-	// genuine escape reason; otherwise two free players can trade it indefinitely.
+	// Recency/repetition penalty: handing the ball straight back to a recent
+	// supplier without a genuine escape reason keeps a two- or three-man loop
+	// spinning forever (ping-pong). The penalty fades with how far back the supplier
+	// was, is exempted by a progressive return, and eases under heavy heat where a
+	// backward outlet is a legitimate escape.
 	returnPenalty := 0.0
-	if n := len(s.touches); n > 0 {
-		last := s.touches[n-1]
-		if last.Kind == TouchPass && last.Success && last.Team == int8(team) &&
-			last.Actor == int8(o.to) && last.Target == int8(idx) && o.gain < 0.05 && sit.press < 1.5 {
-			returnPenalty = 0.5
+	if o.gain < 0.05 {
+		n := len(s.touches)
+		for back := 1; back <= recencyWindow && back <= n; back++ {
+			t := s.touches[n-back]
+			if t.Kind == TouchPass && t.Success && t.Team == int8(team) && t.Actor == int8(o.to) {
+				returnPenalty = recencyPenalty / float64(back)
+				break
+			}
 		}
+		returnPenalty *= clamp(1-0.25*sit.press, 0.2, 1)
 	}
 	return 1.9*gainW*clamp(o.gain, -0.25, 0.5) +
 		1.6*openW*o.openness +
