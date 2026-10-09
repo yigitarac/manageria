@@ -71,6 +71,11 @@ export function MatchCanvas({ dump, getTimeMs }: Props) {
       // The ball plays the match's own story (touch ledger): passes arc from touch to
       // touch, shots fly at goal, goals nestle into the net — no invented motion.
       const ballStory = buildBallStory(dump);
+      // Story ball at any moment, riding the interpolated players when glued to feet.
+      const ballNow = (t: number) => {
+        const s = sampleAt(dump.keyframes, t);
+        return s ? ballAt(ballStory, t, s.players) : ballAt(ballStory, t);
+      };
       let cam = cameraFrame(app.screen.width, app.screen.height, WORLD_W, WORLD_H, 0.5, 0.5);
       let previousTime = -1;
       app.ticker.add(() => {
@@ -78,9 +83,9 @@ export function MatchCanvas({ dump, getTimeMs }: Props) {
         const sample = sampleAt(dump.keyframes, tMs);
         if (sample) {
           const jumped = timelineJump(previousTime, tMs);
-          const b = ballAt(ballStory, tMs);
+          const b = ballNow(tMs);
           const ball = b ?? { x: sample.ballX, y: sample.ballY };
-          applySample(scene, sample, ball, tMs, previousTime);
+          applySample(scene, sample, ball, tMs, previousTime, ballNow);
           previousTime = tMs;
           // Broadcast camera: glide to frame the action like a TV truck.
           const target = cameraFrame(
@@ -285,6 +290,7 @@ function applySample(
   ball: { x: number; y: number; visible?: boolean },
   tMs: number,
   previousTime: number,
+  ballNow: (t: number) => { x: number; y: number; visible: boolean } | null,
 ) {
   const bw = worldOf(ball.x, ball.y);
   const nearby: { index: number; distance: number; x: number; y: number }[] = [];
@@ -320,16 +326,32 @@ function applySample(
     scene.names[player.index].visible = true;
     labeled.push(player);
   }
-  // Ball trail: a tapered ribbon of the last frames — motion readable at any speed.
+  // Ball trail: a tapered ribbon along the story's own path. At warp playback the
+  // frames skip whole flights, so the ribbon sketches the skipped arc from the story
+  // and the eye still reads ball motion instead of blinking teleports.
   const ballVisible = ball.visible !== false;
   scene.ball.visible = ballVisible;
   scene.ballShadow.visible = ballVisible;
+  const stepMs = previousTime >= 0 ? tMs - previousTime : 0;
   if (trailJump(previousTime, tMs) || !ballVisible) scene.trailPts.length = 0;
-  if (ballVisible) scene.trailPts.push({ ...bw, tMs });
-  while (scene.trailPts.length > 0 && tMs - scene.trailPts[0].tMs > TRAIL_WINDOW_MS) {
-    scene.trailPts.shift();
+  if (ballVisible) {
+    const subs = stepMs > 0 ? Math.min(24, Math.ceil(stepMs / 220)) : 1;
+    for (let i = 1; i <= subs; i++) {
+      const t = stepMs > 0 ? previousTime + (stepMs * i) / subs : tMs;
+      const b = i === subs ? ball : ballNow(t);
+      if (!b || b.visible === false) {
+        scene.trailPts.length = 0; // never draw a line across off-camera placement
+        continue;
+      }
+      const p = worldOf(b.x, b.y);
+      scene.trailPts.push({ x: p.x, y: p.y, tMs: t });
+    }
+    const trailWindowMs = Math.max(TRAIL_WINDOW_MS, stepMs > 0 ? 2.5 * stepMs : 0);
+    while (scene.trailPts.length > 0 && tMs - scene.trailPts[0].tMs > trailWindowMs) {
+      scene.trailPts.shift();
+    }
+    if (scene.trailPts.length > 30) scene.trailPts.shift();
   }
-  if (scene.trailPts.length > 14) scene.trailPts.shift();
   scene.trail.clear();
   for (let i = 1; i < scene.trailPts.length; i++) {
     const a = scene.trailPts[i - 1];

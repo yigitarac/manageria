@@ -119,7 +119,7 @@ export const syntheticDump: MatchDump = {
   ],
 };
 
-function playersAt(x: number, y: number) {
+export function playersAt(x: number, y: number) {
   return Array.from({ length: 22 }, (_, i) => ({
     x: x + (i % 5) * 0.02,
     y: (y + (i % 3) * 0.05) % 1,
