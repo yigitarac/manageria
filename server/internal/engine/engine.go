@@ -450,6 +450,8 @@ func (s *simState) frontJobRun(team, idx int) ([2]float64, bool) {
 	}
 	switch s.chainReg {
 	case RegimeTransition, RegimeFinalThird:
+	case RegimeProgression:
+		// handled below (middle-third support)
 	default:
 		return [2]float64{}, false
 	}
@@ -461,6 +463,19 @@ func (s *simState) frontJobRun(team, idx int) ([2]float64, bool) {
 	parity := float64(idx % 2) // deterministic near/far assignment
 	gx := goalXFor(team)
 
+	if s.chainReg == RegimeProgression {
+		// Middle-third support: offer forward outlets instead of holding anchors, so
+		// the carrier is not forced backwards. Strikers check into the channel, wide
+		// men stay wide but drop level with the ball, the AM drifts between the lines.
+		switch job {
+		case 1:
+			return [2]float64{clamp(s.ballX+dir*progressionRunLead, 0.02, 0.98), 0.40 + 0.20*parity}, true
+		case 2:
+			return [2]float64{clamp(s.ballX+dir*progressionWideLead, 0.02, 0.98), 0.10 + 0.80*parity}, true
+		default:
+			return [2]float64{clamp(s.ballX+dir*progressionAMLead, 0.02, 0.98), 0.42 + 0.16*parity}, true
+		}
+	}
 	if s.chainReg == RegimeTransition {
 		// Break into the space ahead of the ball — the counter's spearhead.
 		// Wingers run the flanks, strikers the channels, AM trails the wave.

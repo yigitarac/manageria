@@ -38,8 +38,11 @@ import (
 //	     press + ball-side slide, honest carry pricing, second-ball scrambles, cross aerial
 //	     pricing, KPI norms as tests
 //	v10 — decision-engine repetition guard: the return-to-recent-supplier penalty now spans a
-//	      window of prior passes (not just the last one) and eases under heat (DEC-1)
-const EngineVersion = 10
+//	     window of prior passes (not just the last one) and eases under heat (DEC-1)
+//	v11 — middle-third support runs: in the progression regime the front cast offers forward
+//	     outlets (strikers check into the channel, wingers drop level on the flank, the AM
+//	     drifts between the lines) instead of holding anchors (T-020, OFF-1/OFF-2)
+const EngineVersion = 11
 
 // PlayerID identifies a player across a match (UUIDv7 string at the storage boundary).
 type PlayerID string

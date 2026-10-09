@@ -24,9 +24,9 @@ func TestGoldenDigest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Digest: %v", err)
 	}
-	// v10 goldens — v9 behaviour plus the decision-engine repetition guard (the
-	// return-to-recent-supplier penalty spans a window of prior passes; DEC-1).
-	const want = "c1d323fdb9e97ce584e4aa256616c26bf085fa69b4406f0ea04246b9724cf6cc"
+	// v11 goldens — v10 plus middle-third support runs (progression regime front-cast
+	// outlets; T-020 OFF-1/OFF-2).
+	const want = "8faf2f172fdcbf68655575b6d15f2e8d1d6f6adb0c097ea937c7d193db0249b4"
 	if got != want {
 		t.Fatalf("golden digest = %s, want %s (update deliberately on EngineVersion bumps)", got, want)
 	}

@@ -226,6 +226,13 @@ const (
 	// picked up by their nearest defender — nobody camps unmarked in your six-yard
 	// lane, while width and edge ghosts stay the zone's business.
 	boxPickupReach = 0.24
+	// progression support leads: in the middle third the front cast offers forward
+	// outlets one zone earlier (strikers check into the channel, wingers stay wide and
+	// level, the AM drifts between the lines) so the carrier always has a progressive
+	// option to price (T-020, OFF-1/OFF-2).
+	progressionRunLead  = 0.08
+	progressionWideLead = 0.03
+	progressionAMLead   = 0.12
 )
 
 // Experience/RNG pacing
