@@ -688,17 +688,21 @@ func (s *simState) executePass(team, idx int, opt passOption, longRun bool) {
 			defIdx := s.laneCutter(team, s.ballX, s.ballY, s.players[team*11+opt.to].X, s.players[team*11+opt.to].Y)
 			s.recordTouch(TouchPass, int8(idx), int8(defIdx), false)
 			s.wonDuel(1-team, defIdx, 0.2)
-			if s.foulAftermath(1-team, defIdx, idx, "pass_intercept") {
+			// The ball was beaten in the AIR unless the cutter also arrived on the
+			// kicker: only a charge-down is a challenge through the man — a clean
+			// lane cut just sticks (no body, no foul, no contact spill).
+			if s.inBodyContact(1-team, defIdx, team, idx) {
+				s.regainThroughContact(1-team, defIdx, idx, "pass_intercept")
 				return
 			}
 			s.setOwner(1-team, defIdx, "regain")
 			s.recordTouch(TouchRegain, int8(defIdx), int8(idx), true)
 		case roll < icptShare+misplaceShare:
 			s.recordTouch(TouchPass, int8(idx), int8(opt.to), false)
-			s.lapseConsequence(team, idx)
+			s.lapseConsequence(team, idx, "pass_misplace")
 		default:
 			s.recordTouch(TouchPass, int8(idx), int8(opt.to), false)
-			s.lapseConsequence(team, opt.to)
+			s.lapseConsequence(team, opt.to, "touch_heavy")
 		}
 		return
 	}
@@ -767,17 +771,7 @@ func (s *simState) carry(team, idx int, sit situation) {
 	}
 	s.recordTouch(TouchDuel, int8(idx), int8(defIdx), false)
 	s.wonDuel(1-team, defIdx, 0.25)
-	if s.foulAftermath(1-team, defIdx, idx, "carry_regain") {
-		return
-	}
-	// A dispossesson is often a poke, not a pin: the ball squirts live at the
-	// tackle spot and the dispossessor still has to win the scramble.
-	if s.rnd.Float64() < tackleScatterShare {
-		s.squirtLoose()
-		return
-	}
-	s.setOwner(1-team, defIdx, "regain")
-	s.recordTouch(TouchRegain, int8(defIdx), int8(idx), true)
+	s.regainThroughContact(1-team, defIdx, idx, "carry_regain")
 }
 
 // holdUp pins the ball against the challenger and lays it off to the safest option
@@ -792,15 +786,7 @@ func (s *simState) holdUp(team, idx int, sit situation, opt passOption) {
 	if s.rnd.Float64() < holdLossShare*duelChance(defQ, strength) {
 		s.recordTouch(TouchDuel, int8(idx), int8(defIdx), false)
 		s.wonDuel(1-team, defIdx, 0.2)
-		if s.foulAftermath(1-team, defIdx, idx, "hold_regain") {
-			return
-		}
-		if s.rnd.Float64() < tackleScatterShare {
-			s.squirtLoose()
-			return
-		}
-		s.setOwner(1-team, defIdx, "regain")
-		s.recordTouch(TouchRegain, int8(defIdx), int8(idx), true)
+		s.regainThroughContact(1-team, defIdx, idx, "hold_regain")
 		return
 	}
 	s.players[team*11+idx].Acc += 0.04
@@ -987,8 +973,61 @@ func (s *simState) finishShot(team, idx int, header bool, source string, goalDis
 	}
 }
 
+// lapseConsequence resolves a failed service that nobody cut. The culprit is the
+// kicker on a misplacement and the receiver on a heavy first touch — and the
+// contact story differs: only a challenger within body contact can rake the
+// culprit (a late jab at release, a toe off a stretching miscontrol) and foul
+// him, while the untouched shank is a plain turnover and the UNCHALLENGED heavy
+// touch bobbles live (first_touch: "failed ⇒ loose ball / turnover").
+func (s *simState) lapseConsequence(team, idx int, source string) {
+	opp := 1 - team
+	defIdx := s.nearestOpponent(team, idx) // nearest opponent to the culprit
+	if s.rnd.Float64() < errorEventShare {
+		s.appendEvent(EventError, team, idx, "")
+	}
+	s.players[team*11+idx].Acc -= 0.25
+	s.wonDuel(opp, defIdx, 0.1)
+	if s.inBodyContact(opp, defIdx, team, idx) {
+		s.regainThroughContact(opp, defIdx, idx, source)
+		return
+	}
+	if source == "touch_heavy" && s.rnd.Float64() < touchScatterShare {
+		s.squirtLoose() // nobody touched him — but his shin sprayed the ball
+		return
+	}
+	s.setOwner(opp, defIdx, "regain")
+	s.recordTouch(TouchRegain, int8(defIdx), int8(idx), true)
+}
+
+// inBodyContact reports whether the winner stood close enough to the loser to
+// have laid a body on him — the physical precondition of every foul and every
+// contact spill. Outside this band the ball was beaten by position, not by
+// contact through a man.
+func (s *simState) inBodyContact(winTeam, win, loseTeam, lose int) bool {
+	w := s.players[winTeam*11+win]
+	l := s.players[loseTeam*11+lose]
+	return absf(w.X-l.X)+absf(w.Y-l.Y) < foulContactReach
+}
+
+// regainThroughContact resolves a ball won THROUGH a body: the late-challenge
+// foul first (where football's open-play fouls actually come from; cards
+// follow), else the contact may dislodge the ball live at the spot (a poke, not
+// a pin — the winner has to take the scramble too), else a clean regain.
+func (s *simState) regainThroughContact(winnerTeam, winner, loser int, source string) {
+	if s.foulAftermath(winnerTeam, winner, loser, source) {
+		return
+	}
+	if s.rnd.Float64() < tackleScatterShare {
+		s.squirtLoose()
+		return
+	}
+	s.setOwner(winnerTeam, winner, "regain")
+	s.recordTouch(TouchRegain, int8(winner), int8(loser), true)
+}
+
 // foulAftermath rolls the late-challenge foul when a defender wins the ball THROUGH
 // the man — where football's open-play fouls actually come from (cards follow).
+// Callers must have verified body contact first (see inBodyContact).
 // Returns true when the foul kills the contest before any possession changed hands.
 func (s *simState) foulAftermath(winnerTeam, winner, loser int, source string) bool {
 	hard := float64(s.tactics[winnerTeam].Tackling) - 1
@@ -998,23 +1037,6 @@ func (s *simState) foulAftermath(winnerTeam, winner, loser int, source string) b
 		return true
 	}
 	return false
-}
-
-// lapseConsequence turns a heavy touch or misplaced pass into a turnover; the worst
-// ones surface as visible error events (rare — matches are judged by their highlights).
-func (s *simState) lapseConsequence(team, idx int) {
-	opp := 1 - team
-	defIdx := s.nearestOpponent(team, idx) // nearest opponent to the culprit
-	if s.rnd.Float64() < errorEventShare {
-		s.appendEvent(EventError, team, idx, "")
-	}
-	s.players[team*11+idx].Acc -= 0.25
-	s.wonDuel(opp, defIdx, 0.1)
-	if s.foulAftermath(opp, defIdx, idx, "pass_lapse") {
-		return // fouled as he lost it — the ball never changed hands
-	}
-	s.setOwner(opp, defIdx, "regain")
-	s.recordTouch(TouchRegain, int8(defIdx), int8(idx), true)
 }
 
 // FoulDiagnostic observes the cause and geometry used to award a foul.

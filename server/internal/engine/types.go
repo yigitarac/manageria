@@ -56,7 +56,7 @@ import (
 //	     sieges as empty). Paired refreeze shotBase 0.63, homeAdvantage 1.12. The
 //	     defensive-hold / xG-against claims are logged-unenforced pending real
 //	     suppression mechanics ([[08-Open-Questions]] #10)
-const EngineVersion = 16
+const EngineVersion = 17
 
 // PlayerID identifies a player across a match (UUIDv7 string at the storage boundary).
 type PlayerID string

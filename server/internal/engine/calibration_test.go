@@ -102,9 +102,13 @@ func runSweep(t *testing.T, baseSeed uint64, n int, mutate func(*engine.MatchInp
 	return total
 }
 
-// TestCalibrationRanges pins the design-note target distributions (800 matches).
+// TestCalibrationRanges pins the design-note target distributions. The sweep is
+// sized to RESOLVE the band edges (margin doctrine, [[08-Open-Questions]] #9): at
+// 800 matches the draw-rate standard error is ~1.6 points — half the width of the
+// band — so the window certified noise as pass/fail (the v17 contact era read 28.8%
+// draws vs a 28% ceiling, 0.5 SE). n=3200 brings the error to ~0.8 points.
 func TestCalibrationRanges(t *testing.T) {
-	sw := runSweep(t, 10_000, 800, nil)
+	sw := runSweep(t, 10_000, 3200, nil)
 	goals, homeWin, draw, awayWin := sw.totals()
 	t.Logf("calibration: %.2f goals, home %.1f%%, draw %.1f%%, away %.1f%%, xg %.2f-%.2f",
 		goals, homeWin, draw, awayWin, sw.homeXG/float64(sw.matches), sw.awayXG/float64(sw.matches))

@@ -16,16 +16,15 @@ import (
 // deliberately whenever EngineVersion behaviour changes (see the testing rules).
 func TestGoldenDigest(t *testing.T) {
 	t.Parallel()
-	// v16: both seeds re-pinned for the congestion sensor repair (sieges read as
-	// sieges again — packed boxes dilute chance value) with the paired refreeze
-	// shotBase 0.60→0.63, homeAdvantage 1.10→1.12. v15 digests in history.
+	// v17: both seeds re-pinned for the contact-economy slice (failed-pass fouls
+	// require body contact; clean lane cuts and untouched shanks cannot foul, and
+	// unchallenged heavy first touches bobble live). v16 digests in history.
 	for _, tc := range []struct {
 		seed uint64
 		want string
 	}{
-		{42, "e2407e8ee538329ee263352593d4cf050ebd3b3f6d24f6eb5ddbfa18d5c17ae9"},
-		{987, "9c842fe17872403d338258b83327cc11c3d3384857ddf104a00eeb8596e0dc87"},
-		{987, "9c842fe17872403d338258b83327cc11c3d3384857ddf104a00eeb8596e0dc87"},
+		{42, "aaaf33704089b734b3b6ed7600b3d2fc4161ad8182072c534c65cfde9751c94a"},
+		{987, "31c6f159b86e437c3c3e555e0be26e7ac69f41c18a48fdfa371b090e43d5d100"},
 	} {
 		res := mustSimulate(t, func() (engine.MatchResult, []engine.Snapshot, error) {
 			return engine.Simulate(enginetest.SampleInput(tc.seed))

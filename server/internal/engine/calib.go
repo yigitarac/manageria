@@ -10,10 +10,18 @@ const (
 	// Refrozen 0.54 → 0.52 with engine v13 (menu stabiliser, 2026-10-09), then to
 	// 0.51 in v14: local hold gating exposes more shots, so conversion gives one
 	// point back to keep both calibration windows inside the goal/draw bands.
-	// v16 refreeze 0.60 → 0.65: the congestion sensor repair (sieges now read as
+	// v16 refreeze 0.60 → 0.63: the congestion sensor repair (sieges now read as
 	// sieges) suppresses chance value in packed boxes, so conversion gives the
-	// goals back to hold the 2.5–2.9 band (0.63 left both windows short).
-	shotBase = 0.63
+	// goals back to hold the 2.5–2.9 band.
+	// v17 refreeze 0.63 → 0.65 (contact economy): failed-pass fouls now need body
+	// contact, so the phantom set-piece gifts are gone and the heavy-touch bobble
+	// returns only open-play chaos at a fraction of their yield. Honestly sized
+	// windows (margin doctrine) resolve the era at 2.51 (10k family, n=3200) and
+	// 2.48 (42 family, n=2400) goals — the 2.5 floor sits at the mean's edge and
+	// the seed families disagree by ~0.03, so the floor needs μ ≥ 2.53 everywhere.
+	// Two conversion points, measured on both paired windows + the response and law
+	// suites (the mandate bans an UNMEASURED conversion bump, not an era refreeze).
+	shotBase = 0.65
 	// gkSaveShare is how strongly goalkeeping cancels shot quality.
 	gkSaveShare = 0.55
 	// shotDistanceFalloff shrinks conversion with distance (0..1 of the shot zone).
@@ -233,6 +241,20 @@ const (
 	// foulOnRegain is the late-challenge foul chance when a defender wins the ball
 	// THROUGH the man — where football's open-play fouls actually come from.
 	foulOnRegain = 0.45
+	// foulContactReach is the body-contact band (Manhattan, norm pitch). Within it
+	// a win over a failed pass is a challenge ON the man — a charge-down of the
+	// kicker, a toe-poke off the miscontroller — and can foul or spill the ball.
+	// Outside it the pass was beaten by POSITION (a clean lane cut, an untouched
+	// shank): nobody laid a glove on anybody, so no foul and no contact spill can
+	// grow out of a contact that never happened. Shaped like the tackle-poke band
+	// (carryBrakeDist): a shirt-graze, not a proximity aura.
+	foulContactReach = 0.05
+	// touchScatterShare is the fraction of UNCHALLENGED heavy first touches whose
+	// miscontrol bobbles live instead of falling kindly to the nearest reader
+	// (first_touch: "failed ⇒ loose ball / turnover"). Sits between the tackle poke
+	// and the defended-delivery knockdown: a shin spray is messier than a pinned
+	// tackle but softer than an aerial knockdown.
+	touchScatterShare = 0.40
 	// holdLossShare is how often shielding against a challenger loses the wrestle.
 	holdLossShare = 0.25
 	// carryProbe is the grass probed ahead when grading carry space.
