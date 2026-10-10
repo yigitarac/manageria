@@ -123,6 +123,43 @@ func TestCalibrationRanges(t *testing.T) {
 	}
 }
 
+// TestMenuResponseMonotone measures the isolated Mentality response with paired
+// seeds. Holding every other tactic fixed distinguishes menu sensitivity from the
+// multi-knob preset and low-block interactions audited separately by T-021.
+func TestMenuResponseMonotone(t *testing.T) {
+	const matches = 800
+	var goals, xg [6]float64
+	for mentality := 1; mentality <= 5; mentality++ {
+		m := mentality
+		sw := runSweep(t, 40_000, matches, func(in *engine.MatchInput) {
+			in.Home.Tactics.Mentality = int8(m)
+		})
+		goals[m] = sw.homeGoals / float64(matches)
+		xg[m] = sw.homeXG / float64(matches)
+		t.Logf("mentality %d: goals %.3f, xG %.3f, conceded %.3f, home wins %.1f%%",
+			m, goals[m], xg[m],
+			sw.awayGoals/float64(matches), 100*float64(sw.homeWins)/float64(matches))
+		if m > 1 {
+			if xg[m] <= xg[m-1] {
+				t.Errorf("mentality %d xG %.3f not above level %d xG %.3f", m, xg[m], m-1, xg[m-1])
+			}
+			// Goals are a noisier discrete outcome than chance quality. One adjacent
+			// cell may dip slightly, but a large reversal is a menu regression.
+			if goals[m]+0.08 < goals[m-1] {
+				t.Errorf("mentality %d goals %.3f reverse level %d goals %.3f by >0.08", m, goals[m], m-1, goals[m-1])
+			}
+		}
+	}
+	goalGain := goals[5] - goals[1]
+	xgGain := xg[5] - xg[1]
+	if goalGain < 0.10 || goalGain > 0.45 {
+		t.Errorf("mentality 1→5 goal gain %.3f, want 0.10–0.45", goalGain)
+	}
+	if xgGain < 0.12 || xgGain > 0.40 {
+		t.Errorf("mentality 1→5 xG gain %.3f, want 0.12–0.40", xgGain)
+	}
+}
+
 // TestTacticalSanityPressing: high pressing costs more fatigue and forces more
 // turnovers from the opposition than a low block.
 func TestTacticalSanityPressing(t *testing.T) {
@@ -181,12 +218,8 @@ func TestTacticalSanityDefensive(t *testing.T) {
 	if dFor >= aFor {
 		t.Errorf("defensive xG for %.2f not below attacking %.2f", dFor, aFor)
 	}
-	// KNOWN DEFECT (T-013): bunkers currently concede EARLIER (47.3 vs 56.3 minutes) —
-	// the low-block shape is losing its teeth somewhere in the press/anchor/fixation
-	// interactions. Diagnostics + leads are in the 2026-10-07 session logs; the claim
-	// below is the design truth to restore before this test is trusted again.
 	if dHold <= aHold {
-		t.Skipf("KNOWN DEFECT T-013: defensive hold %.1f ≤ attacking %.1f — see Backlog", dHold, aHold)
+		t.Errorf("defensive hold %.1f not above attacking %.1f minutes", dHold, aHold)
 	}
 }
 
