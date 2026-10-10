@@ -7,10 +7,10 @@ package engine
 // Outcome shaping
 const (
 	// shotBase scales shot conversion quality before goalkeeper opposition.
-	// Refrozen 0.54 → 0.52 with engine v13 (menu stabiliser, 2026-10-09): scale-free
-	// selection and menu diversity raise shot QUALITY per window, so conversion sheds
-	// two points to land both calibration windows and the preset goal bands together.
-	shotBase = 0.52
+	// Refrozen 0.54 → 0.52 with engine v13 (menu stabiliser, 2026-10-09), then to
+	// 0.51 in v14: local hold gating exposes more shots, so conversion gives one
+	// point back to keep both calibration windows inside the goal/draw bands.
+	shotBase = 0.51
 	// gkSaveShare is how strongly goalkeeping cancels shot quality.
 	gkSaveShare = 0.55
 	// shotDistanceFalloff shrinks conversion with distance (0..1 of the shot zone).
@@ -163,6 +163,17 @@ const (
 // ~95% of the time; gambles in the thick of it die far more often — WHERE the ball
 // is lost emerges from WHICH option was chosen.
 const (
+	// challengeRadius is the near close-down band around the carrier. A defender
+	// farther than this cannot prompt an emergency outlet or shielding read;
+	// wider defensive influence remains in the block-density pressure (T-021).
+	challengeRadius = 0.22
+	// Normalize a local challenger to the historical menu's pressure scale;
+	// cap crowded tackles so a six-man swarm cannot dominate every option.
+	challengeScale = 8.0
+	challengeCap   = 6.0
+	// A packed defensive block discourages shots even when nobody can tackle
+	// the carrier at this instant. This stays separate from close-down pressure.
+	shotWindowDensity = 0.22
 	// passReach is the Manhattan reach of a service to feet (normalized pitch).
 	passReach = 0.30
 	// throughReach admits through-balls into space behind (runners only).

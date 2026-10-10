@@ -44,7 +44,11 @@ import (
 //	     drifts between the lines) instead of holding anchors (T-020, OFF-1/OFF-2)
 //	v12 — striker defensive recovery: a striker who drifts into his own full-back
 //	     corridor returns toward a central outlet after the restart (T-027)
-const EngineVersion = 13
+//	v13 — scale-free option ranking, saturated tactic stacks, and smoother option
+//	     fades keep tactical response bounded (T-016)
+//	v14 — local close-down pressure gates emergency outlets and shielding while the
+//	     wider defensive block still prices traffic (T-021)
+const EngineVersion = 14
 
 // PlayerID identifies a player across a match (UUIDv7 string at the storage boundary).
 type PlayerID string

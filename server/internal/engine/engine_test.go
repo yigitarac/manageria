@@ -16,15 +16,15 @@ import (
 // deliberately whenever EngineVersion behaviour changes (see the testing rules).
 func TestGoldenDigest(t *testing.T) {
 	t.Parallel()
-	// v13: both seeds re-pinned after the T-016 menu stabiliser (scale-free selection,
-	// knob armour, smooth option fades) and the paired calibration refreeze
-	// (shotBase 0.54→0.52, homeAdvantage 1.13→1.11). v12 digests in history.
+	// v14: both seeds re-pinned after T-021 separated nearby close-down reads
+	// from the wider defensive block for emergency outlets and shielding, with
+	// shotBase 0.52→0.51 to keep both calibration windows green. v13 digests in history.
 	for _, tc := range []struct {
 		seed uint64
 		want string
 	}{
-		{42, "7fb11ad03fb3a849ebe1cc720cb3979a74e323d8025c56209405804af358ef7d"},
-		{987, "598a1aca2dacf3f97c748d0a28e100d377e8be6b23f0fe15d5b273d57f62dbe7"},
+		{42, "d2822d49da3a421cdffb5ae8f187ad6986e3d198842b806a382b558a65a606a1"},
+		{987, "da708b36159fa2c49b5f2171b271bbcb91d7ea970c2aa4d27c1c954c38487b2c"},
 	} {
 		res := mustSimulate(t, func() (engine.MatchResult, []engine.Snapshot, error) {
 			return engine.Simulate(enginetest.SampleInput(tc.seed))

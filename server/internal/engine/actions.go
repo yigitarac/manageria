@@ -64,7 +64,8 @@ func (s *simState) act() {
 type situation struct {
 	goalDist  float64 // 0 at the opponent goal line, 1 at the own goal line
 	wide      bool
-	press     float64
+	press     float64 // broader defending block around the carrier
+	challenge float64 // defenders close enough to close down the carrier
 	gapBehind float64 // open grass behind the opponent's defensive line
 }
 
@@ -79,6 +80,7 @@ func (s *simState) situation(team, idx int) situation {
 		goalDist:  absf(goalX - s.ballX),
 		wide:      absf(s.ballY-0.5) > 0.28,
 		press:     s.pressure(team, idx),
+		challenge: s.challengePressure(team, idx),
 		gapBehind: absf(s.defensiveLineX(1-team) - goalXFor(1-team)),
 	}
 }
@@ -94,7 +96,7 @@ func (s *simState) passOptions(team, idx int, sit situation) []passOption {
 		dir = -1
 	}
 	bx, by := s.ballX, s.ballY
-	desperate := sit.press > 2.2
+	desperate := sit.challenge > 2.2
 	opts := make([]passOption, 0, 10)
 	for i := 0; i < 11; i++ {
 		if i == idx || s.cards[team*11+i].Off {
@@ -195,7 +197,7 @@ func (s *simState) shootWindow(team, idx int, sit situation) (float64, bool) {
 	case sit.goalDist < boxFinishDist:
 		// Inside the box: finishing instincts, priced by proximity to goal.
 		w := quality(carrier.Finishing) * (0.5 + 0.5*(1-sit.goalDist/boxFinishDist))
-		return w / (1 + 0.22*sit.press), true
+		return w / (1 + shotWindowDensity*sit.press), true
 	case sit.goalDist < longShotDist:
 		// Outside the box: the right foot for the range (attr gate) or lay off.
 		ls := quality(carrier.LongShots)
@@ -203,7 +205,7 @@ func (s *simState) shootWindow(team, idx int, sit situation) (float64, bool) {
 			return 0, false
 		}
 		w := (ls - longShotMin) * (0.25 + 0.35*(1-(sit.goalDist-boxFinishDist)/(longShotDist-boxFinishDist)))
-		return w / (1 + 0.22*sit.press), true
+		return w / (1 + shotWindowDensity*sit.press), true
 	}
 	return 0, false
 }
@@ -424,7 +426,7 @@ func (s *simState) buildPlays(team, idx int, sit situation, opts []passOption) [
 	// blew both contracts — shots (each a chain closure) and goals erupted.
 	// Isolation football stays contested-carry territory until T-016 revisits
 	// it with the retention budget as one piece.
-	if sit.press > 0.8 {
+	if sit.challenge > 0 {
 		carrier := s.onPitch[team*11+idx].Attr
 		u := wHold * quality(carrier.Composure) * sit.press * 0.5
 		// Holding only pays if SOMEONE is eventually playable.
@@ -596,7 +598,8 @@ func duelChance(a, b float64) float64 {
 	return 0.5 + 0.5*d/(1+absf(d))
 }
 
-// pressure sums proximity-weighted closing-in of the opponents.
+// pressure measures the wider defending block around the carrier. It still
+// prices lane risk and shooting traffic while close-down reads use challengePressure.
 func (s *simState) pressure(team, idx int) float64 {
 	opp := 1 - team
 	bx, by := s.players[team*11+idx].X, s.players[team*11+idx].Y
@@ -611,6 +614,28 @@ func (s *simState) pressure(team, idx int) float64 {
 		sum += bite / (1 + 6*d*d)
 	}
 	return sum
+}
+
+// challengePressure counts only opponents inside the near close-down band.
+// The linear kernel reaches zero at its edge, so distant shirts cannot trigger
+// emergency outlet or shielding decisions (T-021 DEF-6).
+func (s *simState) challengePressure(team, idx int) float64 {
+	opp := 1 - team
+	carrier := s.players[team*11+idx]
+	sum := 0.0
+	for i := 0; i < 11; i++ {
+		if s.cards[opp*11+i].Off {
+			continue
+		}
+		ps := s.players[opp*11+i]
+		d := absf(ps.X-carrier.X) + absf(ps.Y-carrier.Y)
+		if d >= challengeRadius {
+			continue
+		}
+		bite := 0.4 + 0.3*quality(s.onPitch[opp*11+i].Attr.WorkRate) + 0.3*float64(s.tactics[opp].Pressing)/3
+		sum += bite * (1 - d/challengeRadius)
+	}
+	return minf(challengeScale*sum, challengeCap)
 }
 
 // skill multiplies a focused attribute slice by the player's live performance.
