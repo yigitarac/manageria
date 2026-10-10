@@ -577,7 +577,7 @@ func (s *simState) nearestSupport(team, idx int) int {
 func (s *simState) executePlay(team, idx int, p play, sit situation) {
 	switch p.kind {
 	case playShoot:
-		s.finishShot(team, idx, false, sit.goalDist, 0)
+		s.finishShot(team, idx, false, "strike", sit.goalDist, 0)
 	case playCross:
 		s.cross(team, idx, sit)
 	case playCarry:
@@ -857,7 +857,7 @@ func (s *simState) cross(team, idx int, sit situation) {
 	s.ballX, s.ballY = s.players[team*11+att].X, s.players[team*11+att].Y
 	s.recordTouch(TouchDuel, int8(att), int8(def), true)
 	if s.rnd.Float64() < 0.45 {
-		s.finishShot(team, att, true, absf(goalXFor(team)-s.players[team*11+att].X), 0)
+		s.finishShot(team, att, true, "cross", absf(goalXFor(team)-s.players[team*11+att].X), 0)
 		return
 	}
 	supportOpts := s.passOptions(team, att, s.situation(team, att))
@@ -869,10 +869,21 @@ func (s *simState) cross(team, idx int, sit situation) {
 	s.advanceBall(team, support.to, 0.03)
 }
 
+// ShotDiagnostic captures chance-value inputs without changing RNG draw order.
+type ShotDiagnostic struct {
+	Team       int
+	Source     string
+	Distance   float64
+	MarkFree   float64
+	Congestion float64
+	BlockProb  float64
+	XG         float64
+}
+
 // finishShot resolves strikes and headers (shared by open play, crosses, set pieces).
 // markFree is the runner's hit-your-marks grade (0 = buried in the crowd, 1 = clean
 // free header): a man who beat his marker earns air — less congestion discount, fewer blocks.
-func (s *simState) finishShot(team, idx int, header bool, goalDist, markFree float64) {
+func (s *simState) finishShot(team, idx int, header bool, source string, goalDist, markFree float64) {
 	carrier := s.onPitch[team*11+idx].Attr
 	attr := float64(carrier.Finishing)
 	switch {
@@ -899,7 +910,8 @@ func (s *simState) finishShot(team, idx int, header bool, goalDist, markFree flo
 	// the siege congestion is not his. Set-piece patterns manufacture exactly these
 	// finishes (drilled runners hit their marks), which is the drilled-vs-default
 	// corner advantage the pattern drills assert.
-	congestion := 1 - congestionDilution*(1-markFree)*s.boxCongestion(1-team)
+	boxBodies := s.boxCongestion(1 - team)
+	congestion := 1 - congestionDilution*(1-markFree)*boxBodies
 	pGoal := clamp(shotBase*qShot*(1-gkSaveShare*stop)*composure*(1-shotDistanceFalloff*distFrac)*congestion, 0.01, 0.55)
 	pSave := clamp(0.35*qShot-0.2*stop, 0.05, 0.60)
 
@@ -909,14 +921,18 @@ func (s *simState) finishShot(team, idx int, header bool, goalDist, markFree flo
 	blockProb := blockBase * duelChance(
 		s.bestOpponentAttr(team, func(a Attributes) float64 {
 			return 0.6*quality(a.Positioning) + 0.4*quality(a.Aggression)
-		})*(1+blockCongestionShare*s.boxCongestion(1-team)),
+		})*(1+blockCongestionShare*boxBodies),
 		qShot,
 	)
 	// A free-header runner (high markFree) has already escaped the block line.
 	blockProb *= 1 - 0.4*markFree
 	// xG books the post-block expectation: a smothered effort is barely a chance at all
 	// (this is what makes a parked bus concede LESS xG — siege pinball isn't value).
-	ts.XG += pGoal*(1-blockProb) + 0.02*blockProb
+	shotXG := pGoal*(1-blockProb) + 0.02*blockProb
+	ts.XG += shotXG
+	if s.shotProbe != nil {
+		s.shotProbe(ShotDiagnostic{team, source, goalDist, markFree, boxBodies, blockProb, shotXG})
+	}
 	ts.DistSum += goalDist
 	if !header && s.strikeFactor(team, idx) < 1 {
 		ts.StrikesFromDefenders++

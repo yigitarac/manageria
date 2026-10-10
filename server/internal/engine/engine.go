@@ -35,6 +35,24 @@ func Simulate(in MatchInput) (MatchResult, []Snapshot, error) {
 	return run(in, nil, nil)
 }
 
+// DiagnoseShots runs the same simulation and returns observational chance-value
+// inputs for calibration work. Diagnostics never enter snapshots or match results.
+func DiagnoseShots(in MatchInput) (MatchResult, []ShotDiagnostic, error) {
+	if err := validate(in); err != nil {
+		return MatchResult{}, nil, err
+	}
+	s, err := newSimState(in, nil, nil)
+	if err != nil {
+		return MatchResult{}, nil, err
+	}
+	var shots []ShotDiagnostic
+	s.shotProbe = func(p ShotDiagnostic) { shots = append(shots, p) }
+	if err := s.loop(); err != nil {
+		return MatchResult{}, nil, err
+	}
+	return s.result(), shots, nil
+}
+
 // SimulateIntervened runs a whole match honouring the given intervention list.
 // Used as the baseline for re-simulation equivalence tests and for replays.
 func SimulateIntervened(in MatchInput, ivs []Intervention) (MatchResult, []Snapshot, error) {
@@ -93,7 +111,8 @@ type simState struct {
 	pending      []Intervention
 	present      PresenceFlags
 	pattern      PatternCursor
-	patTag       string // transient attribution tag (set/cleared within one tick's chain)
+	patTag       string               // transient attribution tag (set/cleared within one tick's chain)
+	shotProbe    func(ShotDiagnostic) // optional diagnostic observer; never affects simulation state
 	// Possession-chain bookkeeping (sensory layer, ADR-0011).
 	chainID    int32
 	chainTeam  int8

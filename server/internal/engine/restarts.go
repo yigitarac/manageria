@@ -203,7 +203,7 @@ func (s *simState) defaultCorner(team int) {
 	s.players[team*11+att].Acc += 0.25
 	s.ballX, s.ballY = s.players[team*11+att].X, s.players[team*11+att].Y
 	if s.rnd.Float64() < 0.6 {
-		s.finishShot(team, att, true, 0.10, 0)
+		s.finishShot(team, att, true, "corner", 0.10, 0)
 		return
 	}
 	supportOpts := s.passOptions(team, att, s.situation(team, att))
@@ -259,6 +259,9 @@ func (s *simState) directFreeKick(team, taker int, dist float64) {
 	ts.Shots++
 	ts.XG += pGoal
 	ts.DistSum += dist
+	if s.shotProbe != nil {
+		s.shotProbe(ShotDiagnostic{Team: team, Source: "free_kick", Distance: dist, XG: pGoal})
+	}
 	s.recordTouch(TouchShot, int8(taker), -1, true)
 	s.players[team*11+taker].Acc += 0.3
 
@@ -295,6 +298,9 @@ func (s *simState) penalty(team int) {
 	ts.Shots++
 	ts.XG += pGoal
 	ts.OnTarget++
+	if s.shotProbe != nil {
+		s.shotProbe(ShotDiagnostic{Team: team, Source: "penalty", Distance: 0.04, XG: pGoal})
+	}
 	s.recordTouch(TouchShot, int8(taker), -1, true)
 	s.players[team*11+taker].Acc += 0.3
 
