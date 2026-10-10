@@ -92,10 +92,14 @@ describe.skipIf(raw === null)("real sample dump", () => {
       state = playbackReducer(state, { type: "speed", speed }, duration);
       const before = state.seekId;
       const stepGame = (1000 / 60) * speed;
-      for (let t = 0; t <= duration; t += stepGame) {
+      // A few hundred painted frames exercise each speed, including skipped
+      // multi-second flights at 180×, without simulating an entire 90-minute
+      // match at 1× inside one unit test.
+      for (let frame = 0; frame < 300; frame++) {
         state = playbackReducer(state, { type: "tick", dtMs: 1000 / 60 }, duration);
         expect(isSeekRestart(before, state.seekId)).toBe(false);
       }
+      expect(state.tMs).toBeGreaterThan(250 * stepGame);
     }
     const started = initialPlayback();
     const seeked = playbackReducer(started, { type: "seek", tMs: 45_000 }, duration);
