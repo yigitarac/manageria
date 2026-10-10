@@ -28,6 +28,8 @@ func main() {
 	tactic := flag.String("tactic", "default", "matches mode: home tactic preset (default|defensive|attacking|high_press)")
 	rehearse := flag.Int("rehearse", 0, "run N corner drills (drilled pattern vs default routine) and print outcome bands")
 	audit := flag.Bool("audit", false, "sweep the home-tactic preset matrix over -matches rounds and flag balance violations")
+	retention := flag.Int("retention", 0, "split the touch ledger into close-down bands (pressured retention vs unpressed loops) over N matches")
+	row := flag.String("row", "default", "-retention: preset/counter-probe row name from the audit matrix")
 	analyze := flag.Int("analyze", 0, "run N matches and print football-IQ smell metrics (moment-level sanity)")
 	story := flag.Bool("story", false, "print one match as a possession-by-possession narrative (the watch-through)")
 	kpi := flag.Int("kpi", 0, "print behavioural KPIs over N matches (ADR-0011 norms: chains, touches, regime mix)")
@@ -40,6 +42,10 @@ func main() {
 	}
 	if *audit {
 		auditPresets(*seed, *matches)
+		return
+	}
+	if *retention > 0 {
+		retentionReport(*seed, *retention, *row)
 		return
 	}
 	if *analyze > 0 {
@@ -258,110 +264,8 @@ func auditPresets(seed uint64, n int) {
 	if n < 50 {
 		n = 150
 	}
-	type preset struct {
-		name string
-		mut  func(*engine.MatchInput)
-	}
-	set := func(ment, line, passing *int8, press, tempo, width *int8, mark, tackle *int8, counter *bool) func(*engine.MatchInput) {
-		return func(in *engine.MatchInput) {
-			t := &in.Home.Tactics
-			if ment != nil {
-				t.Mentality = *ment
-			}
-			if line != nil {
-				t.DefensiveLine = *line
-			}
-			if passing != nil {
-				t.PassingStyle = *passing
-			}
-			if press != nil {
-				t.Pressing = *press
-			}
-			if tempo != nil {
-				t.Tempo = *tempo
-			}
-			if width != nil {
-				t.Width = *width
-			}
-			if mark != nil {
-				t.Marking = *mark
-			}
-			if tackle != nil {
-				t.Tackling = *tackle
-			}
-			if counter != nil {
-				t.CounterAttack = *counter
-			}
-		}
-	}
-	i8 := func(v int8) *int8 { return &v }
-	b := func(v bool) *bool { return &v }
-	// setAway mirrors `set` for the visiting side (counter probes arm both benches).
-	setAway := func(ment, line, passing *int8, press, tempo, width *int8, mark, tackle *int8, counter *bool) func(*engine.MatchInput) {
-		return func(in *engine.MatchInput) {
-			t := &in.Away.Tactics
-			if ment != nil {
-				t.Mentality = *ment
-			}
-			if line != nil {
-				t.DefensiveLine = *line
-			}
-			if passing != nil {
-				t.PassingStyle = *passing
-			}
-			if press != nil {
-				t.Pressing = *press
-			}
-			if tempo != nil {
-				t.Tempo = *tempo
-			}
-			if width != nil {
-				t.Width = *width
-			}
-			if mark != nil {
-				t.Marking = *mark
-			}
-			if tackle != nil {
-				t.Tackling = *tackle
-			}
-			if counter != nil {
-				t.CounterAttack = *counter
-			}
-		}
-	}
 
-	matrix := []preset{
-		{"default", func(*engine.MatchInput) {}},
-		{"defensive", set(i8(1), i8(1), i8(1), nil, nil, nil, nil, nil, nil)},
-		{"attacking", set(i8(5), i8(3), i8(3), nil, nil, nil, nil, nil, nil)},
-		{"high_press", set(nil, nil, nil, i8(3), nil, nil, nil, nil, nil)},
-		{"low_block_counter", set(i8(1), i8(1), i8(3), i8(1), nil, nil, nil, nil, b(true))},
-		{"gegenpress", set(i8(4), nil, nil, i8(3), i8(4), nil, nil, nil, b(true))},
-		{"tiki_taka", set(i8(3), nil, i8(1), i8(2), i8(2), i8(2), nil, nil, nil)},
-		{"wing_play", set(i8(4), nil, i8(2), nil, nil, i8(3), nil, nil, nil)},
-		{"direct_long", set(i8(4), nil, i8(3), nil, i8(4), nil, nil, nil, nil)},
-		{"deep_park", set(i8(1), i8(1), i8(1), i8(1), i8(1), nil, nil, i8(1), nil)},
-		{"ultra_attack", set(i8(5), i8(3), i8(3), i8(3), i8(5), nil, nil, nil, nil)},
-		{"hard_press_mark", set(nil, nil, nil, i8(3), nil, nil, i8(2), i8(2), nil)},
-		{"narrow_dense", set(i8(3), nil, nil, nil, nil, i8(1), nil, nil, nil)},
-		{"fast_breaks", set(i8(4), nil, i8(3), nil, i8(5), nil, nil, nil, b(true))},
-		{"tall_target", set(i8(4), nil, i8(3), nil, nil, i8(3), nil, nil, nil)},
-		{"high_wire", set(i8(5), i8(3), nil, nil, nil, i8(3), nil, nil, nil)},
-		// Counter-matchup probes (names carry "_vs_"): rock-paper-scissors must exist —
-		// the counter side plays a prepared counter-punch style and must blunt the aggressor.
-		{"ultra_vs_lbc", func(in *engine.MatchInput) {
-			set(i8(5), i8(3), i8(3), i8(3), i8(5), nil, nil, nil, nil)(in)
-			setAway(i8(1), i8(1), i8(3), i8(1), nil, nil, nil, nil, b(true))(in)
-		}},
-		{"fast_vs_lbc", func(in *engine.MatchInput) {
-			set(i8(4), nil, i8(3), nil, i8(5), nil, nil, nil, b(true))(in)
-			setAway(i8(1), i8(1), i8(3), i8(1), nil, nil, nil, nil, b(true))(in)
-		}},
-		{"tall_vs_hpc", func(in *engine.MatchInput) {
-			set(i8(4), nil, i8(3), nil, nil, i8(3), nil, nil, nil)(in)
-			setAway(nil, nil, i8(3), i8(3), nil, nil, i8(2), i8(2), b(true))(in)
-		}},
-	}
+	matrix := presetMatrix()
 
 	fmt.Printf("tactic preset audit: %d rounds each (seeds %d..), home preset vs default\n", n, seed)
 	fmt.Printf("%-18s %6s %7s %7s %7s %9s  %s\n", "preset", "goals", "home%", "draw%", "away%", "xG", "verdict")

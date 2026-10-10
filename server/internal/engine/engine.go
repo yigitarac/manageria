@@ -547,6 +547,87 @@ func (s *simState) defensiveRoleTarget(team, idx int, tx, ty float64) (float64, 
 	return tx, clamp(ty, 0.20, 0.80)
 }
 
+// compactDepth enforces the defending block's vertical compactness budget
+// (T-021, DEF-3). While the opponents hold the ball, the holding block is read as
+// LINES (same-depth neighbours within lineMerge cluster together) and every line
+// ahead of the last rides at most compactGap of pitch depth beyond the line
+// beneath it. The last line is the reference (its plane = the deepest quartile's
+// median, robust against one straggling recovery run) and is never lifted: the
+// budget only pulls dangling support back, it never marches a deep block upfield.
+func (s *simState) compactDepth(team, idx int, tx float64) float64 {
+	pressing := int(s.tactics[team].Pressing)
+	type mate struct {
+		idx int
+		ax  float64 // live depth, attack-normalized (0 = own goal)
+	}
+	var mates []mate
+	for i := 1; i < 11; i++ {
+		if s.cards[team*11+i].Off || s.engagedRank(team, i) < pressing {
+			continue // the chasers earn their own ball-focused targets
+		}
+		ax := s.players[team*11+i].X
+		if team == 1 {
+			ax = 1 - ax
+		}
+		mates = append(mates, mate{i, ax})
+	}
+	if len(mates) < 4 {
+		return tx
+	}
+	sort.SliceStable(mates, func(a, b int) bool {
+		if mates[a].ax != mates[b].ax {
+			return mates[a].ax < mates[b].ax
+		}
+		return mates[a].idx < mates[b].idx
+	})
+	anchor := (mates[1].ax + mates[2].ax) / 2 // median of the four deepest
+
+	// Cluster into lines deepest-first and assign each line its depth ceiling.
+	ceil := make(map[int]float64, len(mates))
+	lastCeil := 0.0
+	armed := false
+	for i := 0; i < len(mates); {
+		j := i
+		top, plane := mates[i].ax, 0.0
+		for ; j < len(mates) && mates[j].ax-mates[i].ax <= lineMerge; j++ {
+			top = mates[j].ax
+			plane += mates[j].ax
+		}
+		plane /= float64(j - i)
+		if plane < anchor {
+			// The last line of resistance (and laggards behind it) keep their depth.
+			i = j
+			continue
+		}
+		if !armed {
+			lastCeil, armed = top, true // the reference line: unmoved
+		} else {
+			lastCeil += compactGap
+		}
+		for k := i; k < j; k++ {
+			ceil[mates[k].idx] = lastCeil
+		}
+		i = j
+	}
+
+	lim, ok := ceil[idx]
+	if !ok {
+		return tx
+	}
+	ax := tx
+	if team == 1 {
+		ax = 1 - tx
+	}
+	if ax <= lim {
+		return tx
+	}
+	ax = lim
+	if team == 1 {
+		return 1 - ax
+	}
+	return ax
+}
+
 // ---- possession-chain lifecycle (sensory layer, ADR-0011) ----
 
 // setOwner hands possession to (team, idx) and maintains the chain lifecycle at the
@@ -612,6 +693,7 @@ func (s *simState) recordTouch(kind string, actor, target int8, success bool) {
 		Success: success,
 		X:       s.ballX,
 		Y:       s.ballY,
+		Press:   round2(s.challengePressure(int(s.chainTeam), int(actor))),
 	})
 }
 
@@ -766,7 +848,7 @@ func (s *simState) target(team, idx int, ps *PlayerState) (float64, float64) {
 	ax, ay := s.anchors[team][idx][0], s.anchors[team][idx][1]
 
 	tac := s.tactics[team]
-	blockShift := (float64(tac.Mentality)-3)*0.01 + (float64(tac.DefensiveLine)-2)*0.03
+	blockShift := (float64(tac.Mentality)-3)*mentalityBlockCoeff + (float64(tac.DefensiveLine)-2)*lineBlockCoeff
 	blockShift += s.gameStateShift(team)
 	if int8(team) == s.owner {
 		blockShift += 0.04
@@ -799,7 +881,13 @@ func (s *simState) target(team, idx int, ps *PlayerState) (float64, float64) {
 	dx, dy := s.ballX-ax, s.ballY-ay
 	d2 := dx*dx + dy*dy
 	f := pull / (1 + 8*d2)
-	return clamp(ax+dx*f, 0.02, 0.98), clamp(ay+dy*f, 0.04, 0.96)
+	tx, ty := clamp(ax+dx*f, 0.02, 0.98), clamp(ay+dy*f, 0.04, 0.96)
+	if idx > 0 && s.owner == int8(1-team) && s.restart.Kind == RestartNone && s.kickoffTicks == 0 {
+		// Out of possession the holding block obeys the vertical compactness
+		// budget — lines move as one unit and cannot detach (T-021, DEF-3).
+		tx = s.compactDepth(team, idx, tx)
+	}
+	return tx, ty
 }
 
 // engagedRank: 0 = closest to the ball among the defending side (fixed-count press).

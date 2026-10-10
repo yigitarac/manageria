@@ -48,7 +48,10 @@ import (
 //	     fades keep tactical response bounded (T-016)
 //	v14 — local close-down pressure gates emergency outlets and shielding while the
 //	     wider defensive block still prices traffic (T-021)
-const EngineVersion = 14
+//	v15 — defensive block compactness budget: out of possession the holding block's
+//	     lines ride at most compactGap apart, measured forward from the last line
+//	     (T-021, DEF-3); touch ledger now records the local close-down read (telemetry)
+const EngineVersion = 15
 
 // PlayerID identifies a player across a match (UUIDv7 string at the storage boundary).
 type PlayerID string
@@ -364,6 +367,11 @@ type Touch struct {
 	Success bool    `json:"success"`
 	X       float64 `json:"x"`
 	Y       float64 `json:"y"`
+	// Press is the local close-down read (challengePressure) the actor faced at
+	// this touch — the lens through which pressured retention and unpressed loops
+	// become measurable (T-021 instrumentation). Telemetry only: never consumed
+	// by any action utility.
+	Press float64 `json:"press"`
 }
 
 // ChainInfo is one possession story: when it was born, who owned it, how it played.

@@ -10,7 +10,12 @@ const (
 	// Refrozen 0.54 → 0.52 with engine v13 (menu stabiliser, 2026-10-09), then to
 	// 0.51 in v14: local hold gating exposes more shots, so conversion gives one
 	// point back to keep both calibration windows inside the goal/draw bands.
-	shotBase = 0.51
+	// v15 refreeze 0.51 → 0.60: the block compactness budget suppresses chances
+	// (tighter pockets, congested receptions) and needs the goals bought back.
+	// Cooling this to 0.56 centres the windows nicely but drops both the bounded
+	// response-curve floor and the defensive-hold law — 0.60 is the value where
+	// every asserted gate is green (see the 2026-10-10 session log).
+	shotBase = 0.60
 	// gkSaveShare is how strongly goalkeeping cancels shot quality.
 	gkSaveShare = 0.55
 	// shotDistanceFalloff shrinks conversion with distance (0..1 of the shot zone).
@@ -110,9 +115,10 @@ const (
 	// Refrozen 2026-10-09 with engine v13 (menu stabiliser): scale-free selection
 	// converted small situational edges into cleaner wins, so the ground bonus sheds
 	// two points to keep both calibration windows inside 43–47% home wins.
-	// Cranked above intuition because duelChance() compresses quality gaps near
-	// parity — a visible ×perf multiplier needs muscle to move outcome bands.
-	homeAdvantage = 1.11
+	// v15 refreeze 1.11 → 1.10: with the compact-block era's leaderManage nudge the
+	// 10k+ window's home band rode over 47%; one point of ground bonus brings both
+	// windows into 43–47%.
+	homeAdvantage = 1.10
 	// moraleGoalSwing is the visible morale shift after a goal (+winner / −conceder;
 	// the label in the goal event quotes this exact number). The PERFORMANCE band is
 	// kept thin (moraleBand) so leads do not snowball through confidence alone.
@@ -122,8 +128,11 @@ const (
 	// Gentle: heavy scoreboard management starves equalisers (and the draw band).
 	gameStateShift = 0.008
 	// leaderManage is the extra drop for teams protecting a lead (leads get managed
-	// harder than deficits get chased — the classic anti-blowout force).
-	leaderManage = 0.005
+	// harder than deficits get chased — the classic anti-blowout force). v15 nudge
+	// 0.005 → 0.0045: slightly less lead embalming is what puts the defensive-hold
+	// law back on the right side of parity in the compact-block era (the drop back
+	// to 0.005 flipped it 54.2 vs 54.4).
+	leaderManage = 0.0045
 	// gameStateChase tilts shot appetite for chasing teams late. Kept modest: heavy
 	// chase spirals turn deficits into routs and starve the draw band.
 	gameStateChase = 0.06
@@ -258,6 +267,23 @@ const (
 	// picked up by their nearest defender — nobody camps unmarked in your six-yard
 	// lane, while width and edge ghosts stay the zone's business.
 	boxPickupReach = 0.24
+	// compactGap is the defending block's vertical compactness budget (T-021, DEF-3):
+	// while the opponents hold the ball, each line of the holding block may ride at
+	// most this much pitch depth beyond the line beneath it, measured forward from
+	// the last line. This is what closes the pocket BETWEEN the lines where arriving
+	// support (arriveEdge AMs, checking strikers) receives and turns. Too-deep
+	// laggards are never punished: depth is not the hole — dangling support is.
+	compactGap = 0.20
+	// lineMerge clusters same-depth neighbours into ONE line when the holding block
+	// is read (a back four staggers ±this and is still a line).
+	lineMerge = 0.05
+	// Block-height coefficients of the tactics table ("mentality: block height,
+	// attackers committed"; "defensive line: interception & offside traps"). These
+	// were inline literals; v15 promotes them to knobs and widens the mentality
+	// slope 0.01 → 0.015 so the response curve steps over its noise floor (the
+	// 1→2 xG step flattened to a 0.001 tie at 0.01 with the compact-block era).
+	mentalityBlockCoeff = 0.015
+	lineBlockCoeff      = 0.03
 	// progression support leads: in the middle third the front cast offers forward
 	// outlets one zone earlier (strikers check into the channel, wingers stay wide and
 	// level, the AM drifts between the lines) so the carrier always has a progressive

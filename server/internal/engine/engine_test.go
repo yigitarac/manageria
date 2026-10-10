@@ -16,15 +16,18 @@ import (
 // deliberately whenever EngineVersion behaviour changes (see the testing rules).
 func TestGoldenDigest(t *testing.T) {
 	t.Parallel()
-	// v14: both seeds re-pinned after T-021 separated nearby close-down reads
-	// from the wider defensive block for emergency outlets and shielding, with
-	// shotBase 0.52→0.51 to keep both calibration windows green. v13 digests in history.
+	// v15: both seeds re-pinned after T-021's DEF-3 slice — the holding block now
+	// obeys a vertical compactness budget out of possession (lines at most
+	// compactGap apart forward from the last line) — with the paired refreeze
+	// shotBase 0.51→0.60, homeAdvantage held 1.11, leaderManage 0.005→0.0045.
+	// The touch ledger's Press telemetry rides along in the digest. v14 digests
+	// in history.
 	for _, tc := range []struct {
 		seed uint64
 		want string
 	}{
-		{42, "d2822d49da3a421cdffb5ae8f187ad6986e3d198842b806a382b558a65a606a1"},
-		{987, "da708b36159fa2c49b5f2171b271bbcb91d7ea970c2aa4d27c1c954c38487b2c"},
+		{42, "16386a3341ca5a97162e23a7916fc85bc410996a1b839268a151f17d7fc4428c"},
+		{987, "242e45bf520f245da9ebf16b63040badb458a873471cca8968aafcc0af306ed3"},
 	} {
 		res := mustSimulate(t, func() (engine.MatchResult, []engine.Snapshot, error) {
 			return engine.Simulate(enginetest.SampleInput(tc.seed))
