@@ -688,7 +688,7 @@ func (s *simState) executePass(team, idx int, opt passOption, longRun bool) {
 			defIdx := s.laneCutter(team, s.ballX, s.ballY, s.players[team*11+opt.to].X, s.players[team*11+opt.to].Y)
 			s.recordTouch(TouchPass, int8(idx), int8(defIdx), false)
 			s.wonDuel(1-team, defIdx, 0.2)
-			if s.foulAftermath(1-team, defIdx, idx) {
+			if s.foulAftermath(1-team, defIdx, idx, "pass_intercept") {
 				return
 			}
 			s.setOwner(1-team, defIdx, "regain")
@@ -755,19 +755,19 @@ func (s *simState) carry(team, idx int, sit situation) {
 		traffic := 1 - trafficDrag*minf(s.boxCongestion(1-team), 1)
 		s.advanceBall(team, idx, (0.06+0.05*quality(s.onPitch[team*11+idx].Attr.Dribbling))*traffic)
 		if s.rnd.Float64() < foulBase*0.5*(0.4+0.3*quality(def.Aggression))*(1+hard) {
-			s.foulConsequence(1-team, defIdx, team, idx)
+			s.foulConsequence(1-team, defIdx, team, idx, "carry_win")
 		}
 		return
 	}
 
 	if s.rnd.Float64() < foulBase*(0.5+0.5*quality(def.Aggression))*(0.6+0.7*hard) {
 		s.recordTouch(TouchCarry, int8(idx), -1, false)
-		s.foulConsequence(1-team, defIdx, team, idx)
+		s.foulConsequence(1-team, defIdx, team, idx, "carry_loss")
 		return
 	}
 	s.recordTouch(TouchDuel, int8(idx), int8(defIdx), false)
 	s.wonDuel(1-team, defIdx, 0.25)
-	if s.foulAftermath(1-team, defIdx, idx) {
+	if s.foulAftermath(1-team, defIdx, idx, "carry_regain") {
 		return
 	}
 	// A dispossesson is often a poke, not a pin: the ball squirts live at the
@@ -792,7 +792,7 @@ func (s *simState) holdUp(team, idx int, sit situation, opt passOption) {
 	if s.rnd.Float64() < holdLossShare*duelChance(defQ, strength) {
 		s.recordTouch(TouchDuel, int8(idx), int8(defIdx), false)
 		s.wonDuel(1-team, defIdx, 0.2)
-		if s.foulAftermath(1-team, defIdx, idx) {
+		if s.foulAftermath(1-team, defIdx, idx, "hold_regain") {
 			return
 		}
 		if s.rnd.Float64() < tackleScatterShare {
@@ -990,11 +990,11 @@ func (s *simState) finishShot(team, idx int, header bool, source string, goalDis
 // foulAftermath rolls the late-challenge foul when a defender wins the ball THROUGH
 // the man — where football's open-play fouls actually come from (cards follow).
 // Returns true when the foul kills the contest before any possession changed hands.
-func (s *simState) foulAftermath(winnerTeam, winner, loser int) bool {
+func (s *simState) foulAftermath(winnerTeam, winner, loser int, source string) bool {
 	hard := float64(s.tactics[winnerTeam].Tackling) - 1
 	aggro := quality(s.onPitch[winnerTeam*11+winner].Attr.Aggression)
 	if s.rnd.Float64() < foulOnRegain*(0.4+0.3*aggro)*(0.6+0.7*hard) {
-		s.foulConsequence(winnerTeam, winner, 1-winnerTeam, loser)
+		s.foulConsequence(winnerTeam, winner, 1-winnerTeam, loser, source)
 		return true
 	}
 	return false
@@ -1010,15 +1010,28 @@ func (s *simState) lapseConsequence(team, idx int) {
 	}
 	s.players[team*11+idx].Acc -= 0.25
 	s.wonDuel(opp, defIdx, 0.1)
-	if s.foulAftermath(opp, defIdx, idx) {
+	if s.foulAftermath(opp, defIdx, idx, "pass_lapse") {
 		return // fouled as he lost it — the ball never changed hands
 	}
 	s.setOwner(opp, defIdx, "regain")
 	s.recordTouch(TouchRegain, int8(defIdx), int8(idx), true)
 }
 
+// FoulDiagnostic observes the cause and geometry used to award a foul.
+type FoulDiagnostic struct {
+	DefendingTeam int
+	Source        string
+	AttackerX     float64
+	AttackerY     float64
+	BallX         float64
+	BallY         float64
+	Separation    float64
+	InBox         bool
+	Penalty       bool
+}
+
 // foulConsequence: foul (and possible card/penalty) by defIdx on the attacker.
-func (s *simState) foulConsequence(team, defIdx, attTeam, attIdx int) {
+func (s *simState) foulConsequence(team, defIdx, attTeam, attIdx int, source string) {
 	s.statsFor(team).Fouls++
 	s.appendEvent(EventFoul, team, defIdx, "")
 
@@ -1030,7 +1043,13 @@ func (s *simState) foulConsequence(team, defIdx, attTeam, attIdx int) {
 
 	ps := s.players[attTeam*11+attIdx]
 	inBox := inPenaltyArea(attTeam, ps.X, ps.Y)
-	if inBox && s.rnd.Float64() < penaltyAreaFoulShare {
+	penalty := inBox && s.rnd.Float64() < penaltyAreaFoulShare
+	if s.foulProbe != nil {
+		def := s.players[team*11+defIdx]
+		s.foulProbe(FoulDiagnostic{team, source, ps.X, ps.Y, s.ballX, s.ballY,
+			absf(def.X-ps.X) + absf(def.Y-ps.Y), inBox, penalty})
+	}
+	if penalty {
 		penX := 0.89
 		if attTeam == 1 {
 			penX = 0.11

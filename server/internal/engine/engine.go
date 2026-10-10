@@ -53,6 +53,24 @@ func DiagnoseShots(in MatchInput) (MatchResult, []ShotDiagnostic, error) {
 	return s.result(), shots, nil
 }
 
+// DiagnoseFouls records the location and origin of each foul without changing
+// the match result. It is intended for paired tactical calibration sweeps.
+func DiagnoseFouls(in MatchInput) (MatchResult, []FoulDiagnostic, error) {
+	if err := validate(in); err != nil {
+		return MatchResult{}, nil, err
+	}
+	s, err := newSimState(in, nil, nil)
+	if err != nil {
+		return MatchResult{}, nil, err
+	}
+	var fouls []FoulDiagnostic
+	s.foulProbe = func(p FoulDiagnostic) { fouls = append(fouls, p) }
+	if err := s.loop(); err != nil {
+		return MatchResult{}, nil, err
+	}
+	return s.result(), fouls, nil
+}
+
 // SimulateIntervened runs a whole match honouring the given intervention list.
 // Used as the baseline for re-simulation equivalence tests and for replays.
 func SimulateIntervened(in MatchInput, ivs []Intervention) (MatchResult, []Snapshot, error) {
@@ -113,6 +131,7 @@ type simState struct {
 	pattern      PatternCursor
 	patTag       string               // transient attribution tag (set/cleared within one tick's chain)
 	shotProbe    func(ShotDiagnostic) // optional diagnostic observer; never affects simulation state
+	foulProbe    func(FoulDiagnostic) // optional diagnostic observer; never affects simulation state
 	// Possession-chain bookkeeping (sensory layer, ADR-0011).
 	chainID    int32
 	chainTeam  int8
