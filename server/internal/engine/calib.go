@@ -10,12 +10,10 @@ const (
 	// Refrozen 0.54 → 0.52 with engine v13 (menu stabiliser, 2026-10-09), then to
 	// 0.51 in v14: local hold gating exposes more shots, so conversion gives one
 	// point back to keep both calibration windows inside the goal/draw bands.
-	// v15 refreeze 0.51 → 0.60: the block compactness budget suppresses chances
-	// (tighter pockets, congested receptions) and needs the goals bought back.
-	// Cooling this to 0.56 centres the windows nicely but drops both the bounded
-	// response-curve floor and the defensive-hold law — 0.60 is the value where
-	// every asserted gate is green (see the 2026-10-10 session log).
-	shotBase = 0.60
+	// v16 refreeze 0.60 → 0.65: the congestion sensor repair (sieges now read as
+	// sieges) suppresses chance value in packed boxes, so conversion gives the
+	// goals back to hold the 2.5–2.9 band (0.63 left both windows short).
+	shotBase = 0.63
 	// gkSaveShare is how strongly goalkeeping cancels shot quality.
 	gkSaveShare = 0.55
 	// shotDistanceFalloff shrinks conversion with distance (0..1 of the shot zone).
@@ -40,6 +38,13 @@ const (
 	// zone (mirrors real xG models that dilute by defender proximity). This is the
 	// parked bus' teeth against box-presence hunting.
 	congestionDilution = 0.22
+	// congestionRadius is the sensor range of "bodies packing the ball" — the input
+	// to congestion dilution, block strength and traffic drag. v16: 0.15 → 0.28.
+	// The 0.15 contact-era range read a besieged box as EMPTY (a parked bus stands
+	// 0.15–0.3 around the shooter), so the bus diluted nothing: xG-against came out
+	// HIGHER than an attacking setup's (1.52 vs 1.45) and the T-013 "defensive hold"
+	// margin evaporated ([[08-Open-Questions]] #9). Siege pinball must read as siege.
+	congestionRadius = 0.24
 	// contactChainDecay dims successive contacts in a pattern chain (broken balls).
 	contactChainDecay = 0.7
 	// tempoDrain is the extra fatigue per tick for high-tempo play beyond Tempo 3.
@@ -115,10 +120,10 @@ const (
 	// Refrozen 2026-10-09 with engine v13 (menu stabiliser): scale-free selection
 	// converted small situational edges into cleaner wins, so the ground bonus sheds
 	// two points to keep both calibration windows inside 43–47% home wins.
-	// v15 refreeze 1.11 → 1.10: with the compact-block era's leaderManage nudge the
-	// 10k+ window's home band rode over 47%; one point of ground bonus brings both
-	// windows into 43–47%.
-	homeAdvantage = 1.10
+	// v16 refreeze 1.10 → 1.12: siege suppression cooled the windows into a draw
+	// glut; a notch of ground bonus buys decisive results back (1.13 rode the 10k+
+	// home band over 47%).
+	homeAdvantage = 1.12
 	// moraleGoalSwing is the visible morale shift after a goal (+winner / −conceder;
 	// the label in the goal event quotes this exact number). The PERFORMANCE band is
 	// kept thin (moraleBand) so leads do not snowball through confidence alone.

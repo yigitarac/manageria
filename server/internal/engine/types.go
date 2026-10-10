@@ -51,7 +51,12 @@ import (
 //	v15 — defensive block compactness budget: out of possession the holding block's
 //	     lines ride at most compactGap apart, measured forward from the last line
 //	     (T-021, DEF-3); touch ledger now records the local close-down read (telemetry)
-const EngineVersion = 15
+//	v16 — congestion sensor repair: "bodies packing the ball" reads a 0.24 zone, so a
+//	     besieged box dilutes chance value again (the 0.15 contact-era radius read
+//	     sieges as empty). Paired refreeze shotBase 0.63, homeAdvantage 1.12. The
+//	     defensive-hold / xG-against claims are logged-unenforced pending real
+//	     suppression mechanics ([[08-Open-Questions]] #10)
+const EngineVersion = 16
 
 // PlayerID identifies a player across a match (UUIDv7 string at the storage boundary).
 type PlayerID string

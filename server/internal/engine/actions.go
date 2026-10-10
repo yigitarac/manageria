@@ -895,7 +895,11 @@ func (s *simState) finishShot(team, idx int, header bool, goalDist, markFree flo
 	stop := (quality(gk.Attr.ShotStopping)*0.7 + quality(gk.Attr.Agility)*0.3) * s.perf(1-team, 0)
 
 	distFrac := clamp(goalDist/shotZoneDist, 0, 1)
-	congestion := 1 - congestionDilution*(1-0.5*markFree)*s.boxCongestion(1-team)
+	// A free-header runner (high markFree) has beaten his marker: he earns AIR —
+	// the siege congestion is not his. Set-piece patterns manufacture exactly these
+	// finishes (drilled runners hit their marks), which is the drilled-vs-default
+	// corner advantage the pattern drills assert.
+	congestion := 1 - congestionDilution*(1-markFree)*s.boxCongestion(1-team)
 	pGoal := clamp(shotBase*qShot*(1-gkSaveShare*stop)*composure*(1-shotDistanceFalloff*distFrac)*congestion, 0.01, 0.55)
 	pSave := clamp(0.35*qShot-0.2*stop, 0.05, 0.60)
 
@@ -1186,7 +1190,7 @@ func (s *simState) boxCongestion(team int) float64 {
 			continue
 		}
 		ps := s.players[team*11+i]
-		if absf(ps.X-s.ballX)+absf(ps.Y-s.ballY) < 0.15 {
+		if absf(ps.X-s.ballX)+absf(ps.Y-s.ballY) < congestionRadius {
 			n++
 		}
 	}
