@@ -40,6 +40,7 @@ export function ViewerPage() {
   const stateRef = useRef(state);
   stateRef.current = state;
   const getTimeMs = useCallback(() => stateRef.current.tMs, []);
+  const getSeekId = useCallback(() => stateRef.current.seekId, []);
 
   // Load the generated sample if present (make sample); otherwise prompt for a drop.
   useEffect(() => {
@@ -182,7 +183,7 @@ export function ViewerPage() {
         <>
           <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
             <div className="relative h-[46vh] min-h-[320px] lg:h-[62vh]">
-              <MatchCanvas dump={dump} getTimeMs={getTimeMs} />
+              <MatchCanvas dump={dump} getTimeMs={getTimeMs} getSeekId={getSeekId} />
               <BroadcastHud
                 dump={dump}
                 tMs={state.tMs}

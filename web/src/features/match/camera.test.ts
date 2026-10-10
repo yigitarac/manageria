@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cameraFrame, easeCamera, timelineJump, trailJump } from "./camera";
+import { cameraFrame, easeCamera, trailSampleTimes } from "./camera";
 
 describe("cameraFrame", () => {
   it("keeps the camera inside the pitch at every extreme", () => {
@@ -36,19 +36,16 @@ describe("easeCamera", () => {
   });
 });
 
-describe("timelineJump", () => {
-  it("keeps 180x playback smooth but detects timeline scrubs", () => {
-    expect(timelineJump(10_000, 13_000)).toBe(false);
-    expect(timelineJump(10_000, 16_000)).toBe(true);
-    expect(timelineJump(10_000, 2_000)).toBe(true);
-    expect(timelineJump(-1, 0)).toBe(false);
+describe("trailSampleTimes", () => {
+  it("restarts at the destination on a seek, even when the seek moves forward", () => {
+    expect(trailSampleTimes(1000, 30_000, true)).toEqual([30_000]);
+    expect(trailSampleTimes(30_000, 1000, true)).toEqual([1000]);
   });
-});
 
-describe("trailJump", () => {
-  it("does not join unrelated touches during fast playback", () => {
-    expect(trailJump(10_000, 10_900)).toBe(false);
-    expect(trailJump(10_000, 13_000)).toBe(true);
-    expect(trailJump(10_000, 2_000)).toBe(true);
+  it("samples a fast playback step without treating it as a seek", () => {
+    const times = trailSampleTimes(1000, 4000, false);
+    expect(times.length).toBe(50);
+    expect(times[0]).toBe(1060);
+    expect(times[times.length - 1]).toBe(4000);
   });
 });

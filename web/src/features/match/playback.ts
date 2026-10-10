@@ -3,6 +3,13 @@ export interface PlaybackState {
   playing: boolean;
   /** Game-time multiplier: 60 = the match flies by in ~90 real seconds. */
   speed: number;
+  /**
+   * Provenance counter bumped only by `seek` (T-029). Magnitude heuristics cannot
+   * tell a slider scrub from a lagged warp frame — the reducer KNOWS which action
+   * moved the clock, so the canvas resets camera easing and the trail ribbon on a
+   * seek bump and never on a playback step.
+   */
+  seekId: number;
 }
 
 export type PlaybackAction =
@@ -17,7 +24,12 @@ export const SPEED_CHOICES = [1, 5, 30, 60, 180] as const;
 export const DEFAULT_SPEED = 30;
 
 export function initialPlayback(): PlaybackState {
-  return { tMs: 0, playing: false, speed: DEFAULT_SPEED };
+  return { tMs: 0, playing: false, speed: DEFAULT_SPEED, seekId: 0 };
+}
+
+/** True when the clock moved by seek since the last observed seekId (a real scrub). */
+export function isSeekRestart(previousSeekId: number, seekId: number): boolean {
+  return previousSeekId !== seekId;
 }
 
 /** Pure playback reducer; durationMs clamps every transition. */
@@ -44,6 +56,7 @@ export function playbackReducer(
         ...state,
         tMs: Math.max(0, Math.min(action.tMs, durationMs)),
         playing: action.tMs < durationMs && state.playing,
+        seekId: state.seekId + 1,
       };
     case "speed":
       return { ...state, speed: action.speed };

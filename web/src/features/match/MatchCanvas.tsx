@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
 import { Application, Container, Graphics, Text } from "pixi.js";
 import { ballAt, buildBallStory } from "./ballStory";
-import { cameraFrame, easeCamera, timelineJump, trailJump, TRAIL_WINDOW_MS } from "./camera";
+import { cameraFrame, easeCamera, trailSampleTimes, TRAIL_WINDOW_MS } from "./camera";
+import { isSeekRestart } from "./playback";
 import { sampleAt } from "./interpolate";
 import type { FrameSample } from "./interpolate";
 import type { MatchDump } from "./types";
@@ -28,6 +29,8 @@ interface Props {
   dump: MatchDump;
   /** Live clock source read by the render ticker (no React churn per frame). */
   getTimeMs: () => number;
+  /** Seek provenance — only a real scrub may reset camera easing and the ribbon (T-029). */
+  getSeekId: () => number;
 }
 
 /**
@@ -35,10 +38,12 @@ interface Props {
  * numbered shirts with names, player/ball shadows, corner flags, and a ball that plays
  * the match's own touch-ledger story with a readable trail.
  */
-export function MatchCanvas({ dump, getTimeMs }: Props) {
+export function MatchCanvas({ dump, getTimeMs, getSeekId }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const timeRef = useRef(getTimeMs);
   timeRef.current = getTimeMs;
+  const seekIdRef = useRef(getSeekId);
+  seekIdRef.current = getSeekId;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -78,14 +83,19 @@ export function MatchCanvas({ dump, getTimeMs }: Props) {
       };
       let cam = cameraFrame(app.screen.width, app.screen.height, WORLD_W, WORLD_H, 0.5, 0.5);
       let previousTime = -1;
+      let lastSeekId = 0;
       app.ticker.add(() => {
         const tMs = timeRef.current();
         const sample = sampleAt(dump.keyframes, tMs);
         if (sample) {
-          const jumped = timelineJump(previousTime, tMs);
+          // Playback steps (even whole flights per painted frame at 180x) are
+          // playback; only a seek may reset the camera and the ribbon (T-029).
+          const seekId = seekIdRef.current();
+          const scrubbed = isSeekRestart(lastSeekId, seekId);
+          lastSeekId = seekId;
           const b = ballNow(tMs);
           const ball = b ?? { x: sample.ballX, y: sample.ballY };
-          applySample(scene, sample, ball, tMs, previousTime, ballNow);
+          applySample(scene, sample, ball, tMs, previousTime, ballNow, scrubbed);
           previousTime = tMs;
           // Broadcast camera: glide to frame the action like a TV truck.
           const target = cameraFrame(
@@ -96,7 +106,7 @@ export function MatchCanvas({ dump, getTimeMs }: Props) {
             scene.ball.x / WORLD_W,
             scene.ball.y / WORLD_H,
           );
-          cam = jumped ? target : easeCamera(cam, target);
+          cam = scrubbed ? target : easeCamera(cam, target);
           scene.root.scale.set(cam.scale);
           scene.root.position.set(cam.x, cam.y);
         }
@@ -287,10 +297,11 @@ function worldOf(nx: number, ny: number): { x: number; y: number } {
 function applySample(
   scene: Scene,
   sample: FrameSample,
-  ball: { x: number; y: number; visible?: boolean },
+  ball: { x: number; y: number; visible?: boolean; alpha?: number },
   tMs: number,
   previousTime: number,
-  ballNow: (t: number) => { x: number; y: number; visible: boolean } | null,
+  ballNow: (t: number) => { x: number; y: number; visible: boolean; alpha: number } | null,
+  scrubbed: boolean,
 ) {
   const bw = worldOf(ball.x, ball.y);
   const nearby: { index: number; distance: number; x: number; y: number }[] = [];
@@ -327,18 +338,25 @@ function applySample(
     labeled.push(player);
   }
   // Ball trail: a tapered ribbon along the story's own path. At warp playback the
-  // frames skip whole flights, so the ribbon sketches the skipped arc from the story
-  // and the eye still reads ball motion instead of blinking teleports.
+  // frames skip whole flights, so the ribbon sketches the skipped arc densely from
+  // the story and the eye still reads ball motion instead of blinking teleports.
   const ballVisible = ball.visible !== false;
+  const ballAlpha = ball.alpha ?? 1;
   scene.ball.visible = ballVisible;
   scene.ballShadow.visible = ballVisible;
+  scene.ball.alpha = ballAlpha;
+  scene.ballShadow.alpha = ballAlpha;
   const stepMs = previousTime >= 0 ? tMs - previousTime : 0;
-  if (trailJump(previousTime, tMs) || !ballVisible) scene.trailPts.length = 0;
+  // A scrub (or hidden ball) resets the ribbon; a playback step NEVER does — at 180x
+  // the old fixed threshold wiped the trail on every frame, leaving bare blinking dots.
+  if (scrubbed || !ballVisible) scene.trailPts.length = 0;
   if (ballVisible) {
-    const subs = stepMs > 0 ? Math.min(24, Math.ceil(stepMs / 220)) : 1;
-    for (let i = 1; i <= subs; i++) {
-      const t = stepMs > 0 ? previousTime + (stepMs * i) / subs : tMs;
-      const b = i === subs ? ball : ballNow(t);
+    // Dense sub-sampling: at most ~60 ms of story time between ribbon knots so a
+    // warped flight still draws its arc instead of one straight chord.
+    const times = trailSampleTimes(previousTime, tMs, scrubbed);
+    for (let i = 0; i < times.length; i++) {
+      const t = times[i];
+      const b = i === times.length - 1 ? ball : ballNow(t);
       if (!b || b.visible === false) {
         scene.trailPts.length = 0; // never draw a line across off-camera placement
         continue;
@@ -350,7 +368,7 @@ function applySample(
     while (scene.trailPts.length > 0 && tMs - scene.trailPts[0].tMs > trailWindowMs) {
       scene.trailPts.shift();
     }
-    if (scene.trailPts.length > 30) scene.trailPts.shift();
+    if (scene.trailPts.length > 64) scene.trailPts.shift();
   }
   scene.trail.clear();
   for (let i = 1; i < scene.trailPts.length; i++) {

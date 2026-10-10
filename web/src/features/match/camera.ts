@@ -6,16 +6,14 @@
 
 export const CAMERA_ZOOM = 1.9;
 
-/** A scrub must reset camera easing and ball trails; ordinary fast playback must not. */
-export function timelineJump(previousMs: number, nextMs: number): boolean {
-  return previousMs >= 0 && (nextMs < previousMs || nextMs - previousMs > 5000);
-}
-
 export const TRAIL_WINDOW_MS = 1200;
 
-/** A ribbon only connects samples close enough in game time to show one action. */
-export function trailJump(previousMs: number, nextMs: number): boolean {
-  return previousMs >= 0 && (nextMs < previousMs || nextMs - previousMs > TRAIL_WINDOW_MS);
+/** Sample elapsed story during playback; a seek starts a fresh ribbon at its destination. */
+export function trailSampleTimes(previousMs: number, nextMs: number, scrubbed: boolean): number[] {
+  const stepMs = nextMs - previousMs;
+  if (scrubbed || previousMs < 0 || stepMs <= 0) return [nextMs];
+  const count = Math.min(64, Math.max(1, Math.ceil(stepMs / 60)));
+  return Array.from({ length: count }, (_, i) => previousMs + (stepMs * (i + 1)) / count);
 }
 
 export interface CameraFrame {

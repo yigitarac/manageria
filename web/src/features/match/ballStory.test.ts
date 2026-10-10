@@ -39,7 +39,7 @@ function expectCoherent(dump: MatchDump, episodes: BallEpisode[]) {
   // Every displaced leg takes physical time (the atomic-ledger regression).
   for (const ep of episodes) {
     const dist = Math.hypot((ep.x1 - ep.x0) * 105, (ep.y1 - ep.y0) * 68);
-    if (ep.kind !== "deadBall" && dist > 0.5) {
+    if (dist > 0.5) {
       expect(ep.t1 - ep.t0).toBeGreaterThanOrEqual(380);
     }
   }
@@ -82,7 +82,7 @@ describe("ballStory", () => {
     expect(goal!.x1).toBeCloseTo(1.005, 6); // ball nestles in the home-side net
   });
 
-  it("hides the ball during the post-goal reset and resumes at the taker's boots", () => {
+  it("cuts softly to the restart after a goal and resumes at the taker's boots", () => {
     const dump = runway(
       {
         ...syntheticDump,
@@ -98,15 +98,33 @@ describe("ballStory", () => {
     );
     const episodes = buildBallStory(dump);
     expect(ballAt(episodes, 21_500)?.x).toBeCloseTo(1.005, 3); // resting in the net
-    expect(ballAt(episodes, 30_000)?.visible).toBe(false); // placement off camera
-    expect(ballAt(episodes, 55_900)?.visible).toBe(false);
+    // The ~50 m goal reset is a broadcast cut: one short faded dip, then the ball
+    // rests in view near the restart spot — never a 50 m blinking teleport.
+    let hiddenRun = 0;
+    let longestHidden = 0;
+    for (let t = 22_000; t <= 56_000; t += 25) {
+      const b = ballAt(episodes, t, sampleAt(dump.keyframes, t)?.players);
+      if (b && !b.visible) {
+        hiddenRun += 25;
+        longestHidden = Math.max(longestHidden, hiddenRun);
+      } else {
+        hiddenRun = 0;
+      }
+    }
+    expect(longestHidden).toBeGreaterThan(0); // the cut does dip out…
+    expect(longestHidden).toBeLessThanOrEqual(1200); // …≈2 painted frames at 30×, never a blink
+    expect(ballAt(episodes, 30_000)?.visible).toBe(true); // back in view before the restart
+    const nearSpot = sampleAt(dump.keyframes, 55_900)!;
+    const rested = ballAt(episodes, 55_900, nearSpot.players)!;
+    expect(rested.visible).toBe(true);
+    expect(Math.abs(rested.x - 0.5)).toBeLessThan(0.2); // resting at the centre-spot end
     const resumed = sampleAt(dump.keyframes, 56_500);
     const b = ballAt(episodes, 56_500, resumed!.players)!;
     expect(b.visible).toBe(true); // the restart strike is on camera
     expect(b.x).toBeCloseTo(resumed!.players[17].x, 6); // away player 6 has the ball
   });
 
-  it("takes the ball out of view between a shot and its restart", () => {
+  it("rolls the ball visibly to the restart spot after a saved shot", () => {
     const dump = runway(
       {
         ...syntheticDump,
@@ -128,9 +146,17 @@ describe("ballStory", () => {
       34_000,
     );
     const episodes = buildBallStory(dump);
-    expect(ballAt(episodes, 25_000)?.visible).toBe(false);
-    expect(ballAt(episodes, 29_900)?.visible).toBe(false);
-    expect(ballAt(episodes, 30_200)?.visible).toBe(true); // goal kick struck on camera
+    // Short placement is a visible roll: the ball never vanishes on the way.
+    for (let t = 24_500; t <= 30_000; t += 50) {
+      const b = ballAt(episodes, t, sampleAt(dump.keyframes, t)?.players);
+      expect(b?.visible).toBe(true);
+    }
+    const roll = episodes.find((e) => e.kind === "deadBall")!;
+    expect(roll).toBeDefined();
+    expect(roll.t1 - roll.t0).toBeGreaterThanOrEqual(700); // a real roll, not a blip
+    expect(Math.abs(roll.x1 - roll.x0) * 105).toBeLessThan(8); // only the short trip it is
+    const atKick = ballAt(episodes, 30_200, sampleAt(dump.keyframes, 30_200)!.players)!;
+    expect(atKick.visible).toBe(true); // goal kick struck on camera
   });
 
   it("does not credit a nearby opponent goal to a shot", () => {
@@ -144,7 +170,7 @@ describe("ballStory", () => {
     expect(buildBallStory(dump)[0].kind).toBe("shot");
   });
 
-  it("hides ball placement across dead-ball gaps", () => {
+  it("rolls the ball to the spot and rests it across a long dead-ball gap", () => {
     const dump = runway(
       {
         ...syntheticDump,
@@ -168,10 +194,15 @@ describe("ballStory", () => {
       130_000,
     );
     const episodes = buildBallStory(dump);
-    const deadBall = episodes.find((e) => e.kind === "deadBall");
-    expect(deadBall).toBeDefined();
-    expect(ballAt(episodes, 60_000)?.visible).toBe(false);
-    expect(ballAt(episodes, 119_900)?.visible).toBe(false);
+    const roll = episodes.find((e) => e.kind === "deadBall")!;
+    expect(roll).toBeDefined();
+    expect(roll.x1).toBeGreaterThan(roll.x0); // the ball journeys to the restart spot
+    // Across the whole dead-ball spell the ball stays in view (rolled, then rested).
+    for (let t = 5_500; t <= 120_000; t += 250) {
+      const b = ballAt(episodes, t, sampleAt(dump.keyframes, t)?.players);
+      expect(b?.visible).toBe(true);
+    }
+    expect(Math.abs((ballAt(episodes, 60_000)?.x ?? 0) - 0.6)).toBeLessThan(0.1); // on the spot
     expect(ballAt(episodes, 120_500)?.visible).toBe(true); // delivery resumes on camera
   });
 
@@ -261,5 +292,85 @@ describe("ballStory", () => {
     expect(service).toBeDefined();
     expect(service.t1 - service.t0).toBeGreaterThanOrEqual(1000);
     expectCoherent(dump, episodes);
+  });
+
+  it("borrows the idle slack so flights read as football at warp speeds", () => {
+    // 63 m service (feet are nowhere near either ledger spot, so the anchors are the
+    // spots themselves) with 10 s of ledger window ahead: the flight stretches toward
+    // its receiver (capped by FLOAT_MIN_SPEED and STRETCH_CAP) instead of a 1.8 s
+    // blip that vanishes in two painted frames at 30× playback (T-029).
+    const dump = runway(
+      {
+        ...syntheticDump,
+        touches: [
+          touch({ tick: 5, chain: 1, kind: "pass", actor: 0, target: 9, x: 0.2, y: 0.5 }),
+          touch({ tick: 15, chain: 1, kind: "carry", actor: 9, x: 0.8, y: 0.5 }),
+        ],
+      },
+      20_000,
+    );
+    const service = buildBallStory(dump).find((e) => e.kind === "pass")!;
+    expect(service).toBeDefined();
+    expect(Math.abs(service.x1 - service.x0)).toBeGreaterThan(0.5); // really a long leg
+    const dur = service.t1 - service.t0;
+    expect(dur).toBeGreaterThanOrEqual(2500); // borrowed slack, visibly airborne
+    expect(dur).toBeLessThanOrEqual(3800); // but still paced like a real ball
+  });
+
+  it("settles into the receiver: the arrival decelerates", () => {
+    const dump = runway(
+      {
+        ...syntheticDump,
+        touches: [
+          touch({ tick: 5, chain: 1, kind: "pass", actor: 0, target: 9, x: 0.2, y: 0.5 }),
+          touch({ tick: 15, chain: 1, kind: "carry", actor: 9, x: 0.8, y: 0.5 }),
+        ],
+      },
+      20_000,
+    );
+    const episodes = buildBallStory(dump);
+    const service = episodes.find((e) => e.kind === "pass")!;
+    const at = (frac: number) => ballAt(episodes, service.t0 + (service.t1 - service.t0) * frac)!;
+    const dist = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+      Math.hypot((b.x - a.x) * 105, (b.y - a.y) * 68);
+    const early = dist(at(0.05), at(0.3));
+    const late = dist(at(0.7), at(0.95));
+    expect(early).toBeGreaterThan(late); // fast off the foot, soft at the receiver
+  });
+
+  it("hands the story over even when a placement roll fills its whole window", () => {
+    // Regression (T-029, measured on the real dump as a 30.7 m goal-mouth hop): the
+    // roll's degenerate trailing hold must still transfer the anchor, or the next
+    // flight departs from the shot landing instead of the restart spot.
+    const dump = runway(
+      {
+        ...syntheticDump,
+        touches: [
+          touch({ tick: 20, kind: "shot", actor: 9, success: false, x: 0.8, y: 0.4 }),
+          touch({
+            tick: 23,
+            chain: 2,
+            team: 1,
+            kind: "pass",
+            actor: 3,
+            target: 4,
+            x: 0.75,
+            y: 0.5,
+          }),
+          touch({ tick: 30, chain: 2, team: 1, kind: "carry", actor: 5, x: 0.7, y: 0.55 }),
+        ],
+        events: [],
+      },
+      34_000,
+    );
+    const episodes = buildBallStory(dump);
+    const roll = episodes.find((e) => e.kind === "deadBall")!;
+    expect(roll).toBeDefined();
+    const rollIndex = episodes.indexOf(roll);
+    expect(roll.t1).toBe(23_000); // the roll really did eat its whole window
+    const after = episodes[rollIndex + 1];
+    expect(after).toBeDefined();
+    expect(Math.abs(after.x0 - roll.x1)).toBeLessThan(0.005); // departs from the spot
+    expect(Math.abs(after.y0 - roll.y1)).toBeLessThan(0.005);
   });
 });
