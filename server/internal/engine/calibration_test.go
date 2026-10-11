@@ -212,77 +212,121 @@ func TestTacticalSanityDefensive(t *testing.T) {
 	aFor := attack.homeXG / float64(attack.matches)
 	dAgainst := defend.awayXG / float64(defend.matches)
 	aAgainst := attack.awayXG / float64(attack.matches)
-	dHold := holdMinutes(t, 30_000, 1200, func(in *engine.MatchInput) {
+	hold := pairedHoldSweep(t, 30_000, 1200, func(in *engine.MatchInput) {
 		in.Home.Tactics.Mentality = 1
 		in.Home.Tactics.DefensiveLine = 1
 		in.Home.Tactics.PassingStyle = 1
-	})
-	aHold := holdMinutes(t, 30_000, 1200, func(in *engine.MatchInput) {
+	}, func(in *engine.MatchInput) {
 		in.Home.Tactics.Mentality = 5
 		in.Home.Tactics.DefensiveLine = 3
 		in.Home.Tactics.PassingStyle = 3
 	})
+	hs := hold.stats()
+	dHold, aHold := hs.defendMean, hs.attackMean
 	t.Logf("defensive: xG for %.2f vs %.2f, xG against %.2f vs %.2f, minutes until conceding %.1f vs %.1f",
 		dFor, aFor, dAgainst, aAgainst, dHold, aHold)
 
 	if dFor >= aFor-0.20 {
 		t.Errorf("defensive xG for %.2f does not create at least 0.20 less than attacking %.2f", dFor, aFor)
 	}
-	// UNENFORCED claims, tracked in [[08-Open-Questions]] #10 (engine work required):
-	// (a) xG-against suppression — a besieged bunker should give up less value but
-	// concedes marginally MORE (headed finishes half-exempt themselves from the
-	// congestion dilution via markFree); (b) defensive HOLD — the resolved advantage
-	// is ~0 minutes (see holdMinutes), so asserting it would certify noise. Both
-	// become assertions again together with that fix (and holdMinutes is now sized
-	// to resolve a margin when one exists).
+	// UNENFORCED claims, tracked in [[08-Open-Questions]] #10 (missing mechanics + the
+	// owner's penalty-policy call): (a) xG-against suppression is still FALSE — a besieged
+	// bunker gives up LESS open-play value yet MORE total value; the inversion is traced to
+	// the real-contact penalty premium (box contact fouls from hold-ups and pass-intercept/
+	// lapse wrestles, [[2026-10-11-foul-origin-and-contact-trial]]), not a markFree causal
+	// story; (b) defensive HOLD measures a real DEFICIT (about −4.4 minutes at v17 — see the
+	// paired precision read below), not "~0 noise". Both claims stay logged-UNENFORCED until
+	// the missing mechanics land AND the owner decides the #10 policy; the measured paired
+	// uncertainty is reported honestly and must not be manufactured green by assertion tuning.
 	t.Logf("xG-against suppression (UNENFORCED claim #10): %.2f vs %.2f", dAgainst, aAgainst)
 	t.Logf("defensive hold margin (UNENFORCED claim #10): %.1f minutes", dHold-aHold)
+
+	// T-034 honest precision read for the SAME raw sums printed above at %.1f. The
+	// metric is the historical first-concession imputation proxy (firstConcedeMinute) —
+	// NOT a censored/RMST/survival estimator: clean sheets are imputed as the fixed
+	// sentinel 95 (the clean-sheet counts distinguish a real 95' goal from a true clean
+	// sheet). More decimals are NOT more certainty: the sampling uncertainty is the
+	// paired interval below — the direct mean of the per-seed differences with its
+	// UNBIASED (n−1) variance, never sqrt of summed independent variances — and the
+	// ±1.96·SE interval is an APPROXIMATE normal interval. Diagnostic only: no claim is
+	// enforced by these numbers and no sign assertion is implied.
+	if hs.sufficient {
+		t.Logf("paired hold precision (first-concede minute imputation proxy, n=%d pairs): defend mean %.6f (clean sheets %d, per-stance SE %.6f), attack mean %.6f (clean sheets %d, per-stance SE %.6f)",
+			hs.n, hs.defendMean, hs.defendCleanSheets, hs.defendSE,
+			hs.attackMean, hs.attackCleanSheets, hs.attackSE)
+		t.Logf("paired defend-minus-attack delta %.6f (mean of per-seed differences): unbiased sample variance of differences %.6f, SE=sqrt(var/n)=%.6f, APPROXIMATE normal 95%% interval ±1.96·SE = [%.6f, %.6f]",
+			hs.deltaMean, hs.deltaVar, hs.deltaSE, hs.ci95Low, hs.ci95High)
+	} else {
+		t.Logf("paired hold precision: insufficient pairs (n=%d < 2) — no spread or interval claimed", hs.n)
+	}
 }
 
-// holdMinutes returns the average minute the home goal survives untouched (95 = clean
-// sheet) across the sweep. Measured at n≈1200 so the estimate has resolving power:
-// at n=250 the standard error of this mean is ~2.2 minutes — LARGER than every "hold
-// advantage" ever observed (0.1–2.0), which is why the law kept flipping like a coin
-// ([[08-Open-Questions]] #9). Resolved truth (2026-10-10): the defensive-hold advantage
-// is ~0 minutes in the current mechanics (+0.1 and −1.3 across the two tested
-// configurations) — the property itself is missing, not just its measurement.
-func holdMinutes(t *testing.T, baseSeed uint64, n int, mutate func(*engine.MatchInput)) float64 {
+// pairedHoldSweep replaces the two separate hold sweeps with a same-seed PAIRED
+// aggregator over the SAME 2×n Simulate inputs (each seed simulated once per stance,
+// inputs built exactly as the old separate sweeps built them): 8 workers over the same
+// contiguous partitions, both stances tallied per seed inside the worker. Measured at
+// n≈1200 so the estimate has resolving power: at n=250 the standard error of the mean
+// was ~2.2 minutes — LARGER than every "hold advantage" ever observed (0.1–2.0), which
+// is why the law kept flipping like a coin ([[08-Open-Questions]] #9). The legacy scalar
+// means are preserved exactly: the raw sums are the integer Event.Minute values
+// (sentinel 95 for clean sheets, firstConcedeMinute) accumulated in the original
+// partition/sum-merge order. The uncertainty read is the sample spread of the PER-SEED
+// differences (see pairedHoldStats) — a direct paired sample difference, not the square
+// root of summed independent variances. Diagnostic only: no sign or margin assertion
+// lives here. On a simulation error the worker reports via t.Errorf and stops early; the
+// completed-pair count is then checked against n and the statistics divide by the
+// completed count rather than silently by n.
+func pairedHoldSweep(t *testing.T, baseSeed uint64, n int, defend, attack func(*engine.MatchInput)) pairedHoldTotals {
 	t.Helper()
 	const workers = 8
-	parts := make([]float64, workers)
+	parts := make([]pairedHoldTotals, workers)
 	var wg sync.WaitGroup
 	for w := 0; w < workers; w++ {
 		wg.Add(1)
 		go func(w int) {
 			defer wg.Done()
-			total := 0.0
+			var acc pairedHoldTotals
 			for i := w * n / workers; i < (w+1)*n/workers; i++ {
-				in := enginetest.SampleInput(baseSeed + uint64(i))
-				in.Presence = engine.PresenceFlags{}
-				mutate(&in)
-				res, _, err := engine.Simulate(in)
+				seed := baseSeed + uint64(i)
+				dObs, err := holdObserve(seed, defend)
 				if err != nil {
-					t.Errorf("simulate: %v", err)
+					t.Errorf("simulate defend seed %d: %v", seed, err)
 					return
 				}
-				hold := 95.0
-				for _, ev := range res.Events {
-					if ev.Kind == engine.EventGoal && ev.Club != in.Home.Club {
-						hold = float64(ev.Minute)
-						break
-					}
+				aObs, err := holdObserve(seed, attack)
+				if err != nil {
+					t.Errorf("simulate attack seed %d: %v", seed, err)
+					return
 				}
-				total += hold
+				acc.addPair(dObs, aObs)
 			}
-			parts[w] = total
+			parts[w] = acc
 		}(w)
 	}
 	wg.Wait()
-	sum := 0.0
-	for _, p := range parts {
-		sum += p
+
+	total := pairedHoldTotals{}
+	for _, p := range parts { // fixed ascending worker merge order
+		total = total.merge(p)
 	}
-	return sum / float64(n)
+	if total.n != int64(n) {
+		t.Errorf("paired hold sweep completed %d of %d pairs (simulation errors reported above); stats use the completed count", total.n, n)
+	}
+	return total
+}
+
+// holdObserve runs one seed under one stance (exactly the input the old separate sweep
+// built) and extracts its first-concession observation.
+func holdObserve(seed uint64, mutate func(*engine.MatchInput)) (holdObs, error) {
+	in := enginetest.SampleInput(seed)
+	in.Presence = engine.PresenceFlags{}
+	mutate(&in)
+	res, _, err := engine.Simulate(in)
+	if err != nil {
+		return holdObs{}, err
+	}
+	minute, conceded := firstConcedeMinute(in.Home.Club, res.Events)
+	return holdObs{minute: minute, conceded: conceded}, nil
 }
 
 // BenchmarkSimulate guards the < 20 ms per-match budget ([[Match-Engine]]).

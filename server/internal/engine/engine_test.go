@@ -548,3 +548,27 @@ func assertJSONEqual(t *testing.T, what string, a, b any) {
 		t.Fatalf("%s mismatch:\n a = %s\n b = %s", what, ra, rb)
 	}
 }
+
+// holdCleanSheetSentinel is the imputed minute for a home goal that survives the whole
+// match untouched. A REAL 95' concession carries the same scalar — only the conceded
+// boolean from firstConcedeMinute tells the two apart.
+const holdCleanSheetSentinel = 95
+
+// firstConcedeMinute backs the defensive-hold metric: the minute of the FIRST goal
+// credited to the opposition, in chronological result event order (Event.Minute — never
+// Event.Tick). Goals credited to the home club are ignored; a goal event always credits
+// the scoring club (there is no own-goal feature), so home scoring events are not
+// concessions however they arose. Subsequent concessions never affect the value.
+//
+// This is a HISTORICAL IMPUTATION PROXY for "how long did the home goal survive" — NOT a
+// censored/RMST/survival estimator: clean sheets are imputed as the fixed sentinel
+// instead of being treated as right-censored, and a real late first goal with
+// Minute > 95 is returned as-is (never clamped down to the sentinel).
+func firstConcedeMinute(homeClub string, events []engine.Event) (minute int, conceded bool) {
+	for _, ev := range events {
+		if ev.Kind == engine.EventGoal && ev.Club != homeClub {
+			return int(ev.Minute), true
+		}
+	}
+	return holdCleanSheetSentinel, false
+}
