@@ -56,7 +56,23 @@ go run ./cmd/simcli -out match.json       # dump a match for the viewer
 
 `go run ./cmd/simcli -h` lists every mode. `node tools/visual-nonsense.mjs <dump.json>` measures
 what a viewer would feel as wrong in a dump (frozen players, jumping dots).
-`go test -bench BenchmarkSimulate ./internal/engine` tracks the per-match speed budget.
+
+Per-match speed and allocation budget (benchmarks only — `make test` never runs this):
+
+```sh
+make bench                                   # 10 matches x 3 runs, B/op + allocs/op per match
+make bench BENCH_TIME=1s BENCH_COUNT=5       # more samples for a firmer spread
+```
+
+Both knobs also take a plain iteration budget (`BENCH_TIME=100x`). Profile the same benchmark
+through the escape hatch (keep the test binary and profiles out of the repo):
+
+```sh
+cd server && go test ./internal/engine -run '^$' -bench BenchmarkSimulate -benchtime=200x \
+  -cpuprofile /tmp/engine-cpu.prof -memprofile /tmp/engine-mem.prof -o /tmp/engine.test
+go tool pprof -top -cum /tmp/engine.test /tmp/engine-cpu.prof     # CPU hotspots
+go tool pprof -top -sample_index=alloc_objects /tmp/engine.test /tmp/engine-mem.prof
+```
 
 ## Development
 

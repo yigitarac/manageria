@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help dev dev-api dev-web gen fmt lint test sample db-up db-down
+.PHONY: help dev dev-api dev-web gen fmt lint test bench sample db-up db-down
 
 # Sample matches vary per run by default; pin one with: make sample SEED=42
 SEED ?= $(shell date +%s%N)
@@ -11,6 +11,13 @@ SEED ?= $(shell date +%s%N)
 # mid-suite). Bounded budget with headroom; raise on slower machines with:
 #   make test GO_TEST_TIMEOUT=90m
 GO_TEST_TIMEOUT ?= 60m
+
+# Lightweight per-match engine benchmark (benchmarks only, tests excluded with -run '^$$').
+# Sample size is a wall-clock budget ('1s', '100x') and a repetition count for spread:
+#   make bench BENCH_TIME=1s BENCH_COUNT=5
+BENCH ?= BenchmarkSimulate
+BENCH_TIME ?= 10x
+BENCH_COUNT ?= 3
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-10s %s\n", $$1, $$2}'
@@ -40,6 +47,9 @@ lint: ## Lint Go and web sources
 test: ## Run Go and web tests (package timeout: GO_TEST_TIMEOUT, default 60m)
 	cd server && go test -race -timeout=$(GO_TEST_TIMEOUT) ./...
 	cd web && pnpm test
+
+bench: ## Benchmark engine matches (BENCH=BenchmarkSimulate BENCH_TIME=10x BENCH_COUNT=3)
+	cd server && go test ./internal/engine -run '^$$' -bench $(BENCH) -benchtime=$(BENCH_TIME) -count=$(BENCH_COUNT) -benchmem
 
 sample: ## Generate a fresh sample match (override with SEED=<n> for a reproducible match)
 	mkdir -p web/public/samples
