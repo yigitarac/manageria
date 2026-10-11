@@ -1,10 +1,11 @@
 package liveplay
 
 // DrawSite enumerates every place the live-play prototype consumes randomness.
-// The order is part of the contract: a released ball draws its lateral error
-// first, then its speed error, so a resimulated snapshot replays the identical
-// sequence (production determinism rule: "draw order is declared before
-// drawing"). Contact detection and integration never draw.
+// The order is part of the contract: a legacy released ball draws its lateral
+// error first, then its speed error; a live ground pass (T-037) draws its
+// direction error first, then its weight error. A resimulated snapshot therefore
+// replays the identical sequence (production determinism rule: "draw order is
+// declared before drawing"). Contact detection and integration never draw.
 //
 // Labels are exposed through String so there is no exported mutable state (the
 // package rule forbids global mutable variables).
@@ -16,6 +17,12 @@ const (
 	DrawReleaseLateral DrawSite = iota
 	// DrawReleaseSpeed is the signed release speed error (±1 before scaling).
 	DrawReleaseSpeed
+	// DrawPassDirection is the signed perpendicular pass-aim error for a live
+	// ground pass (T-037), ±1 before scaling by DirectionJitterMPS.
+	DrawPassDirection
+	// DrawPassWeight is the signed pass weight (speed) error for a live ground
+	// pass (T-037), ±1 before scaling by WeightJitterFrac.
+	DrawPassWeight
 	// drawSiteCount is the number of declared sites (ordering guard).
 	drawSiteCount
 )
@@ -28,6 +35,10 @@ func (d DrawSite) String() string {
 		return "release_lateral"
 	case DrawReleaseSpeed:
 		return "release_speed"
+	case DrawPassDirection:
+		return "pass_direction"
+	case DrawPassWeight:
+		return "pass_weight"
 	default:
 		return "unknown"
 	}

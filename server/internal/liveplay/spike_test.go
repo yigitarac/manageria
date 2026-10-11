@@ -250,18 +250,23 @@ func TestConfigValidation(t *testing.T) {
 }
 
 // TestSpikeDrawSites: the declared draw-site order and labels are stable, and
-// labels are immutable (String method, no exported mutable state).
+// labels are immutable (String method, no exported mutable state). T-037 adds
+// the live-pass direction/weight sites; the legacy lateral/speed order is
+// unchanged.
 func TestSpikeDrawSites(t *testing.T) {
-	if drawSiteCount != 2 {
-		t.Fatalf("draw site count = %d, want 2 (update evidence note)", drawSiteCount)
+	if drawSiteCount != 4 {
+		t.Fatalf("draw site count = %d, want 4 (update evidence note)", drawSiteCount)
 	}
 	if DrawReleaseLateral.String() != "release_lateral" || DrawReleaseSpeed.String() != "release_speed" {
-		t.Fatal("declared draw-site labels changed")
+		t.Fatal("declared legacy draw-site labels changed")
+	}
+	if DrawPassDirection.String() != "pass_direction" || DrawPassWeight.String() != "pass_weight" {
+		t.Fatal("declared live-pass draw-site labels changed")
 	}
 	if DrawSite(99).String() != "unknown" {
 		t.Fatal("unknown draw site must not panic and must read 'unknown'")
 	}
-	if DrawReleaseLateral > DrawReleaseSpeed {
+	if DrawReleaseLateral >= DrawReleaseSpeed || DrawReleaseSpeed >= DrawPassDirection || DrawPassDirection >= DrawPassWeight {
 		t.Fatal("declared draw order changed")
 	}
 }
