@@ -598,7 +598,10 @@ func (s *simState) compactDepth(team, idx int, tx float64) float64 {
 		idx int
 		ax  float64 // live depth, attack-normalized (0 = own goal)
 	}
-	var mates []mate
+	// Fixed stack storage: at most the ten outfielders qualify. compactDepth runs
+	// on essentially every movement tick, so it must stay allocation-free (T-032).
+	var buf [10]mate
+	mates := buf[:0]
 	for i := 1; i < 11; i++ {
 		if s.cards[team*11+i].Off || s.engagedRank(team, i) < pressing {
 			continue // the chasers earn their own ball-focused targets
@@ -612,16 +615,29 @@ func (s *simState) compactDepth(team, idx int, tx float64) float64 {
 	if len(mates) < 4 {
 		return tx
 	}
-	sort.SliceStable(mates, func(a, b int) bool {
-		if mates[a].ax != mates[b].ax {
-			return mates[a].ax < mates[b].ax
+	// Strict total order on (depth, idx) — idx is unique among mates, so this
+	// yields the exact permutation of the old reflective stable sort without its
+	// per-call reflectlite allocations. Depth ties still break by player idx.
+	slices.SortStableFunc(mates, func(a, b mate) int {
+		switch {
+		case a.ax < b.ax:
+			return -1
+		case a.ax > b.ax:
+			return 1
+		case a.idx < b.idx:
+			return -1
+		case a.idx > b.idx:
+			return 1
 		}
-		return mates[a].idx < mates[b].idx
+		return 0
 	})
 	anchor := (mates[1].ax + mates[2].ax) / 2 // median of the four deepest
 
 	// Cluster into lines deepest-first and assign each line its depth ceiling.
-	ceil := make(map[int]float64, len(mates))
+	// Per-idx slots replace the former map: it was point-looked-up only, never
+	// iterated, so no iteration-order behaviour exists to preserve.
+	var ceilVal [11]float64
+	var ceilSeen [11]bool
 	lastCeil := 0.0
 	armed := false
 	for i := 0; i < len(mates); {
@@ -643,12 +659,16 @@ func (s *simState) compactDepth(team, idx int, tx float64) float64 {
 			lastCeil += compactGap
 		}
 		for k := i; k < j; k++ {
-			ceil[mates[k].idx] = lastCeil
+			ceilVal[mates[k].idx] = lastCeil
+			ceilSeen[mates[k].idx] = true
 		}
 		i = j
 	}
 
-	lim, ok := ceil[idx]
+	if idx < 0 || idx >= len(ceilSeen) {
+		return tx // off-grid queries never had a ceiling (old map miss)
+	}
+	lim, ok := ceilVal[idx], ceilSeen[idx]
 	if !ok {
 		return tx
 	}
