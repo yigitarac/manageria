@@ -11,6 +11,7 @@ depth of *Football Manager* — and **zero pay-to-win**. All clubs, players and 
 | `server/` | Go module: HTTP/WebSocket API + deterministic match engine |
 | `web/` | React + Vite + TypeScript client (future Capacitor/Tauri payload) |
 | `deploy/` | Docker Compose (Postgres) and production config |
+| `tools/` | Standalone diagnostics (e.g. the viewer's visual-nonsense meter) |
 
 ## Requirements
 
@@ -37,6 +38,25 @@ sample auto-loads when present, and any `simcli -out match.json` dump can be dro
 the page. Space plays/pauses, the timeline scrubs, playback speed goes up to 180×.
 The replay starts paused at 30× speed. Score and commentary reveal as the match unfolds;
 live event statistics update in time, while final possession and xG appear at full time.
+
+## Match engine tools
+
+The engine is deterministic: the same input and seed always produce the same match. `simcli`
+(run from `server/`) is the workbench for inspecting it:
+
+```sh
+go run ./cmd/simcli -seed 42              # simulate twice, verify identical digests
+go run ./cmd/simcli -matches 800          # result distribution over consecutive seeds
+go run ./cmd/simcli -audit -matches 150   # tactic-preset balance matrix, flags violations
+go run ./cmd/simcli -kpi 100              # behavioural KPIs (chains, passes, regime mix)
+go run ./cmd/simcli -story -seed 42       # one match as a possession-by-possession narrative
+go run ./cmd/simcli -analyze 30           # football-IQ smell metrics
+go run ./cmd/simcli -out match.json       # dump a match for the viewer
+```
+
+`go run ./cmd/simcli -h` lists every mode. `node tools/visual-nonsense.mjs <dump.json>` measures
+what a viewer would feel as wrong in a dump (frozen players, jumping dots).
+`go test -bench BenchmarkSimulate ./internal/engine` tracks the per-match speed budget.
 
 ## Development
 
