@@ -598,12 +598,45 @@ func (s *simState) compactDepth(team, idx int, tx float64) float64 {
 		idx int
 		ax  float64 // live depth, attack-normalized (0 = own goal)
 	}
+	// Call-local geometry cache (T-033): one Manhattan evaluation per shirt
+	// instead of the engagedRank fan-out re-evaluating every pair. This function
+	// only READS live state, so positions are constant across its own eligibility
+	// checks and the cache is exact by construction — never a cross-tick hoist.
+	var dist [11]float64
+	var off [11]bool
+	for i := 0; i < 11; i++ {
+		if s.cards[team*11+i].Off {
+			off[i] = true
+			continue
+		}
+		dist[i] = absf(s.players[team*11+i].X-s.ballX) + absf(s.players[team*11+i].Y-s.ballY)
+	}
 	// Fixed stack storage: at most the ten outfielders qualify. compactDepth runs
 	// on essentially every movement tick, so it must stay allocation-free (T-032).
 	var buf [10]mate
 	mates := buf[:0]
 	for i := 1; i < 11; i++ {
-		if s.cards[team*11+i].Off || s.engagedRank(team, i) < pressing {
+		if off[i] {
+			continue
+		}
+		// engagedRank semantics reproduced from the cache: rank counts the active
+		// teammates (goalkeeper included) STRICTLY closer to the ball — equal
+		// distances rank equal, no tie-break. rank < pressing marks a chaser (who
+		// earns his own ball-focused target and sits out of the block), so the
+		// complement — a block holder — is proven the moment the closer count
+		// reaches pressing. With pressing <= 0 nobody can be a chaser.
+		holder := pressing <= 0
+		closer := 0
+		for j := 0; !holder && j < 11; j++ {
+			if j == i || off[j] {
+				continue
+			}
+			if dist[j] < dist[i] {
+				closer++
+				holder = closer >= pressing
+			}
+		}
+		if !holder {
 			continue // the chasers earn their own ball-focused targets
 		}
 		ax := s.players[team*11+i].X
