@@ -66,4 +66,10 @@ make test      # go test, vitest
 make fmt       # gofmt + prettier
 ```
 
+`make test` runs the race-enabled Go suite with a raised per-package timeout
+(`GO_TEST_TIMEOUT`, default 60m): the calibration sweeps simulate thousands of matches and
+race instrumentation costs ~11.6x per match, so the stock 10m `go test` timeout panics
+mid-suite. Raise it on slow machines (`make test GO_TEST_TIMEOUT=90m`) instead of lowering
+test sample counts.
+
 The workflow is **spec-first**: change `api/openapi.yaml`, run `make gen`, then implement.

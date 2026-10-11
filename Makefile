@@ -5,6 +5,13 @@
 # Sample matches vary per run by default; pin one with: make sample SEED=42
 SEED ?= $(shell date +%s%N)
 
+# Race-enabled engine sweeps simulate >12k matches (calibration/menu/hold alone: 10.6k).
+# Race instrumentation measures ~11.6x per-match cost (~572 ms vs ~49 ms, BenchmarkSimulate),
+# projecting the engine package past go test's default 10m per-package timeout (it panics
+# mid-suite). Bounded budget with headroom; raise on slower machines with:
+#   make test GO_TEST_TIMEOUT=90m
+GO_TEST_TIMEOUT ?= 60m
+
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-10s %s\n", $$1, $$2}'
 
@@ -30,8 +37,8 @@ lint: ## Lint Go and web sources
 	cd server && out=$$(gofmt -l .); if [ -n "$$out" ]; then echo "$$out"; echo "gofmt needed (run: make fmt)"; exit 1; fi
 	cd web && pnpm lint && pnpm typecheck
 
-test: ## Run Go and web tests
-	cd server && go test -race ./...
+test: ## Run Go and web tests (package timeout: GO_TEST_TIMEOUT, default 60m)
+	cd server && go test -race -timeout=$(GO_TEST_TIMEOUT) ./...
 	cd web && pnpm test
 
 sample: ## Generate a fresh sample match (override with SEED=<n> for a reproducible match)

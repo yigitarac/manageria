@@ -31,7 +31,9 @@ jobs:
       - name: Lint
         run: go tool golangci-lint run ./...
       - name: Test
-        run: go test -race ./...
+        # Race sweeps exceed go test's default 10m per-package timeout; keep this in
+        # sync with GO_TEST_TIMEOUT in the Makefile.
+        run: go test -race -timeout=60m ./...
 
   web:
     name: Web (React)
