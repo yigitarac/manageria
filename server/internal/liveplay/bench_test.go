@@ -177,3 +177,88 @@ func substepName(ms int) string {
 	}
 	return string(digits) + "ms"
 }
+
+// inertialSlot returns the deterministic start and far-side intent for one of
+// the 22 benchmark bodies, laid out across the pitch with real moving intents.
+func inertialSlot(i int) (x, y, targetX, targetY float64) {
+	x = 0.15 + float64(i%7)*0.10
+	y = 0.20 + float64(i/7)*0.20
+	targetX = 0.85
+	if x > 0.5 {
+		targetX = 0.15
+	}
+	return x, y, targetX, 1 - y
+}
+
+// inertial22 builds 22 inertial runners with REAL moving intents: each starts at
+// rest and is told to sprint to the far side/opposite half, so the integrator
+// stays on the active acceleration+lateral path rather than settling into a
+// no-op. Used by the T-036 benchmark and its guard test.
+func inertial22() []Runner {
+	p := DefaultMotionParams()
+	rs := make([]Runner, 22)
+	for i := range rs {
+		x, y, tx, ty := inertialSlot(i)
+		rs[i] = InertialRunner(x, y, tx, ty, p)
+	}
+	return rs
+}
+
+// benchRearmInertial22 resets positions/velocities and re-publishes far intents
+// so every re-arm window starts a fresh, genuinely moving acceleration. It
+// writes in place to keep the benchmark allocation-free.
+func benchRearmInertial22(sim *Sim) {
+	for i := range sim.runners {
+		x, y, tx, ty := inertialSlot(i)
+		r := &sim.runners[i]
+		r.X, r.Y = x, y
+		r.VXM, r.VYM = 0, 0
+		r.IntentX, r.IntentY = tx, ty
+	}
+}
+
+// BenchmarkStep22InertialActive measures one active rolling substep with 22
+// inertial bodies that are actually accelerating toward real moving intents.
+// The ball is re-armed so it never stops; TestInertialBenchStaysActive guards
+// both the rolling ball and the moving bodies.
+func BenchmarkStep22InertialActive(b *testing.B) {
+	sim, err := NewSim(DefaultConfig(), 1)
+	if err != nil {
+		b.Fatal(err)
+	}
+	sim.SetBall(benchBall())
+	sim.SetRunners(inertial22())
+	benchRearmInertial22(sim)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if i&(benchRearmEvery-1) == 0 {
+			benchRearm(sim)
+			benchRearmInertial22(sim)
+		}
+		sim.StepQuiet()
+	}
+}
+
+// BenchmarkStep22KinematicActive is the T-035 constant-velocity counterpart, so
+// the inertial overhead can be read directly against the old number.
+func BenchmarkStep22KinematicActive(b *testing.B) {
+	sim, err := NewSim(DefaultConfig(), 1)
+	if err != nil {
+		b.Fatal(err)
+	}
+	sim.SetBall(benchBall())
+	runners := make([]Runner, 22)
+	for i := range runners {
+		runners[i] = Runner{X: 0.20 + float64(i)*0.03, Y: 0.15, VXM: 2.0, VYM: 0.5, ReachM: ControlRadiusM}
+	}
+	sim.SetRunners(runners)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if i&(benchRearmEvery-1) == 0 {
+			benchRearm(sim)
+		}
+		sim.StepQuiet()
+	}
+}

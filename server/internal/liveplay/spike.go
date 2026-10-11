@@ -67,15 +67,30 @@ type Ball struct {
 }
 
 // Runner is a minimal kinematic agent used to test reachability and
-// swept-contact timing. T-036 replaces this with acceleration-limited motion;
-// T-035 deliberately uses constant velocity so the contact-clock question is
-// isolated from the movement-model question.
+// swept-contact timing. The zero-valued fields describe the T-035
+// constant-velocity runner so every existing fixture is unchanged; T-036 adds an
+// opt-in inertial model (see motion.go). Complete inertial state lives here
+// (velocity, intent and resolved physical limits) so a Snapshot preserves it.
 type Runner struct {
 	X      float64 `json:"x"`
 	Y      float64 `json:"y"`
 	VXM    float64 `json:"vxM"`
 	VYM    float64 `json:"vyM"`
 	ReachM float64 `json:"reachM"` // combined collection threshold in metres
+
+	// Motion selects the integration model. The zero value MotionKinematic is
+	// the T-035 constant-velocity behaviour (backward compatible).
+	Motion RunnerMotion `json:"motion,omitempty"`
+	// IntentX/Y is the normalized movement destination, used only when
+	// Motion==MotionInertial. It is separate from the integrated state.
+	IntentX float64 `json:"intentX,omitempty"`
+	IntentY float64 `json:"intentY,omitempty"`
+	// Resolved physical limits (motion.go). Zero means "use the default
+	// envelope"; explicit values keep a resumed run exact.
+	TopSpeedMPS      float64 `json:"topSpeedMps,omitempty"`
+	AccelMPS2        float64 `json:"accelMps2,omitempty"`
+	DecelMPS2        float64 `json:"decelMps2,omitempty"`
+	LateralAccelMPS2 float64 `json:"lateralAccelMps2,omitempty"`
 }
 
 // Config is the spike's clock/friction configuration.
@@ -167,7 +182,8 @@ func (s *Sim) SetRunners(rs []Runner) { s.runners = append([]Runner(nil), rs...)
 //
 //  1. integrate the ball under rolling friction (semi-implicit Euler: velocity
 //     is decelerated first, then position is advanced with the new velocity);
-//  2. integrate the runners;
+//  2. integrate the runners (kinematic constant velocity, or the inertial
+//     model when the runner opts in via Motion==MotionInertial);
 //  3. advance the integer clock to the end of the step;
 //  4. test contact AFTER integration at the END-step clock, so the recorded
 //     event time equals the sample time of the same step (no half-step skew);
@@ -203,6 +219,12 @@ func (s *Sim) step(record bool) {
 
 	for i := range s.runners {
 		r := &s.runners[i]
+		if r.Motion == MotionInertial {
+			// T-036: each runner integrates from its own state + intent only, so
+			// the loop order cannot confer an advantage.
+			r.integrateInertial(dt)
+			continue
+		}
 		r.X += (r.VXM / PitchLengthM) * dt
 		r.Y += (r.VYM / PitchWidthM) * dt
 	}
