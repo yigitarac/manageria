@@ -144,6 +144,14 @@ type Runner struct {
 	ReactMS         int  `json:"reactMs,omitempty"`
 	ReactAtMS       int  `json:"reactAtMs,omitempty"`
 	CooldownUntilMS int  `json:"cooldownUntilMs,omitempty"`
+
+	// Perception is the optional local ball-observation record (T-043). It is
+	// nil unless the runner opts in (see EnableSensing); when present its
+	// RadiusM (> 0) is the single enable source. Observation-only: it never
+	// changes intent, contact, motion or RNG. Every public state copy deep-copies
+	// this pointer so no live state is aliased. Omitted from JSON when nil, so
+	// disabled runners and fixtures keep the exact old key set.
+	Perception *BallObservation `json:"perception,omitempty"`
 }
 
 // Config is the spike's clock/friction configuration.
@@ -266,8 +274,9 @@ func (s *Sim) ClockMS() int { return s.clock }
 // Ball returns a copy of the current ball state.
 func (s *Sim) Ball() Ball { return s.ball }
 
-// Runners returns a copy of the current runner states.
-func (s *Sim) Runners() []Runner { return append([]Runner(nil), s.runners...) }
+// Runners returns a deep copy of the current runner states. Every mutable
+// perception record is cloned too, so a caller can never alias live state.
+func (s *Sim) Runners() []Runner { return cloneRunners(s.runners) }
 
 // Samples returns the authoritative sample stream recorded so far.
 func (s *Sim) Samples() []Sample { return append([]Sample(nil), s.samples...) }
@@ -288,9 +297,11 @@ func (s *Sim) Events() []PassEvent { return append([]PassEvent(nil), s.events...
 // SetBall places a ball in an explicit mode/state (fixture helper).
 func (s *Sim) SetBall(b Ball) { s.ball = b }
 
-// SetRunners replaces the runner set (fixture helper).
+// SetRunners replaces the runner set (fixture helper). The incoming runners and
+// every mutable perception record are deep-copied, so the caller and the sim
+// never share a pointer.
 func (s *Sim) SetRunners(rs []Runner) {
-	s.runners = append([]Runner(nil), rs...)
+	s.runners = cloneRunners(rs)
 	s.ensurePreCapacity(len(s.runners))
 }
 
@@ -779,7 +790,7 @@ func (s *Sim) Snapshot() Snapshot {
 		Cfg:              s.cfg,
 		ClockMS:          s.clock,
 		Ball:             s.ball,
-		Runners:          append([]Runner(nil), s.runners...),
+		Runners:          cloneRunners(s.runners),
 		ContactMS:        s.contactMS,
 		ContactRunner:    s.contactRunner,
 		RNG:              s.rnd.State(),
@@ -806,12 +817,16 @@ func Resume(snap Snapshot) (*Sim, error) {
 	if err != nil {
 		return nil, err
 	}
+	runners, err := resumeRunners(snap.Runners, snap.ClockMS)
+	if err != nil {
+		return nil, fmt.Errorf("resuming: %w", err)
+	}
 	return &Sim{
 		cfg:              snap.Cfg,
 		rnd:              r,
 		clock:            snap.ClockMS,
 		ball:             snap.Ball,
-		runners:          append([]Runner(nil), snap.Runners...),
+		runners:          runners,
 		contactMS:        snap.ContactMS,
 		contactRunner:    snap.ContactRunner,
 		events:           append([]PassEvent(nil), snap.Events...),

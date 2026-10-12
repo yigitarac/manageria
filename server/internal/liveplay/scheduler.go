@@ -16,6 +16,11 @@ package liveplay
 // bypassed by scheduling. A held publication is a no-op on this pursuit-only
 // layer; no held-player duties are claimed.
 //
+// T-043 adds the observation-only local ball perception sample to this same
+// publication: samplePerception records each opted-in runner's CURRENT pre-step
+// local sighting after the reaction gate. It never changes intents, contacts,
+// motion or RNG.
+//
 // The zero value of Config.IntentCadenceMS (0) keeps the exact native
 // per-substep behaviour, so no existing fixture, bit or JSON key changes. A
 // non-zero cadence is valid only with LivePass and must be a positive multiple
@@ -67,6 +72,7 @@ func (s *Sim) maybePublishIntents(stepStart int) {
 		return
 	}
 	s.publishPursuitIntents()
+	s.samplePerception(stepStart)
 	s.decisionDirty = false
 	s.decisionPublishes++
 	s.lastDecisionMS = stepStart
