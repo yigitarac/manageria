@@ -254,8 +254,8 @@ func TestConfigValidation(t *testing.T) {
 // the live-pass direction/weight sites; the legacy lateral/speed order is
 // unchanged.
 func TestSpikeDrawSites(t *testing.T) {
-	if drawSiteCount != 4 {
-		t.Fatalf("draw site count = %d, want 4 (update evidence note)", drawSiteCount)
+	if drawSiteCount != 6 {
+		t.Fatalf("draw site count = %d, want 6 (update evidence note)", drawSiteCount)
 	}
 	if DrawReleaseLateral.String() != "release_lateral" || DrawReleaseSpeed.String() != "release_speed" {
 		t.Fatal("declared legacy draw-site labels changed")
@@ -263,10 +263,15 @@ func TestSpikeDrawSites(t *testing.T) {
 	if DrawPassDirection.String() != "pass_direction" || DrawPassWeight.String() != "pass_weight" {
 		t.Fatal("declared live-pass draw-site labels changed")
 	}
+	if DrawContactControl.String() != "contact_control" || DrawDeflectLateral.String() != "deflect_lateral" {
+		t.Fatal("declared live-contest draw-site labels changed")
+	}
 	if DrawSite(99).String() != "unknown" {
 		t.Fatal("unknown draw site must not panic and must read 'unknown'")
 	}
-	if DrawReleaseLateral >= DrawReleaseSpeed || DrawReleaseSpeed >= DrawPassDirection || DrawPassDirection >= DrawPassWeight {
+	if DrawReleaseLateral >= DrawReleaseSpeed || DrawReleaseSpeed >= DrawPassDirection ||
+		DrawPassDirection >= DrawPassWeight || DrawPassWeight >= DrawContactControl ||
+		DrawContactControl >= DrawDeflectLateral {
 		t.Fatal("declared draw order changed")
 	}
 }

@@ -16,6 +16,12 @@ var (
 	ErrSubstep = errors.New("liveplay: substep must be positive")
 	// ErrDecel: DecelMPS2 must be finite and non-negative.
 	ErrDecel = errors.New("liveplay: deceleration must be finite and non-negative")
+	// ErrLivePassSubstep: a live-pass substep must be shorter than the deflection
+	// re-control cooldown, so a miscontrolling runner cannot re-touch the ball
+	// inside the same substep. This keeps every runner to at most one touch per
+	// substep, which is what makes the chronological-continuation loop terminate
+	// naturally (no arbitrary iteration cap).
+	ErrLivePassSubstep = errors.New("liveplay: live-pass substep must be shorter than the deflection cooldown")
 )
 
 // validate rejects configurations that could stall or corrupt the integrator.
@@ -25,6 +31,9 @@ func (c Config) validate() error {
 	}
 	if math.IsNaN(c.DecelMPS2) || math.IsInf(c.DecelMPS2, 0) || c.DecelMPS2 < 0 {
 		return fmt.Errorf("%w: got %v", ErrDecel, c.DecelMPS2)
+	}
+	if c.LivePass && c.SubstepMS >= DeflectionCooldownMS {
+		return fmt.Errorf("%w: got %d ms, limit < %d ms", ErrLivePassSubstep, c.SubstepMS, DeflectionCooldownMS)
 	}
 	return nil
 }
@@ -108,6 +117,16 @@ type Runner struct {
 	AccelMPS2        float64 `json:"accelMps2,omitempty"`
 	DecelMPS2        float64 `json:"decelMps2,omitempty"`
 	LateralAccelMPS2 float64 `json:"lateralAccelMps2,omitempty"`
+
+	// Pursuit/reaction state (T-038, live mode only). Pursue opts an inertial
+	// runner into chasing a free (Rolling/Loose) ball; ReactMS is its reaction
+	// delay after a release; ReactAtMS and CooldownUntilMS are the persisted
+	// runtime deadlines (reaction activation and post-deflection re-control
+	// cooldown) so a mid-contest Resume reproduces them exactly.
+	Pursue          bool `json:"pursue,omitempty"`
+	ReactMS         int  `json:"reactMs,omitempty"`
+	ReactAtMS       int  `json:"reactAtMs,omitempty"`
+	CooldownUntilMS int  `json:"cooldownUntilMs,omitempty"`
 }
 
 // Config is the spike's clock/friction configuration.
@@ -169,6 +188,20 @@ type Sim struct {
 	immunityUntil int         // clock until which the passer may not re-collect
 	releaseRunner int         // passer index of the current pass, -1 if none
 	lastPathMS    int         // clock of the last recorded path event
+
+	// Live-contest state (T-038). Also serialized: the contact-local control
+	// budget of the current pass and the first physical touch (control OR
+	// deflection), which a mid-contest Resume must reproduce.
+	controlError     float64 // control/execution uncertainty budget of the current pass
+	firstTouchMS     int     // first physical contact time, -1 if none yet
+	firstTouchRunner int     // runner index of the first physical contact, -1 if none
+
+	// Pre-step scratch (T-038): explicit pre-integration reference positions for
+	// the exact substep chords. Not serialized and reused every substep, so the
+	// live resolver never allocates per step.
+	preBall Ball
+	preX    []float64
+	preY    []float64
 }
 
 // NewSim builds a simulator from an explicit seed. RNG is used only at declared
@@ -179,12 +212,14 @@ func NewSim(cfg Config, seed uint64) (*Sim, error) {
 		return nil, err
 	}
 	return &Sim{
-		cfg:           cfg,
-		rnd:           rng.New(seed),
-		ball:          Ball{Mode: BallDead},
-		contactMS:     -1,
-		contactRunner: -1,
-		releaseRunner: -1,
+		cfg:              cfg,
+		rnd:              rng.New(seed),
+		ball:             Ball{Mode: BallDead},
+		contactMS:        -1,
+		contactRunner:    -1,
+		releaseRunner:    -1,
+		firstTouchMS:     -1,
+		firstTouchRunner: -1,
 	}, nil
 }
 
@@ -207,6 +242,11 @@ func (s *Sim) Samples() []Sample { return append([]Sample(nil), s.samples...) }
 // if none).
 func (s *Sim) FirstContact() (int, int) { return s.contactMS, s.contactRunner }
 
+// FirstTouch returns the first PHYSICAL contact time and runner index (-1 if
+// none). Unlike FirstContact, a contact that miscontrols/deflects still counts:
+// it is the first time any player actually reached the ball.
+func (s *Sim) FirstTouch() (int, int) { return s.firstTouchMS, s.firstTouchRunner }
+
 // Events returns a copy of the live-pass event log (release/path/control/stop/
 // out) recorded so far.
 func (s *Sim) Events() []PassEvent { return append([]PassEvent(nil), s.events...) }
@@ -215,7 +255,10 @@ func (s *Sim) Events() []PassEvent { return append([]PassEvent(nil), s.events...
 func (s *Sim) SetBall(b Ball) { s.ball = b }
 
 // SetRunners replaces the runner set (fixture helper).
-func (s *Sim) SetRunners(rs []Runner) { s.runners = append([]Runner(nil), rs...) }
+func (s *Sim) SetRunners(rs []Runner) {
+	s.runners = append([]Runner(nil), rs...)
+	s.ensurePreCapacity(len(s.runners))
+}
 
 // Step advances exactly one substep of the fixed update order:
 //
@@ -246,6 +289,18 @@ func (s *Sim) Step() { s.step(true) }
 func (s *Sim) StepQuiet() { s.step(false) }
 
 func (s *Sim) step(record bool) {
+	if s.cfg.LivePass {
+		s.stepLive(record)
+		return
+	}
+	s.stepLegacy(record)
+}
+
+// stepLegacy is the T-035/T-036 endpoint update order. It is only reached when
+// LivePass is false; the live branch has its own swept, chronological order in
+// stepLive (contest.go / below). Its `s.cfg.LivePass` branches are therefore
+// inert here and kept verbatim so the pinned legacy behaviour is untouched.
+func (s *Sim) stepLegacy(record bool) {
 	dt := float64(s.cfg.SubstepMS) / 1000.0
 
 	// Terminal ball events (out/stop) describe the POST-integration state, so
@@ -379,6 +434,249 @@ func (s *Sim) step(record bool) {
 	}
 }
 
+// stepLive is the T-038 live-mode update order. It differs from stepLegacy in
+// three ways:
+//
+//  1. pursuit intents are republished from the consistent PRE-step world before
+//     any integration, and the pre-step reference positions are captured
+//     explicitly (never recovered from post-integration velocities);
+//  2. the ball/runner substep is resolved by a swept, analytic chord contact
+//     (contest.go) instead of an endpoint sample, so fast and grazing balls
+//     cannot tunnel;
+//  3. the substep is a full chronological continuation: events are applied in
+//     declared time order without rewinding any body, and a contact stores the
+//     fractional contact state while every body keeps its common end-step state.
+//
+// A contact may miscontrol/deflect (contact-local seeded uncertainty) into a live
+// loose trajectory with a persisted physical re-control cooldown, and the
+// remaining fraction is integrated so another contact or a pitch exit can still
+// occur in the same substep. All state is serialized, so a mid-contest Resume is
+// exact.
+func (s *Sim) stepLive(record bool) {
+	dt := float64(s.cfg.SubstepMS) / 1000.0
+	stepStart := s.clock
+
+	s.capturePreStep()
+	s.publishPursuitIntents()
+
+	// 1. Ball integration under rolling friction (semi-implicit Euler: velocity
+	// is decelerated first, then position advanced with the new velocity).
+	stopped := false
+	if s.ball.Mode == BallRolling {
+		speed := math.Sqrt(s.ball.VXM*s.ball.VXM + s.ball.VYM*s.ball.VYM)
+		if newSpeed := speed - s.cfg.DecelMPS2*dt; newSpeed <= 0 {
+			s.ball.VXM, s.ball.VYM = 0, 0
+			stopped = true
+		} else {
+			scale := newSpeed / speed
+			s.ball.VXM *= scale
+			s.ball.VYM *= scale
+		}
+		s.ball.X += (s.ball.VXM / PitchLengthM) * dt
+		s.ball.Y += (s.ball.VYM / PitchWidthM) * dt
+	}
+
+	// 2. Runner integration (each runner reads only its own state + intent). The
+	// end-step positions are FINAL: a contact never rewinds a runner.
+	for i := range s.runners {
+		r := &s.runners[i]
+		if r.Motion == MotionInertial {
+			r.integrateInertial(dt)
+			continue
+		}
+		r.X += (r.VXM / PitchLengthM) * dt
+		r.Y += (r.VYM / PitchWidthM) * dt
+	}
+
+	// 3. Advance the clock to the end of the step; all events of this step share
+	// this integer clock (with an exact within-step fraction on physical events).
+	s.clock += s.cfg.SubstepMS
+
+	// 4. Resolve the free-ball contest as a full chronological continuation.
+	if s.ball.Mode == BallRolling || s.ball.Mode == BallLoose {
+		s.resolveFreeBall(stepStart, dt, stopped)
+	}
+
+	// 5. Held ball follows its owner (live mode keeps the physical contact offset,
+	// so the ball is never warped to the feet).
+	if s.ball.Mode == BallHeld && s.contactRunner >= 0 && s.contactRunner < len(s.runners) {
+		r := s.runners[s.contactRunner]
+		s.ball.X = r.X + s.ball.HoldDX
+		s.ball.Y = r.Y + s.ball.HoldDY
+	}
+
+	// 6. Periodic path trace of free travel.
+	if s.ball.Mode == BallRolling && s.clock-s.lastPathMS >= PathRecordMS {
+		s.emitEvent(PassEventPath, -1, s.clock, s.ball)
+		s.lastPathMS = s.clock
+	}
+
+	if record {
+		s.recordSample()
+	}
+}
+
+// resolveFreeBall resolves one live substep of a free (Rolling or Loose) ball as
+// a chronological continuation. The ball travels from its captured pre-step
+// position while the runner chords span the full substep. If a contact
+// miscontrols, the ball is re-seeded with the deflected velocity and the remaining
+// fraction is integrated, so another contact or a pitch exit can still occur in
+// the SAME substep. No body is rewound and no travel is discarded. Each runner can
+// touch at most once per substep (a deflection sets a cooldown beyond the substep),
+// so the loop terminates naturally without an arbitrary iteration cap.
+func (s *Sim) resolveFreeBall(stepStart int, dt float64, stopped bool) {
+	// Current ball segment: from (px,py) at global fraction uCur to (ex,ey) at
+	// fraction 1, moving at (vx,vy) metres/second.
+	px, py := s.preBall.X, s.preBall.Y
+	ex, ey := s.ball.X, s.ball.Y
+	vx, vy := s.ball.VXM, s.ball.VYM
+	uCur := 0.0
+	firstSegment := true
+
+	for {
+		bestKind, bestU, bestRunner := evNone, 2.0, -1
+
+		// Candidate: the ball leaves the pitch (only an endpoint strictly outside
+		// counts; resting on a boundary line is in play).
+		if u, ok := segmentExit(px, py, ex, ey, uCur); ok && u < bestU {
+			bestKind, bestU = evOut, u
+		}
+
+		// Candidate: the earliest physical contact, gated by each runner's
+		// reaction activation and re-control cooldown and by the passer's
+		// immunity — all INSIDE the substep, not merely at its endpoint.
+		for i := range s.runners {
+			r := &s.runners[i]
+			reach := r.ReachM
+			if reach <= 0 {
+				reach = ControlRadiusM
+			}
+			uMin := uCur
+			if r.ReactAtMS > stepStart {
+				if c := float64(r.ReactAtMS-stepStart) / float64(s.cfg.SubstepMS); c > uMin {
+					uMin = c
+				}
+			}
+			if r.CooldownUntilMS > stepStart {
+				if c := float64(r.CooldownUntilMS-stepStart) / float64(s.cfg.SubstepMS); c > uMin {
+					uMin = c
+				}
+			}
+			if i == s.releaseRunner && s.immunityUntil > stepStart {
+				if c := float64(s.immunityUntil-stepStart) / float64(s.cfg.SubstepMS); c > uMin {
+					uMin = c
+				}
+			}
+			if uMin > 1 {
+				continue
+			}
+			u, ok := segmentContact(px, py, uCur, ex, ey, s.preX[i], s.preY[i], r.X, r.Y, reach, uMin)
+			if !ok {
+				continue
+			}
+			// Strictly earlier wins; equal fractions keep the LOWEST index
+			// (iteration is ascending). A contact beats an equal-time exit/stop.
+			if u < bestU || (u == bestU && bestKind != evContact) {
+				bestKind, bestU, bestRunner = evContact, u, i
+			}
+		}
+
+		// Candidate: the roll ended. The discrete integrator zeroes the velocity
+		// before advancing, so the roll ends at the substep BOUNDARY: the stop
+		// event is stamped at fraction 1 (the end-step clock), matching the
+		// discrete transition. It is only relevant in the first segment (a
+		// deflection re-seeds the ball with velocity).
+		if stopped && firstSegment && bestKind == evNone {
+			bestKind, bestU = evStop, 1.0
+		}
+
+		switch bestKind {
+		case evNone:
+			// No event: finish the travel at this segment's endpoint.
+			s.ball.X, s.ball.Y = ex, ey
+			s.ball.VXM, s.ball.VYM = vx, vy
+			return
+
+		case evOut:
+			bx, by := segmentPoint(px, py, uCur, ex, ey, bestU)
+			s.ball.X, s.ball.Y = bx, by
+			s.ball.Mode = BallOut
+			s.ball.VXM, s.ball.VYM = 0, 0
+			s.emitEventAt(PassEventOut, -1, s.clock, bestU, s.ball)
+			return
+
+		case evStop:
+			s.ball.Mode = BallLoose
+			s.emitEventAt(PassEventStop, -1, s.clock, bestU, s.ball)
+			return
+
+		case evContact:
+			bx, by := segmentPoint(px, py, uCur, ex, ey, bestU)
+			r := &s.runners[bestRunner]
+			rxc := s.preX[bestRunner] + bestU*(r.X-s.preX[bestRunner])
+			ryc := s.preY[bestRunner] + bestU*(r.Y-s.preY[bestRunner])
+			if s.firstTouchMS < 0 {
+				s.firstTouchMS, s.firstTouchRunner = s.clock, bestRunner
+			}
+
+			// Contact-local control uncertainty: drawn ONLY at an actual contact.
+			// A zero budget (the T-037 default) draws nothing and always controls.
+			miscontrol := false
+			if s.controlError > 0 {
+				miscontrol = s.rnd.Float64() < s.controlError // DrawContactControl
+			}
+
+			if miscontrol {
+				vdx, vdy := s.deflectVelocity(vx, vy, bx, by, rxc, ryc)
+				// The deflected ball is LIVE and moves again: switch the mode
+				// explicitly (a starting BallLoose ball would otherwise keep
+				// Mode==Loose and never integrate on the next substep). A
+				// deflection with zero resulting speed stays a stationary loose
+				// ball.
+				s.ball.Mode = BallRolling
+				if vdx == 0 && vdy == 0 {
+					s.ball.Mode = BallLoose
+				}
+				s.ball.X, s.ball.Y = bx, by
+				s.ball.VXM, s.ball.VYM = vdx, vdy
+				// Physical re-control cooldown, based on the ACTUAL contact time
+				// (declared integer-ms rounding). The LivePass substep is bounded
+				// below DeflectionCooldownMS (config validation), so the deflector
+				// cannot re-touch its own bounce within this substep or the cooldown.
+				r.CooldownUntilMS = eventTimeMS(stepStart, s.cfg.SubstepMS, bestU) + DeflectionCooldownMS
+				contactBall := Ball{Mode: BallRolling, X: bx, Y: by, VXM: vx, VYM: vy}
+				s.emitContactEvent(PassEventDeflect, bestRunner, s.clock, bestU, contactBall, vdx, vdy, rxc, ryc)
+				// Continue: integrate the remaining fraction under the deflected
+				// velocity so another contact or a pitch exit can still occur.
+				px, py = bx, by
+				vx, vy = vdx, vdy
+				uCur = bestU
+				rem := dt * (1 - bestU)
+				ex = px + (vx/PitchLengthM)*rem
+				ey = py + (vy/PitchWidthM)*rem
+				firstSegment = false
+				stopped = false // the deflected ball is moving again
+				continue
+			}
+
+			// Clean control: the ball follows its owner for the remaining fraction,
+			// so the end-step sample physically differs from the fractional event.
+			s.ball.HoldDX = bx - rxc
+			s.ball.HoldDY = by - ryc
+			s.ball.VXM, s.ball.VYM = 0, 0
+			s.ball.X = r.X + s.ball.HoldDX
+			s.ball.Y = r.Y + s.ball.HoldDY
+			s.ball.Mode = BallHeld
+			if s.contactMS < 0 {
+				s.contactMS, s.contactRunner = s.clock, bestRunner
+			}
+			contactBall := Ball{Mode: BallHeld, X: bx, Y: by, VXM: vx, VYM: vy}
+			s.emitContactEvent(PassEventControl, bestRunner, s.clock, bestU, contactBall, 0, 0, rxc, ryc)
+			return
+		}
+	}
+}
+
 // ballOutOfBounds reports whether the ball centre has left the pitch rectangle.
 func (s *Sim) ballOutOfBounds() bool {
 	return s.ball.X < 0 || s.ball.X > 1 || s.ball.Y < 0 || s.ball.Y > 1
@@ -424,23 +722,33 @@ type Snapshot struct {
 	ImmunityUntil int         `json:"immunityUntil,omitempty"`
 	ReleaseRunner int         `json:"releaseRunner"`
 	LastPathMS    int         `json:"lastPathMs,omitempty"`
+
+	// Live-contest state (T-038): the contact-local control budget and the first
+	// physical touch survive a mid-contest Resume. Runner reaction/cooldown
+	// deadlines ride inside Runners.
+	ControlError     float64 `json:"controlError,omitempty"`
+	FirstTouchMS     int     `json:"firstTouchMs"`
+	FirstTouchRunner int     `json:"firstTouchRunner"`
 }
 
 // Snapshot captures the current state.
 func (s *Sim) Snapshot() Snapshot {
 	return Snapshot{
-		Cfg:           s.cfg,
-		ClockMS:       s.clock,
-		Ball:          s.ball,
-		Runners:       append([]Runner(nil), s.runners...),
-		ContactMS:     s.contactMS,
-		ContactRunner: s.contactRunner,
-		RNG:           s.rnd.State(),
-		Events:        append([]PassEvent(nil), s.events...),
-		EventSeq:      s.eventSeq,
-		ImmunityUntil: s.immunityUntil,
-		ReleaseRunner: s.releaseRunner,
-		LastPathMS:    s.lastPathMS,
+		Cfg:              s.cfg,
+		ClockMS:          s.clock,
+		Ball:             s.ball,
+		Runners:          append([]Runner(nil), s.runners...),
+		ContactMS:        s.contactMS,
+		ContactRunner:    s.contactRunner,
+		RNG:              s.rnd.State(),
+		Events:           append([]PassEvent(nil), s.events...),
+		EventSeq:         s.eventSeq,
+		ImmunityUntil:    s.immunityUntil,
+		ReleaseRunner:    s.releaseRunner,
+		LastPathMS:       s.lastPathMS,
+		ControlError:     s.controlError,
+		FirstTouchMS:     s.firstTouchMS,
+		FirstTouchRunner: s.firstTouchRunner,
 	}
 }
 
@@ -455,18 +763,21 @@ func Resume(snap Snapshot) (*Sim, error) {
 		return nil, err
 	}
 	return &Sim{
-		cfg:           snap.Cfg,
-		rnd:           r,
-		clock:         snap.ClockMS,
-		ball:          snap.Ball,
-		runners:       append([]Runner(nil), snap.Runners...),
-		contactMS:     snap.ContactMS,
-		contactRunner: snap.ContactRunner,
-		events:        append([]PassEvent(nil), snap.Events...),
-		eventSeq:      snap.EventSeq,
-		immunityUntil: snap.ImmunityUntil,
-		releaseRunner: snap.ReleaseRunner,
-		lastPathMS:    snap.LastPathMS,
+		cfg:              snap.Cfg,
+		rnd:              r,
+		clock:            snap.ClockMS,
+		ball:             snap.Ball,
+		runners:          append([]Runner(nil), snap.Runners...),
+		contactMS:        snap.ContactMS,
+		contactRunner:    snap.ContactRunner,
+		events:           append([]PassEvent(nil), snap.Events...),
+		eventSeq:         snap.EventSeq,
+		immunityUntil:    snap.ImmunityUntil,
+		releaseRunner:    snap.ReleaseRunner,
+		lastPathMS:       snap.LastPathMS,
+		controlError:     snap.ControlError,
+		firstTouchMS:     snap.FirstTouchMS,
+		firstTouchRunner: snap.FirstTouchRunner,
 	}, nil
 }
 

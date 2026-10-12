@@ -357,9 +357,11 @@ func TestLivePassEventsShareIntegerClock(t *testing.T) {
 }
 
 // TestLivePassNoBallWarpOnReceipt: control preserves the ball's physical
-// position — the ball does not jump to the controller's feet. The per-substep
-// displacement is bounded by the physical speed, the held offset is within
-// reach, and the held ball then follows the owner continuously.
+// position — the ball does not jump to the controller's feet. On the control
+// substep the ball's displacement is bounded by its own free travel PLUS the
+// owner's travel over the remaining fraction (the held ball now follows the
+// owner to the common end-step), the held offset is within reach, and the held
+// ball then follows the owner continuously.
 func TestLivePassNoBallWarpOnReceipt(t *testing.T) {
 	sim, _ := livePassScene(t, 1, 15.0, -1.5) // receiver runs toward the ball
 	dt := float64(SubstepMS) / 1000
@@ -374,9 +376,13 @@ func TestLivePassNoBallWarpOnReceipt(t *testing.T) {
 		cur = sim.Ball()
 		if cur.Mode == BallHeld && prev.Mode == BallRolling {
 			controlled = true
+			_, cr := sim.FirstContact()
+			owner := sim.Runners()[cr]
 			prevSpeed := math.Sqrt(prev.VXM*prev.VXM + prev.VYM*prev.VYM)
-			if disp := DistM(prev.X, prev.Y, cur.X, cur.Y); disp > prevSpeed*dt+1e-9 {
-				t.Fatalf("ball warped on receipt: moved %.4f m in one %.0f ms step (max %.4f)", disp, dt*1000, prevSpeed*dt)
+			// Free ball travel + the owner's travel over the remaining fraction.
+			allow := (prevSpeed + owner.SpeedMPS()) * dt
+			if disp := DistM(prev.X, prev.Y, cur.X, cur.Y); disp > allow+1e-9 {
+				t.Fatalf("ball warped on receipt: moved %.4f m in one %.0f ms step (max %.4f)", disp, dt*1000, allow)
 			}
 		}
 	}

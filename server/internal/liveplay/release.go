@@ -23,6 +23,13 @@ const (
 	// DrawPassWeight is the signed pass weight (speed) error for a live ground
 	// pass (T-037), ±1 before scaling by WeightJitterFrac.
 	DrawPassWeight
+	// DrawContactControl is the contact-local clean-control/miscontrol draw
+	// (T-038). It is consumed ONLY at an actual physical contact when the pass
+	// declares a non-zero control-error budget; a zero budget draws nothing.
+	DrawContactControl
+	// DrawDeflectLateral is the signed lateral perturbation of a miscontrol
+	// deflection (T-038), ±1 before scaling by DeflectLateralMPS.
+	DrawDeflectLateral
 	// drawSiteCount is the number of declared sites (ordering guard).
 	drawSiteCount
 )
@@ -39,6 +46,10 @@ func (d DrawSite) String() string {
 		return "pass_direction"
 	case DrawPassWeight:
 		return "pass_weight"
+	case DrawContactControl:
+		return "contact_control"
+	case DrawDeflectLateral:
+		return "deflect_lateral"
 	default:
 		return "unknown"
 	}
@@ -65,6 +76,9 @@ func (s *Sim) ReleaseBall(p ReleaseParams) {
 
 	s.contactMS = -1
 	s.contactRunner = -1
+	s.controlError = 0
+	s.firstTouchMS = -1
+	s.firstTouchRunner = -1
 	s.ball = Ball{
 		Mode: BallRolling,
 		X:    p.StartX,

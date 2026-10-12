@@ -41,12 +41,16 @@ func benchRearmLivePass(sim *Sim) {
 	sim.releaseRunner = -1
 	sim.immunityUntil = 0
 	sim.lastPathMS = sim.clock
+	sim.controlError = 0
+	sim.firstTouchMS, sim.firstTouchRunner = -1, -1
 	for i := range sim.runners {
 		x, y, tx := liveBenchSlot(i)
 		r := &sim.runners[i]
 		r.X, r.Y = x, y
 		r.VXM, r.VYM = 0, 0
 		r.IntentX, r.IntentY = tx, y
+		r.ReactAtMS = 0
+		r.CooldownUntilMS = 0
 	}
 	sim.samples = sim.samples[:0]
 	sim.events = sim.events[:0]
@@ -91,6 +95,130 @@ func BenchmarkLivePassQuiet(b *testing.B) {
 			benchRearmLivePass(sim)
 		}
 		sim.StepQuiet()
+	}
+}
+
+// liveContestBenchSlot lays out one of 22 inertial CHASING bodies along the far
+// touchline (y <= 0.15), well clear of the ball lane at y = 0.50 (~24 m away).
+// Each publishes a real pursuit intent (toward the free ball), so the integrator
+// stays on the genuine acceleration+lateral microstep path rather than a no-op.
+func liveContestBenchSlot(i int) (x, y float64) {
+	return 0.08 + float64(i%11)*0.075, 0.05 + float64(i/11)*0.07
+}
+
+func liveContestBenchRunners() []Runner {
+	p := DefaultMotionParams()
+	rs := make([]Runner, 22)
+	for i := range rs {
+		x, y := liveContestBenchSlot(i)
+		r := PursuingRunner(x, y, p, 0)
+		rs[i] = r
+	}
+	return rs
+}
+
+// benchRearmLiveContest restarts a fresh contest window: a rolling ball in
+// bounds, no touch/immunity, no cooldowns, and every chasing body reset at the
+// far touchline. Backing arrays are rewound in place for steady-state appends.
+func benchRearmLiveContest(sim *Sim) {
+	sim.ball = Ball{Mode: BallRolling, X: 0.30, Y: 0.50, VXM: 16.0, VYM: 0.2}
+	sim.contactMS, sim.contactRunner = -1, -1
+	sim.releaseRunner = -1
+	sim.immunityUntil = 0
+	sim.lastPathMS = sim.clock
+	sim.controlError = 0
+	sim.firstTouchMS, sim.firstTouchRunner = -1, -1
+	for i := range sim.runners {
+		x, y := liveContestBenchSlot(i)
+		r := &sim.runners[i]
+		r.X, r.Y = x, y
+		r.VXM, r.VYM = 0, 0
+		r.IntentX, r.IntentY = x, y
+		r.ReactAtMS = 0
+		r.CooldownUntilMS = 0
+	}
+	sim.samples = sim.samples[:0]
+	sim.events = sim.events[:0]
+}
+
+// BenchmarkLiveContestActive measures one active live-contest substep: a rolling
+// ball, 22 inertial bodies genuinely chasing it (real microsteps), the swept
+// contact scan, path events and one recorded sample. No body can reach the lane
+// inside a re-arm window, so the loop never degenerates to Held/Dead.
+func BenchmarkLiveContestActive(b *testing.B) {
+	sim, err := NewSim(LivePassConfig(), 1)
+	if err != nil {
+		b.Fatal(err)
+	}
+	sim.SetRunners(liveContestBenchRunners())
+	sim.samples = make([]Sample, 0, 4096)
+	sim.events = make([]PassEvent, 0, 128)
+	benchRearmLiveContest(sim)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if i&(benchRearmEvery-1) == 0 {
+			benchRearmLiveContest(sim)
+		}
+		sim.Step()
+	}
+}
+
+// BenchmarkLiveContestQuiet measures the same active contest path without the
+// sample append, isolating the recording cost.
+func BenchmarkLiveContestQuiet(b *testing.B) {
+	sim, err := NewSim(LivePassConfig(), 1)
+	if err != nil {
+		b.Fatal(err)
+	}
+	sim.SetRunners(liveContestBenchRunners())
+	sim.events = make([]PassEvent, 0, 128)
+	benchRearmLiveContest(sim)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if i&(benchRearmEvery-1) == 0 {
+			benchRearmLiveContest(sim)
+		}
+		sim.StepQuiet()
+	}
+}
+
+// TestLiveContestBenchStaysActive guards the contest benchmark: the ball must keep
+// rolling (never controlled/dead), every chasing body must keep moving, and the
+// swept scan must not fire, so no run silently measures the cheap Held/Dead path.
+func TestLiveContestBenchStaysActive(t *testing.T) {
+	sim, err := NewSim(LivePassConfig(), 1)
+	if err != nil {
+		t.Fatalf("NewSim: %v", err)
+	}
+	sim.SetRunners(liveContestBenchRunners())
+	const total = 64 * 200
+	nonRolling, still := 0, 0
+	for i := 0; i < total; i++ {
+		if i&(benchRearmEvery-1) == 0 {
+			benchRearmLiveContest(sim)
+		}
+		sim.StepQuiet()
+		if sim.ball.Mode != BallRolling {
+			nonRolling++
+		}
+		moving := 0
+		for _, r := range sim.runners {
+			if r.SpeedMPS() > 0.05 {
+				moving++
+			}
+		}
+		if moving < len(sim.runners) {
+			still++
+		}
+		sim.events = sim.events[:0]
+	}
+	if nonRolling != 0 {
+		t.Fatalf("%d/%d steps left the ball non-rolling", nonRolling, total)
+	}
+	if still != 0 {
+		t.Fatalf("%d/%d steps had a still chasing body", still, total)
 	}
 }
 

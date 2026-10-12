@@ -53,6 +53,9 @@ const (
 	PassEventStop
 	// PassEventOut: the ball left the field of play (dead, restart).
 	PassEventOut
+	// PassEventDeflect: a physical touch miscontrolled/deflected the ball into a
+	// live loose trajectory (T-038); ownership stays unassigned.
+	PassEventDeflect
 )
 
 // String returns the stable label for traces and evidence. Unknown kinds return
@@ -69,14 +72,19 @@ func (k PassEventKind) String() string {
 		return "stop"
 	case PassEventOut:
 		return "out"
+	case PassEventDeflect:
+		return "deflect"
 	default:
 		return "unknown"
 	}
 }
 
 // PassEvent is one authoritative live-pass moment. Seq is monotonic within the
-// Sim and survives a Resume; Runner is the passer on release, the controller on
-// control, and -1 for path/stop/out events.
+// Sim and survives a Resume; Runner is the passer on release, the controller or
+// deflector on a contact, and -1 for path/stop/out events. Frac is the exact
+// within-substep fraction (0 = step start, 1 = step end) at which a contact/exit
+// event occurred, so a renderer can place the actual segment contact rather than
+// the end-step endpoint (T-038).
 type PassEvent struct {
 	Seq     int           `json:"seq"`
 	ClockMS int           `json:"clockMs"`
@@ -86,6 +94,20 @@ type PassEvent struct {
 	BallY   float64       `json:"ballY"`
 	VXM     float64       `json:"vxM,omitempty"`
 	VYM     float64       `json:"vyM,omitempty"`
+	Frac    float64       `json:"frac,omitempty"`
+	// RunnerX/RunnerY are the touching runner's position at the fractional
+	// contact instant (T-038). They are 0 for non-contact events, so a renderer
+	// can place the actual contact pair even though the end-step sample keeps
+	// every body at its common end-step state.
+	RunnerX float64 `json:"runnerX,omitempty"`
+	RunnerY float64 `json:"runnerY,omitempty"`
+	// OutVXM/OutVYM are the ball's OUTGOING velocity after a contact (T-038):
+	// the deflected velocity on a miscontrol, and zero on a clean control (held).
+	// VXM/VYM are the INCOMING velocity at the contact instant. Together with
+	// Frac this lets a renderer reconstruct the piecewise within-substep ball
+	// path instead of inferring a bounce from the pre- and end-step samples.
+	OutVXM float64 `json:"outVxM,omitempty"`
+	OutVYM float64 `json:"outVyM,omitempty"`
 }
 
 // PassParams is the physical intent of one live ground-pass release. TargetX/Y
@@ -98,6 +120,11 @@ type PassParams struct {
 	DirectionJitterMPS float64 // ± perpendicular velocity execution error (m/s)
 	WeightJitterFrac   float64 // ± fraction of SpeedMPS weight error
 	Passer             int     // releasing runner index for immunity, -1 if none
+	// ControlError is the contact-local control/execution uncertainty budget
+	// (T-038), in [0,1]. A physical contact whose seeded draw falls below this
+	// budget miscontrols/deflects into a live loose trajectory instead of clean
+	// control. Zero (the default) draws nothing and always controls cleanly.
+	ControlError float64
 }
 
 // LivePassConfig returns the recommended live-pass configuration.
@@ -146,11 +173,26 @@ func (s *Sim) ReleasePass(p PassParams) {
 	s.immunityUntil = s.clock + PasserImmunityMS
 	s.lastPathMS = s.clock
 
+	// Live-contest state (T-038): a fresh contact record, the contact-local
+	// control budget of THIS pass, and each runner's reaction activation deadline.
+	s.controlError = p.ControlError
+	s.firstTouchMS = -1
+	s.firstTouchRunner = -1
+	for i := range s.runners {
+		s.runners[i].ReactAtMS = s.clock + s.runners[i].ReactMS
+	}
+
 	s.emitEvent(PassEventRelease, p.Passer, s.clock, s.ball)
 }
 
 // emitEvent appends one event to the log and bumps the monotonic sequence.
 func (s *Sim) emitEvent(kind PassEventKind, runner, clock int, b Ball) {
+	s.emitEventAt(kind, runner, clock, 0, b)
+}
+
+// emitEventAt appends one event with an exact within-substep fraction (T-038
+// contacts/exits) to the log and bumps the monotonic sequence.
+func (s *Sim) emitEventAt(kind PassEventKind, runner, clock int, frac float64, b Ball) {
 	s.events = append(s.events, PassEvent{
 		Seq:     s.eventSeq,
 		ClockMS: clock,
@@ -160,6 +202,30 @@ func (s *Sim) emitEvent(kind PassEventKind, runner, clock int, b Ball) {
 		BallY:   b.Y,
 		VXM:     b.VXM,
 		VYM:     b.VYM,
+		Frac:    frac,
+	})
+	s.eventSeq++
+}
+
+// emitContactEvent appends a physical-contact event. `b` carries the ball's
+// FRACTIONAL contact position and its INCOMING velocity; outVX/outVY are the
+// ball's OUTGOING velocity after the contact (zero for a held/clean control);
+// runnerX/runnerY is the touching runner's position at that fraction.
+func (s *Sim) emitContactEvent(kind PassEventKind, runner, clock int, frac float64, b Ball, outVX, outVY, runnerX, runnerY float64) {
+	s.events = append(s.events, PassEvent{
+		Seq:     s.eventSeq,
+		ClockMS: clock,
+		Kind:    kind,
+		Runner:  runner,
+		BallX:   b.X,
+		BallY:   b.Y,
+		VXM:     b.VXM,
+		VYM:     b.VYM,
+		OutVXM:  outVX,
+		OutVYM:  outVY,
+		Frac:    frac,
+		RunnerX: runnerX,
+		RunnerY: runnerY,
 	})
 	s.eventSeq++
 }
