@@ -152,6 +152,15 @@ type Runner struct {
 	// this pointer so no live state is aliased. Omitted from JSON when nil, so
 	// disabled runners and fixtures keep the exact old key set.
 	Perception *BallObservation `json:"perception,omitempty"`
+
+	// LocalPursuit opts a runner into the T-044 observation-driven local intent
+	// policy, INDEPENDENT of the legacy native-oracle Pursue flag. The native
+	// publisher always skips a local runner (no omniscient fallback); the local
+	// policy may run ONLY during an armed scheduler publication, after the local
+	// perception sample, and reads only this runner's own observation record and
+	// position. Zero value = off, so disabled snapshots keep the exact old JSON
+	// key set. See localpursuit.go.
+	LocalPursuit bool `json:"localPursuit,omitempty"`
 }
 
 // Config is the spike's clock/friction configuration.
@@ -817,7 +826,7 @@ func Resume(snap Snapshot) (*Sim, error) {
 	if err != nil {
 		return nil, err
 	}
-	runners, err := resumeRunners(snap.Runners, snap.ClockMS)
+	runners, err := resumeRunners(snap.Runners, snap.ClockMS, snap.Cfg)
 	if err != nil {
 		return nil, fmt.Errorf("resuming: %w", err)
 	}

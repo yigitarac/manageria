@@ -21,6 +21,13 @@ package liveplay
 // local sighting after the reaction gate. It never changes intents, contacts,
 // motion or RNG.
 //
+// T-044 adds a deliberately trivial CONSUMER of that record, again on this same
+// publication and AFTER the sample: publishLocalPursuitIntents lets a runner with
+// LocalPursuit chase its own last local sighting (or brake when it has none / the
+// ball is not free), reading only its own record and position. The native oracle
+// always skips local runners, so a disabled scheduler or an invalid radius can
+// never reveal the remote ball position.
+//
 // The zero value of Config.IntentCadenceMS (0) keeps the exact native
 // per-substep behaviour, so no existing fixture, bit or JSON key changes. A
 // non-zero cadence is valid only with LivePass and must be a positive multiple
@@ -73,6 +80,7 @@ func (s *Sim) maybePublishIntents(stepStart int) {
 	}
 	s.publishPursuitIntents()
 	s.samplePerception(stepStart)
+	s.publishLocalPursuitIntents(stepStart)
 	s.decisionDirty = false
 	s.decisionPublishes++
 	s.lastDecisionMS = stepStart

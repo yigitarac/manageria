@@ -75,6 +75,12 @@ func (s *Sim) publishPursuitIntents() {
 	}
 	for i := range s.runners {
 		r := &s.runners[i]
+		if r.LocalPursuit {
+			// T-044: the native oracle ALWAYS skips a local runner, regardless of
+			// the scheduler state, the sensing radius or a missing observation.
+			// There is deliberately no fallback to the remote ball position.
+			continue
+		}
 		if !r.Pursue || r.Motion != MotionInertial {
 			continue
 		}

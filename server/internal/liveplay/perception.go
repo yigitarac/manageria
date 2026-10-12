@@ -209,8 +209,11 @@ func cloneRunners(rs []Runner) []Runner {
 // EnableSensing and are not validated by SetRunners (which has no error return);
 // the sampler fails CLOSED on such a record at runtime, and only the validated
 // import path (EnableSensing / Resume) rejects it up front.
-func resumeRunners(rs []Runner, nowMS int) ([]Runner, error) {
+func resumeRunners(rs []Runner, nowMS int, cfg Config) ([]Runner, error) {
 	for i := range rs {
+		if err := validateLocalPursuitContext(rs[i], cfg); err != nil {
+			return nil, fmt.Errorf("runner %d: %w", i, err)
+		}
 		if o := rs[i].Perception; o != nil {
 			if err := o.validate(nowMS, len(rs)); err != nil {
 				return nil, fmt.Errorf("runner %d: %w", i, err)
