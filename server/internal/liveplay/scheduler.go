@@ -28,6 +28,12 @@ package liveplay
 // always skips local runners, so a disabled scheduler or an invalid radius can
 // never reveal the remote ball position.
 //
+// T-046 makes that local sample/local intent layer OPT-IN event-local per runner:
+// publishLocalSamples selects an opted-in LocalWakeup runner on the lattice and,
+// off-lattice, only when its own WakePending was set by a LOCAL event (wakeup.go).
+// An unflagged runner keeps the exact T-042 shared semantics, and the native
+// publisher above stays shared for every non-local-pursuit runner.
+//
 // The zero value of Config.IntentCadenceMS (0) keeps the exact native
 // per-substep behaviour, so no existing fixture, bit or JSON key changes. A
 // non-zero cadence is valid only with LivePass and must be a positive multiple
@@ -63,24 +69,30 @@ func (s *Sim) maybePublishIntents(stepStart int) {
 		s.publishPursuitIntents()
 		return
 	}
-	publish := false
+	latticeDue := false
 	if stepStart >= s.nextDecisionMS {
-		publish = true
+		latticeDue = true
 		// Advance the stable lattice to the first deadline strictly after this
 		// step. The lattice is fixed (t0, cadence, 2*cadence, ...); an
 		// out-of-band event never moves it. This is an O(1) closed form (no
 		// catch-up loop), so a jump in the clock cannot make a step O(clock).
 		s.nextDecisionMS = (stepStart/s.cfg.IntentCadenceMS + 1) * s.cfg.IntentCadenceMS
 	}
-	if s.decisionDirty {
-		publish = true
-	}
-	if !publish {
+	// A legitimately persisted pending wakeup must schedule on its own even if a
+	// dirty boundary import did not restore decisionDirty; otherwise the pending
+	// would be silently ignored. The native oracle stays restricted to the shared
+	// lattice/dirty signal, so a pending-only publication never leaks remote ball
+	// positions to native runners — and the shared local layer for UNFLAGGED
+	// runners is likewise restricted to sharedDue.
+	sharedDirty := s.decisionDirty
+	sharedDue := latticeDue || sharedDirty
+	if !sharedDue && !s.anyLocalPending() {
 		return
 	}
-	s.publishPursuitIntents()
-	s.samplePerception(stepStart)
-	s.publishLocalPursuitIntents(stepStart)
+	if sharedDue {
+		s.publishPursuitIntents()
+	}
+	s.publishLocalSamples(stepStart, latticeDue, sharedDue)
 	s.decisionDirty = false
 	s.decisionPublishes++
 	s.lastDecisionMS = stepStart

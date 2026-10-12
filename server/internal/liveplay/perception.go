@@ -214,6 +214,9 @@ func resumeRunners(rs []Runner, nowMS int, cfg Config) ([]Runner, error) {
 		if err := validateLocalPursuitContext(rs[i], cfg); err != nil {
 			return nil, fmt.Errorf("runner %d: %w", i, err)
 		}
+		if err := validateLocalWakeupContext(rs[i], cfg); err != nil {
+			return nil, fmt.Errorf("runner %d: %w", i, err)
+		}
 		if o := rs[i].Perception; o != nil {
 			if err := o.validate(nowMS, len(rs)); err != nil {
 				return nil, fmt.Errorf("runner %d: %w", i, err)
@@ -234,8 +237,19 @@ func resumeRunners(rs []Runner, nowMS int, cfg Config) ([]Runner, error) {
 // is skipped (never an all-world or NaN leak), the reaction gate is applied, and a
 // non-finite ball/runner distance (e.g. a NaN coordinate) skips the write rather
 // than being admitted by the `NaN > radius` false comparison.
-func (s *Sim) samplePerception(stepStart int) {
+//
+// The ungated form is retained for direct callers and is covered by the T-043
+// tests; the armed scheduler (T-046) calls samplePerceptionGate so an opted-in
+// local-wakeup runner is only sampled when its own per-runner gate selects it.
+func (s *Sim) samplePerception(stepStart int) { s.samplePerceptionGate(stepStart, nil) }
+
+// samplePerceptionGate is samplePerception restricted to the runners the caller
+// selected (a nil gate selects every runner, the pre-T-046 behaviour).
+func (s *Sim) samplePerceptionGate(stepStart int, gate []bool) {
 	for i := range s.runners {
+		if gate != nil && !gate[i] {
+			continue
+		}
 		r := &s.runners[i]
 		o := r.Perception
 		if !o.SensingEnabled() {

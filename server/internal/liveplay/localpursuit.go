@@ -92,8 +92,23 @@ func (r Runner) LocalPursuitEnabled() bool {
 // native pursuit, and an undeclared observed mode changes nothing. The disabled
 // native path never publishes at all; the cadence==SubstepMS equivalence anchor
 // still calls this every substep but is INERT because no local runner is opted in.
+//
+// The ungated form is retained for direct callers and is covered by the T-044
+// tests; the armed scheduler (T-046) calls publishLocalPursuitIntentsGate so an
+// opted-in local-wakeup runner is only published when its own per-runner gate
+// selects it.
 func (s *Sim) publishLocalPursuitIntents(stepStart int) {
+	s.publishLocalPursuitIntentsGate(stepStart, nil)
+}
+
+// publishLocalPursuitIntentsGate is publishLocalPursuitIntents restricted to the
+// runners the caller selected (a nil gate selects every runner, the pre-T-046
+// behaviour).
+func (s *Sim) publishLocalPursuitIntentsGate(stepStart int, gate []bool) {
 	for i := range s.runners {
+		if gate != nil && !gate[i] {
+			continue
+		}
 		r := &s.runners[i]
 		if !r.LocalPursuit {
 			continue

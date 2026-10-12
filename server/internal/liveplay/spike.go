@@ -161,6 +161,23 @@ type Runner struct {
 	// position. Zero value = off, so disabled snapshots keep the exact old JSON
 	// key set. See localpursuit.go.
 	LocalPursuit bool `json:"localPursuit,omitempty"`
+
+	// LocalWakeup opts a runner into the T-046 per-runner local event wakeup: with
+	// an armed scheduler and a valid sensing record, this runner's local sample and
+	// local intent layers run on the periodic lattice and, off-lattice, only when
+	// its OWN WakePending is set — a remote event never wakes it. An unflagged
+	// runner keeps the exact T-042 shared semantics, and native Pursue publication
+	// is always shared regardless of this flag. Zero value = off, so disabled
+	// snapshots keep the exact old JSON key set. See wakeup.go.
+	LocalWakeup bool `json:"localWakeup,omitempty"`
+
+	// WakePending is the persisted per-runner local wakeup set at the event emitter
+	// when a state-changing ball event is LOCAL to this runner by event-time
+	// geometry. It coalesces every event of one substep and is consumed (cleared)
+	// at the immediate next pre-step publication regardless of the reaction gate
+	// (drop-before-reaction). Zero value = no pending, so disabled snapshots keep
+	// the exact old JSON key set. See wakeup.go.
+	WakePending bool `json:"wakePending,omitempty"`
 }
 
 // Config is the spike's clock/friction configuration.
@@ -245,6 +262,18 @@ type Sim struct {
 	decisionDirty     bool // a prior completed step emitted a state-changing event
 	decisionPublishes int  // evidence: number of scheduler publications
 	lastDecisionMS    int  // evidence: pre-step clock of the last publication, -1 if none
+
+	// Opt-in local event wakeup evidence (T-046). None of these is serialized; they
+	// are diagnostics that must NOT be confused with the shared global scheduler
+	// clocks above (a remote event still bumps decisionPublishes/lastDecisionMS).
+	// localWakePublications counts per-runner local-layer SCHEDULING ATTEMPTS for
+	// runners opted into LocalWakeup (the reaction gate may still drop the sample in
+	// that attempt); localPubMS is the last pre-step clock each opted runner's local
+	// layer was scheduled (-1 if never); localGate is reused per-step scratch so the
+	// per-runner gating never allocates. See wakeup.go.
+	localWakePublications int
+	localPubMS            []int
+	localGate             []bool
 
 	// Pre-step scratch (T-038): explicit pre-integration reference positions for
 	// the exact substep chords. Not serialized and reused every substep, so the
