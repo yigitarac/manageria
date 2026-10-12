@@ -22,8 +22,15 @@ const viewerRoute = createRoute({
   component: lazyRouteComponent(() => import("./pages/ViewerPage"), "ViewerPage"),
 });
 
+const prototypeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/prototype",
+  // Lazy: the same-clock causal prototype viewer only loads when visited.
+  component: lazyRouteComponent(() => import("./pages/PrototypePage"), "PrototypePage"),
+});
+
 export const router = createRouter({
-  routeTree: rootRoute.addChildren([homeRoute, viewerRoute]),
+  routeTree: rootRoute.addChildren([homeRoute, viewerRoute, prototypeRoute]),
 });
 
 declare module "@tanstack/react-router" {

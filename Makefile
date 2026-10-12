@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help dev dev-api dev-web gen fmt lint test bench sample db-up db-down
+.PHONY: help dev dev-api dev-web gen fmt lint test bench sample prototype db-up db-down
 
 # Sample matches vary per run by default; pin one with: make sample SEED=42
 SEED ?= $(shell date +%s%N)
@@ -55,6 +55,11 @@ sample: ## Generate a fresh sample match (override with SEED=<n> for a reproduci
 	mkdir -p web/public/samples
 	cd server && go run ./cmd/simcli -seed $(SEED) -runs 1 -out ../web/public/samples/match-42.json
 	@echo "open http://localhost:5173/viewer — a different match every run (same one with SEED=<n>)"
+
+prototype: ## Generate the T-039 same-clock causal prototype clips (web/public/prototype/)
+	mkdir -p web/public/prototype
+	cd server && go run ./cmd/liveplaydemo -out ../web/public/prototype
+	@echo "open http://localhost:5173/prototype — regenerate with: make prototype"
 
 db-up: ## Start local Postgres
 	docker compose -f deploy/docker-compose.yml up -d

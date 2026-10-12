@@ -27,6 +27,7 @@ coverage.*
 node_modules/
 dist/
 web/public/samples/
+web/public/prototype/
 build/
 .turbo/
 .vite/
