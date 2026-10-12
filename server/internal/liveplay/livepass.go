@@ -205,6 +205,7 @@ func (s *Sim) emitEventAt(kind PassEventKind, runner, clock int, frac float64, b
 		Frac:    frac,
 	})
 	s.eventSeq++
+	s.noteDecisionEvent(kind)
 }
 
 // emitContactEvent appends a physical-contact event. `b` carries the ball's
@@ -228,4 +229,5 @@ func (s *Sim) emitContactEvent(kind PassEventKind, runner, clock int, frac float
 		RunnerY: runnerY,
 	})
 	s.eventSeq++
+	s.noteDecisionEvent(kind)
 }

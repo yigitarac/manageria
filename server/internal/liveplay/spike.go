@@ -22,6 +22,12 @@ var (
 	// substep, which is what makes the chronological-continuation loop terminate
 	// naturally (no arbitrary iteration cap).
 	ErrLivePassSubstep = errors.New("liveplay: live-pass substep must be shorter than the deflection cooldown")
+	// ErrIntentCadence: a configured IntentCadenceMS must be a positive multiple
+	// of SubstepMS, so the periodic lattice lands exactly on substep boundaries.
+	ErrIntentCadence = errors.New("liveplay: intent cadence must be a positive multiple of the substep")
+	// ErrIntentCadenceNeedsLivePass: the opt-in sampled scheduler is part of the
+	// live-pass model and is rejected without LivePass.
+	ErrIntentCadenceNeedsLivePass = errors.New("liveplay: intent cadence is only valid with LivePass")
 )
 
 // validate rejects configurations that could stall or corrupt the integrator.
@@ -34,6 +40,17 @@ func (c Config) validate() error {
 	}
 	if c.LivePass && c.SubstepMS >= DeflectionCooldownMS {
 		return fmt.Errorf("%w: got %d ms, limit < %d ms", ErrLivePassSubstep, c.SubstepMS, DeflectionCooldownMS)
+	}
+	if c.IntentCadenceMS != 0 {
+		if c.IntentCadenceMS < 0 {
+			return fmt.Errorf("%w: got %d ms", ErrIntentCadence, c.IntentCadenceMS)
+		}
+		if !c.LivePass {
+			return fmt.Errorf("%w: got %d ms", ErrIntentCadenceNeedsLivePass, c.IntentCadenceMS)
+		}
+		if c.IntentCadenceMS%c.SubstepMS != 0 {
+			return fmt.Errorf("%w: %d ms is not a multiple of substep %d ms", ErrIntentCadence, c.IntentCadenceMS, c.SubstepMS)
+		}
 	}
 	return nil
 }
@@ -141,6 +158,13 @@ type Config struct {
 	// exact T-035/T-036 endpoint/owner-follow behaviour, so no existing fixture
 	// changes meaning. See livepass.go.
 	LivePass bool `json:"livePass,omitempty"`
+	// IntentCadenceMS arms the opt-in sampled intent scheduler (T-042) on the
+	// live path. Zero (the default) keeps the exact native per-substep intent
+	// publication; a non-zero value publishes pursuit intents on the stable
+	// periodic lattice and on out-of-band state-changing events. It must be a
+	// positive multiple of SubstepMS and is only valid with LivePass. See
+	// scheduler.go.
+	IntentCadenceMS int `json:"intentCadenceMs,omitempty"`
 }
 
 // DefaultConfig is the recommended configuration the spec proposes.
@@ -196,6 +220,15 @@ type Sim struct {
 	firstTouchMS     int     // first physical contact time, -1 if none yet
 	firstTouchRunner int     // runner index of the first physical contact, -1 if none
 
+	// Opt-in sampled intent scheduler state (T-042). nextDecisionMS and
+	// decisionDirty are serialized (exact Resume); decisionPublishes and
+	// lastDecisionMS are evidence-only counters. All four are inert while
+	// Config.IntentCadenceMS == 0. See scheduler.go.
+	nextDecisionMS    int  // next periodic decision deadline
+	decisionDirty     bool // a prior completed step emitted a state-changing event
+	decisionPublishes int  // evidence: number of scheduler publications
+	lastDecisionMS    int  // evidence: pre-step clock of the last publication, -1 if none
+
 	// Pre-step scratch (T-038): explicit pre-integration reference positions for
 	// the exact substep chords. Not serialized and reused every substep, so the
 	// live resolver never allocates per step.
@@ -220,6 +253,7 @@ func NewSim(cfg Config, seed uint64) (*Sim, error) {
 		releaseRunner:    -1,
 		firstTouchMS:     -1,
 		firstTouchRunner: -1,
+		lastDecisionMS:   -1,
 	}, nil
 }
 
@@ -457,7 +491,7 @@ func (s *Sim) stepLive(record bool) {
 	stepStart := s.clock
 
 	s.capturePreStep()
-	s.publishPursuitIntents()
+	s.maybePublishIntents(stepStart)
 
 	// 1. Ball integration under rolling friction (semi-implicit Euler: velocity
 	// is decelerated first, then position advanced with the new velocity).
@@ -729,6 +763,14 @@ type Snapshot struct {
 	ControlError     float64 `json:"controlError,omitempty"`
 	FirstTouchMS     int     `json:"firstTouchMs"`
 	FirstTouchRunner int     `json:"firstTouchRunner"`
+
+	// Opt-in sampled scheduler state (T-042). Both are omitted at zero, so a
+	// disabled snapshot keeps the exact old JSON key set. They are everything the
+	// scheduler needs to continue: the lattice continuation and the pending
+	// invalidation flag (the consumed-event marker). The scheduler draws no RNG
+	// and scans no event log, so nothing else is persisted.
+	NextDecisionMS int  `json:"nextDecisionMs,omitempty"`
+	DecisionDirty  bool `json:"decisionDirty,omitempty"`
 }
 
 // Snapshot captures the current state.
@@ -749,6 +791,8 @@ func (s *Sim) Snapshot() Snapshot {
 		ControlError:     s.controlError,
 		FirstTouchMS:     s.firstTouchMS,
 		FirstTouchRunner: s.firstTouchRunner,
+		NextDecisionMS:   s.nextDecisionMS,
+		DecisionDirty:    s.decisionDirty,
 	}
 }
 
@@ -778,6 +822,9 @@ func Resume(snap Snapshot) (*Sim, error) {
 		controlError:     snap.ControlError,
 		firstTouchMS:     snap.FirstTouchMS,
 		firstTouchRunner: snap.FirstTouchRunner,
+		nextDecisionMS:   snap.NextDecisionMS,
+		decisionDirty:    snap.DecisionDirty,
+		lastDecisionMS:   -1,
 	}, nil
 }
 
