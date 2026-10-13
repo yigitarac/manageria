@@ -92,7 +92,7 @@ func (s *Sim) maybePublishIntents(stepStart int) {
 	if sharedDue {
 		s.publishPursuitIntents()
 	}
-	s.publishLocalSamples(stepStart, latticeDue, sharedDue)
+	s.publishLocalSamples(stepStart, latticeDue, sharedDirty, sharedDue)
 	s.decisionDirty = false
 	s.decisionPublishes++
 	s.lastDecisionMS = stepStart

@@ -173,7 +173,7 @@ func (s *Sim) anyLocalPending() bool {
 //   - an opted-in runner with an INVALID enabling fails CLOSED: its local layer is
 //     never run and any pending it cannot honour is cleared;
 //   - an unflagged runner runs iff sharedDue (the exact T-042 shared semantics).
-func (s *Sim) publishLocalSamples(stepStart int, latticeDue, sharedDue bool) {
+func (s *Sim) publishLocalSamples(stepStart int, latticeDue, sharedDirty, sharedDue bool) {
 	anyOptIn := false
 	for i := range s.runners {
 		if s.runners[i].LocalWakeup {
@@ -186,6 +186,10 @@ func (s *Sim) publishLocalSamples(stepStart int, latticeDue, sharedDue bool) {
 			s.samplePerception(stepStart)
 			s.publishLocalPursuitIntents(stepStart)
 		}
+		// Optional T-049 provenance: the fast path has no per-runner gate, so every
+		// unflagged local runner that ran off-lattice carried the shared event
+		// signal. The hook is a no-op while no recorder is attached.
+		s.recordLocalProvenanceFast(stepStart, latticeDue, sharedDirty, sharedDue)
 		return
 	}
 	n := len(s.runners)
@@ -202,10 +206,25 @@ func (s *Sim) publishLocalSamples(stepStart int, latticeDue, sharedDue bool) {
 		s.localPubMS = ms
 	}
 	pubMS := s.localPubMS[:n]
+	// Optional T-049 provenance: capture each runner's event signal BEFORE the
+	// pending is consumed (an opted-in runner's own WakePending, or the shared
+	// dirty flag for an unflagged runner). Allocated only while a recorder is
+	// attached, so the default path allocates nothing extra.
+	var event []bool
+	if s.provenance != nil {
+		if cap(s.localEvent) < n {
+			s.localEvent = make([]bool, n)
+		}
+		event = s.localEvent[:n]
+		s.localEvent = event
+	}
 	for i := range s.runners {
 		r := &s.runners[i]
 		if !r.LocalWakeup {
 			gate[i] = sharedDue // unflagged: exact T-042 shared semantics
+			if event != nil {
+				event[i] = sharedDirty
+			}
 			r.WakePending = false
 			continue
 		}
@@ -213,11 +232,18 @@ func (s *Sim) publishLocalSamples(stepStart int, latticeDue, sharedDue bool) {
 			// Raw flag set but the enabling is invalid: never run the local layer for
 			// this runner, and drop any pending it cannot honour.
 			gate[i] = false
+			if event != nil {
+				event[i] = false
+			}
 			r.WakePending = false
 			continue
 		}
-		run := latticeDue || r.WakePending
+		pending := r.WakePending
+		run := latticeDue || pending
 		gate[i] = run
+		if event != nil {
+			event[i] = pending
+		}
 		if run {
 			s.localWakePublications++
 			pubMS[i] = stepStart
@@ -228,6 +254,30 @@ func (s *Sim) publishLocalSamples(stepStart int, latticeDue, sharedDue bool) {
 	s.localPubMS = pubMS
 	s.samplePerceptionGate(stepStart, gate)
 	s.publishLocalPursuitIntentsGate(stepStart, gate)
+	// Record AFTER sampling and the local policy (post-intent) and BEFORE any
+	// integration, so the record is the true pre-step publication.
+	if s.provenance != nil {
+		s.recordLocalProvenance(stepStart, gate, event, latticeDue)
+	}
+}
+
+// recordLocalProvenanceFast is the provenance hook for the opt-in-free fast path:
+// there is no per-runner gate, so every unflagged local runner's event signal is
+// the shared dirty flag. It is a no-op while no recorder is attached.
+func (s *Sim) recordLocalProvenanceFast(stepStart int, latticeDue, sharedDirty, sharedDue bool) {
+	if s.provenance == nil || !sharedDue {
+		return
+	}
+	n := len(s.runners)
+	if cap(s.localEvent) < n {
+		s.localEvent = make([]bool, n)
+	}
+	event := s.localEvent[:n]
+	s.localEvent = event
+	for i := range event {
+		event[i] = sharedDirty
+	}
+	s.recordLocalProvenance(stepStart, nil, event, latticeDue)
 }
 
 // validateLocalWakeupContext checks a persisted local-wakeup runner against the

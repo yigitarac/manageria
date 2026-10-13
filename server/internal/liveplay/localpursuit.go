@@ -110,38 +110,23 @@ func (s *Sim) publishLocalPursuitIntentsGate(stepStart int, gate []bool) {
 			continue
 		}
 		r := &s.runners[i]
-		if !r.LocalPursuit {
+		// The decision table is the single source of truth shared with the T-049
+		// provenance recorder (localDecision), so the exported policy can never
+		// disagree with the applied policy. A reaction-blocked or invalid
+		// enabling returns ok=false and changes nothing (fail closed).
+		policy, ok, _ := localDecision(*r, stepStart)
+		if !ok {
 			continue
 		}
-		if r.Motion != MotionInertial {
-			continue // fail closed: no hidden motion model
-		}
-		o := r.Perception
-		if !o.SensingEnabled() {
-			continue // missing record / invalid radius: no oracle, no new target
-		}
-		if stepStart < r.ReactAtMS {
-			continue // same reaction gate as native perception/pursuit
-		}
-		switch o.Freshness(stepStart) {
-		case ObservationUnknown:
-			// Never seen the ball: brake at the runner's own position. The
+		switch policy {
+		case PolicyUnknownBrake, PolicyNonFreeBrake:
+			// Unknown / non-free: brake at the runner's own position. The
 			// integrator decelerates through the existing inertia.
 			r.IntentX, r.IntentY = r.X, r.Y
-		case ObservationStale:
-			// Seen before, not refreshed at this publication: RETAIN the prior
-			// destination (explicit assumption: no extrapolation/time-to-intercept).
-		default: // ObservationFresh
-			switch o.Mode {
-			case BallRolling, BallLoose:
-				// A free ball: chase the observed position.
-				r.IntentX, r.IntentY = o.X, o.Y
-			case BallHeld, BallDead, BallOut:
-				// Not a free ball: brake at the runner's own position.
-				r.IntentX, r.IntentY = r.X, r.Y
-			default:
-				// Undeclared mode: fail closed, retain the prior destination.
-			}
+		case PolicyChase:
+			// A free ball: chase the observed position.
+			r.IntentX, r.IntentY = r.Perception.X, r.Perception.Y
+		default: // PolicyStaleRetain: retain the prior destination (no extrapolation)
 		}
 	}
 }

@@ -275,6 +275,19 @@ type Sim struct {
 	localPubMS            []int
 	localGate             []bool
 
+	// localEvent is reused per-publication scratch for the OPTIONAL provenance
+	// recorder (T-049): the per-runner event signal that coincided with a
+	// publication (an opted-in runner's OWN pre-consumption WakePending, or the
+	// shared dirty flag for an unflagged runner). It is allocated ONLY while a
+	// provenance recorder is attached; the default path allocates nothing. Never
+	// serialized and never read by a simulation decision.
+	localEvent []bool
+
+	// Optional decision-provenance recorder (T-049). It is a diagnostic sink
+	// ONLY: never serialized in Snapshot, never read by any simulation decision,
+	// and nil by default so the disabled path allocates nothing. See provenance.go.
+	provenance *ProvenanceRecorder
+
 	// Pre-step scratch (T-038): explicit pre-integration reference positions for
 	// the exact substep chords. Not serialized and reused every substep, so the
 	// live resolver never allocates per step.
