@@ -115,6 +115,12 @@ type Ball struct {
 // opt-in inertial model (see motion.go). Complete inertial state lives here
 // (velocity, intent and resolved physical limits) so a Snapshot preserves it.
 type Runner struct {
+	// PlayerID is an optional stable player identity (T-055). Zero keeps the exact
+	// legacy JSON (and the legacy slot-based tie). Nonzero is a stable
+	// fixture/player key for the integrated opt-in shell; it is NOT a UUID
+	// replacement for domain IDs. Integrated mode requires unique nonzero IDs.
+	PlayerID uint64 `json:"playerId,omitempty"`
+
 	X      float64 `json:"x"`
 	Y      float64 `json:"y"`
 	VXM    float64 `json:"vxM"`
@@ -288,6 +294,11 @@ type Sim struct {
 	// and nil by default so the disabled path allocates nothing. See provenance.go.
 	provenance *ProvenanceRecorder
 
+	// integrated is the opt-in T-055 integrated state/ordering shell (integrated.go).
+	// Nil by default, so the disabled path is byte-for-byte the legacy shape and
+	// keeps the slot tie. Mirrored in Snapshot.Integrated.
+	integrated *IntegratedState
+
 	// Pre-step scratch (T-038): explicit pre-integration reference positions for
 	// the exact substep chords. Not serialized and reused every substep, so the
 	// live resolver never allocates per step.
@@ -345,12 +356,18 @@ func (s *Sim) FirstTouch() (int, int) { return s.firstTouchMS, s.firstTouchRunne
 // out) recorded so far.
 func (s *Sim) Events() []PassEvent { return append([]PassEvent(nil), s.events...) }
 
-// SetBall places a ball in an explicit mode/state (fixture helper).
+// SetBall places a ball in an explicit mode/state (fixture helper). It is NOT a
+// gameplay event: it emits no authoritative event and creates no integrated fact,
+// so after EnableIntegrated it must leave a snapshot that still satisfies the
+// integrated invariants (coherent phase/ball mode, finite state) or Resume rejects
+// it.
 func (s *Sim) SetBall(b Ball) { s.ball = b }
 
 // SetRunners replaces the runner set (fixture helper). The incoming runners and
 // every mutable perception record are deep-copied, so the caller and the sim
-// never share a pointer.
+// never share a pointer. Like SetBall it is NOT a gameplay event and creates no
+// integrated fact; after EnableIntegrated the replacement roster must keep unique
+// nonzero stable IDs and finite bodies or Resume rejects the snapshot.
 func (s *Sim) SetRunners(rs []Runner) {
 	s.runners = cloneRunners(rs)
 	s.ensurePreCapacity(len(s.runners))
@@ -670,10 +687,17 @@ func (s *Sim) resolveFreeBall(stepStart int, dt float64, stopped bool) {
 			if !ok {
 				continue
 			}
-			// Strictly earlier wins; equal fractions keep the LOWEST index
-			// (iteration is ascending). A contact beats an equal-time exit/stop.
+			// Strictly earlier wins; a contact beats an equal-time exit/stop.
+			// Equal-time CONTACTS keep the LOWEST slot when the integrated shell is
+			// disabled (iteration is ascending, exactly as before) and the LOWEST
+			// stable PlayerID when it is enabled (T-055). A strictly different
+			// exact time always outranks the id.
 			if u < bestU || (u == bestU && bestKind != evContact) {
 				bestKind, bestU, bestRunner = evContact, u, i
+			} else if s.integrated != nil && u == bestU && bestKind == evContact {
+				if r.PlayerID < s.runners[bestRunner].PlayerID {
+					bestRunner = i
+				}
 			}
 		}
 
@@ -833,6 +857,11 @@ type Snapshot struct {
 	// and scans no event log, so nothing else is persisted.
 	NextDecisionMS int  `json:"nextDecisionMs,omitempty"`
 	DecisionDirty  bool `json:"decisionDirty,omitempty"`
+
+	// Integrated is the opt-in T-055 shell state (integrated.go). Nil (omitted)
+	// by default, so a disabled snapshot keeps the exact old JSON key set and the
+	// slot tie semantics. Deep-copied on Snapshot/Resume so it is never aliased.
+	Integrated *IntegratedState `json:"integrated,omitempty"`
 }
 
 // Snapshot captures the current state.
@@ -855,6 +884,7 @@ func (s *Sim) Snapshot() Snapshot {
 		FirstTouchRunner: s.firstTouchRunner,
 		NextDecisionMS:   s.nextDecisionMS,
 		DecisionDirty:    s.decisionDirty,
+		Integrated:       cloneIntegrated(s.integrated),
 	}
 }
 
@@ -871,6 +901,10 @@ func Resume(snap Snapshot) (*Sim, error) {
 	runners, err := resumeRunners(snap.Runners, snap.ClockMS, snap.Cfg)
 	if err != nil {
 		return nil, fmt.Errorf("resuming: %w", err)
+	}
+	integrated, err := resumeIntegrated(snap, runners)
+	if err != nil {
+		return nil, err
 	}
 	return &Sim{
 		cfg:              snap.Cfg,
@@ -891,6 +925,7 @@ func Resume(snap Snapshot) (*Sim, error) {
 		nextDecisionMS:   snap.NextDecisionMS,
 		decisionDirty:    snap.DecisionDirty,
 		lastDecisionMS:   -1,
+		integrated:       integrated,
 	}, nil
 }
 

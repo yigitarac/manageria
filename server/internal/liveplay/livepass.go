@@ -193,8 +193,7 @@ func (s *Sim) emitEvent(kind PassEventKind, runner, clock int, b Ball) {
 // emitEventAt appends one event with an exact within-substep fraction (T-038
 // contacts/exits) to the log and bumps the monotonic sequence.
 func (s *Sim) emitEventAt(kind PassEventKind, runner, clock int, frac float64, b Ball) {
-	s.events = append(s.events, PassEvent{
-		Seq:     s.eventSeq,
+	s.appendPassEvent(PassEvent{
 		ClockMS: clock,
 		Kind:    kind,
 		Runner:  runner,
@@ -204,9 +203,6 @@ func (s *Sim) emitEventAt(kind PassEventKind, runner, clock int, frac float64, b
 		VYM:     b.VYM,
 		Frac:    frac,
 	})
-	s.eventSeq++
-	s.noteDecisionEvent(kind)
-	s.noteLocalWake(kind, b.X, b.Y, frac)
 }
 
 // emitContactEvent appends a physical-contact event. `b` carries the ball's
@@ -214,8 +210,7 @@ func (s *Sim) emitEventAt(kind PassEventKind, runner, clock int, frac float64, b
 // ball's OUTGOING velocity after the contact (zero for a held/clean control);
 // runnerX/runnerY is the touching runner's position at that fraction.
 func (s *Sim) emitContactEvent(kind PassEventKind, runner, clock int, frac float64, b Ball, outVX, outVY, runnerX, runnerY float64) {
-	s.events = append(s.events, PassEvent{
-		Seq:     s.eventSeq,
+	s.appendPassEvent(PassEvent{
 		ClockMS: clock,
 		Kind:    kind,
 		Runner:  runner,
@@ -229,7 +224,19 @@ func (s *Sim) emitContactEvent(kind PassEventKind, runner, clock int, frac float
 		RunnerX: runnerX,
 		RunnerY: runnerY,
 	})
+}
+
+// appendPassEvent is the single authoritative emitter. It stamps the monotonic
+// sequence, appends the event, then — in declared order — records the opt-in
+// integrated fact synchronously at THIS emitter (T-055; a no-op when disabled),
+// marks the scheduler invalidation and sets any local wakeup pending. Every
+// gameplay event goes through here, so the integrated journal and the legacy log
+// share one emission order by construction.
+func (s *Sim) appendPassEvent(e PassEvent) {
+	e.Seq = s.eventSeq
+	s.events = append(s.events, e)
 	s.eventSeq++
-	s.noteDecisionEvent(kind)
-	s.noteLocalWake(kind, b.X, b.Y, frac)
+	s.noteIntegratedFact(e)
+	s.noteDecisionEvent(e.Kind)
+	s.noteLocalWake(e.Kind, e.BallX, e.BallY, e.Frac)
 }
