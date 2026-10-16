@@ -141,9 +141,6 @@ func LivePassConfig() Config {
 // metres/second components (no libm trig); the direction error is a signed
 // perpendicular velocity so arbitrary pass directions are supported.
 func (s *Sim) ReleasePass(p PassParams) {
-	dirErr := (s.rnd.Float64()*2 - 1) * p.DirectionJitterMPS  // DrawPassDirection
-	weightErr := (s.rnd.Float64()*2 - 1) * p.WeightJitterFrac // DrawPassWeight
-
 	dx := (p.TargetX - p.StartX) * PitchLengthM
 	dy := (p.TargetY - p.StartY) * PitchWidthM
 	d := math.Sqrt(dx*dx + dy*dy)
@@ -154,6 +151,17 @@ func (s *Sim) ReleasePass(p PassParams) {
 		// Degenerate aim (target == start): default to a straight +x pass.
 		ux, uy = 1, 0
 	}
+
+	// T-056 kick alignment: a valid oriented passer scales the execution jitter
+	// budgets by 1 + k*(1 - facing·aim)/2. The draw ORDER and COUNT are unchanged
+	// (still direction then weight); only the resolved error magnitude scales, so
+	// an aligned/opposed facing at an identical seed changes the trajectory while
+	// the RNG state after the identical draws is exact. Zero coefficient/jitter has
+	// no random effect.
+	spread := s.passSpread(p.Passer, ux, uy)
+	dirErr := (s.rnd.Float64()*2 - 1) * p.DirectionJitterMPS * spread  // DrawPassDirection
+	weightErr := (s.rnd.Float64()*2 - 1) * p.WeightJitterFrac * spread // DrawPassWeight
+
 	// Perpendicular unit in metric space (rotate +90 without trig).
 	px, py := -uy, ux
 

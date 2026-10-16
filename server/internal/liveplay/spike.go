@@ -159,6 +159,13 @@ type Runner struct {
 	// disabled runners and fixtures keep the exact old key set.
 	Perception *BallObservation `json:"perception,omitempty"`
 
+	// Orientation is the optional T-056 facing/oriented-arrival state. It is nil
+	// unless the runner opts in (see EnableOrientation), so the nil branch keeps
+	// the exact pre-T056 integrator arithmetic and JSON. Only valid on inertial
+	// bodies with a stable nonzero PlayerID on the integrated path. Every public
+	// state copy deep-copies this pointer.
+	Orientation *RunnerOrientation `json:"orientation,omitempty"`
+
 	// LocalPursuit opts a runner into the T-044 observation-driven local intent
 	// policy, INDEPENDENT of the legacy native-oracle Pursue flag. The native
 	// publisher always skips a local runner (no omniscient fallback); the local
@@ -893,6 +900,15 @@ func (s *Sim) Snapshot() Snapshot {
 func Resume(snap Snapshot) (*Sim, error) {
 	if err := snap.Cfg.validate(); err != nil {
 		return nil, fmt.Errorf("resuming: %w", err)
+	}
+	// Orientation is only valid on the integrated path; a legacy (nil-integrated)
+	// snapshot carrying one is inconsistent and rejected.
+	if snap.Integrated == nil {
+		for i := range snap.Runners {
+			if snap.Runners[i].Orientation != nil {
+				return nil, fmt.Errorf("resuming: runner %d: %w", i, ErrOrientationNoIntegrated)
+			}
+		}
 	}
 	r, err := rng.FromState(snap.RNG)
 	if err != nil {

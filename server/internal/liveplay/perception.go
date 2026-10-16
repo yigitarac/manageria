@@ -196,6 +196,7 @@ func cloneRunners(rs []Runner) []Runner {
 	out := append([]Runner(nil), rs...)
 	for i := range out {
 		out[i].Perception = cloneObservation(out[i].Perception)
+		out[i].Orientation = cloneOrientation(out[i].Orientation)
 	}
 	return out
 }

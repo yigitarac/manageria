@@ -210,29 +210,44 @@ func (s *Sim) SetIntent(index int, x, y float64) {
 //
 // A head-on reversal therefore decelerates through zero and accelerates back:
 // the T-035 instant reversal is impossible by construction, without any trig.
+//
+// A runner with a non-nil Orientation is integrated by the T-056 oriented model
+// (a bounded facing turn plus a facing-alignment desired-speed cap) instead; the
+// nil branch below is the EXACT pre-T056 arithmetic.
 func (r *Runner) integrateInertial(dt float64) {
+	if r.Orientation != nil {
+		r.integrateOriented(dt)
+		return
+	}
 	p := r.Params()
+	desiredVXM, desiredVYM := r.desiredVelocity(p, dt)
+	r.applyBoundedVelocity(p, desiredVXM, desiredVYM, dt)
+}
 
-	// 1. Desired velocity from the intent.
+// desiredVelocity is the unchanged T-036 step 1: the transfer-limited desired
+// velocity toward the intent (zero inside the arrival radius).
+func (r *Runner) desiredVelocity(p MotionParams, dt float64) (float64, float64) {
 	dxm := (r.IntentX - r.X) * PitchLengthM
 	dym := (r.IntentY - r.Y) * PitchWidthM
 	distM := math.Sqrt(dxm*dxm + dym*dym)
-
-	var desiredVXM, desiredVYM float64
-	if distM > ArriveRadiusM {
-		want := p.TopSpeedMPS
-		if brake := math.Sqrt(2 * p.DecelMPS2 * distM); brake < want {
-			want = brake
-		}
-		if step := distM / dt; step < want {
-			want = step
-		}
-		inv := 1 / distM
-		// Unit direction in metres, then expressed as m/s along each axis.
-		desiredVXM = dxm * inv * want
-		desiredVYM = dym * inv * want
+	if distM <= ArriveRadiusM {
+		return 0, 0
 	}
+	want := p.TopSpeedMPS
+	if brake := math.Sqrt(2 * p.DecelMPS2 * distM); brake < want {
+		want = brake
+	}
+	if step := distM / dt; step < want {
+		want = step
+	}
+	inv := 1 / distM
+	return dxm * inv * want, dym * inv * want
+}
 
+// applyBoundedVelocity is the unchanged T-036 steps 2-4: decompose the needed
+// change into bounded longitudinal/lateral components, clamp to top speed and
+// advance the position.
+func (r *Runner) applyBoundedVelocity(p MotionParams, desiredVXM, desiredVYM, dt float64) {
 	speed := math.Sqrt(r.VXM*r.VXM + r.VYM*r.VYM)
 
 	// 2a. From rest: accelerate straight toward the desired velocity.
@@ -285,6 +300,69 @@ func (r *Runner) integrateInertial(dt float64) {
 	// 4. Advance position with the (now bounded) velocity.
 	r.X += (r.VXM / PitchLengthM) * dt
 	r.Y += (r.VYM / PitchWidthM) * dt
+}
+
+// integrateOriented is the T-056 oriented inertial step. It first turns the
+// persisted facing toward the intent direction under a speed-bounded, trig-free
+// chord (using the PRE-step own speed for the envelope), then computes the
+// desired velocity as the arrival/braking/step limit capped by the
+// facing-alignment backward share, and finally applies the unchanged bounded
+// velocity change. Facing persists at rest and is independent of velocity.
+func (r *Runner) integrateOriented(dt float64) {
+	o := r.Orientation
+	p := r.Params()
+
+	dxm := (r.IntentX - r.X) * PitchLengthM
+	dym := (r.IntentY - r.Y) * PitchWidthM
+	distM := math.Sqrt(dxm*dxm + dym*dym)
+
+	var desiredVXM, desiredVYM float64
+	if distM > 0 {
+		ux, uy := dxm/distM, dym/distM
+
+		// Turn envelope from the PRE-step own speed: omega = min(stand, lateral/v).
+		speed := math.Sqrt(r.VXM*r.VXM + r.VYM*r.VYM)
+		omega := o.StandTurnRadsPerSec
+		if speed > 1e-9 {
+			if lat := p.LateralAccelMPS2 / speed; lat < omega {
+				omega = lat
+			}
+		}
+		h := omega * dt
+		if h > 1 {
+			h = 1
+		}
+		if nfx, nfy, ok := rotateFacing(o.FX, o.FY, ux, uy, h, o.TurnSide); ok {
+			o.FX, o.FY = nfx, nfy
+		}
+
+		if distM > ArriveRadiusM {
+			want := p.TopSpeedMPS
+			if s := p.TopSpeedMPS * distM / o.SlowingRadiusM; s < want {
+				want = s
+			}
+			if brake := math.Sqrt(2 * p.DecelMPS2 * distM); brake < want {
+				want = brake
+			}
+			if step := distM / dt; step < want {
+				want = step
+			}
+			// Alignment uses the UPDATED bounded facing.
+			align := (1 + o.FX*ux + o.FY*uy) / 2
+			if align < 0 {
+				align = 0
+			} else if align > 1 {
+				align = 1
+			}
+			allow := p.TopSpeedMPS * (o.BackwardSpeedShare + (1-o.BackwardSpeedShare)*align)
+			if allow < want {
+				want = allow
+			}
+			desiredVXM, desiredVYM = ux*want, uy*want
+		}
+	}
+
+	r.applyBoundedVelocity(p, desiredVXM, desiredVYM, dt)
 }
 
 // clampToTopSpeed scales the velocity down if it exceeded the top speed.

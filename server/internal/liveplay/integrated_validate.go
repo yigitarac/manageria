@@ -167,7 +167,7 @@ func validateIntegratedState(st *IntegratedState, snap Snapshot, runners []Runne
 	if st.SnapshotVersion != IntegratedSnapshotVersion {
 		return fmt.Errorf("%w: snapshotVersion %d", ErrIntegratedVersion, st.SnapshotVersion)
 	}
-	if st.ModelVersion != IntegratedModelVersion {
+	if st.ModelVersion != IntegratedModelVersion && st.ModelVersion != IntegratedModelVersionOriented {
 		return fmt.Errorf("%w: modelVersion %d", ErrIntegratedVersion, st.ModelVersion)
 	}
 	if st.EventSchemaVersion != IntegratedEventSchemaVersion {
@@ -221,6 +221,28 @@ func validateIntegratedState(st *IntegratedState, snap Snapshot, runners []Runne
 		if err := validateBodyFinite(runners[i]); err != nil {
 			return fmt.Errorf("runner %d: %w", i, err)
 		}
+	}
+	// Orientation is only valid on the integrated path (guaranteed here), on an
+	// inertial body with a stable id, and requires the oriented model version.
+	anyOriented := false
+	for i := range runners {
+		o := runners[i].Orientation
+		if o == nil {
+			continue
+		}
+		anyOriented = true
+		if runners[i].Motion != MotionInertial {
+			return fmt.Errorf("runner %d: %w", i, ErrOrientationMotion)
+		}
+		if runners[i].PlayerID == 0 {
+			return fmt.Errorf("runner %d: %w", i, ErrOrientationPlayerID)
+		}
+		if err := o.validate(); err != nil {
+			return fmt.Errorf("runner %d: %w", i, err)
+		}
+	}
+	if anyOriented && st.ModelVersion != IntegratedModelVersionOriented {
+		return fmt.Errorf("%w: modelVersion %d with orientation", ErrOrientationModel, st.ModelVersion)
 	}
 	if err := validateIntegratedEvents(snap); err != nil {
 		return err

@@ -32,6 +32,10 @@ const (
 	// IntegratedModelVersion is the version of the physical/rule model the state
 	// was produced under.
 	IntegratedModelVersion = 1
+	// IntegratedModelVersionOriented is the model selected when the T-056 oriented
+	// facing/arrival physics is active for at least one runner. Imports accept 1 or
+	// 2 but require 2 whenever orientation exists.
+	IntegratedModelVersionOriented = 2
 	// IntegratedEventSchemaVersion is the version of FactEvent.
 	IntegratedEventSchemaVersion = 1
 	// IntegratedRulebookVersion names the explicit, LIMITED rule profile. It is a
@@ -282,13 +286,46 @@ func (s *Sim) EnableIntegrated() error {
 	if err := s.validateIntegratedContext(); err != nil {
 		return err
 	}
+	// Resolve any orientation supplied through a raw roster BEFORE mutating the
+	// shell, so a bad orientation is rejected transactionally. A validated
+	// orientation selects model2.
+	resolved := make([]*RunnerOrientation, len(s.runners))
+	oriented := false
+	for i := range s.runners {
+		o := s.runners[i].Orientation
+		if o == nil {
+			continue
+		}
+		if s.runners[i].Motion != MotionInertial {
+			return fmt.Errorf("runner %d: %w", i, ErrOrientationMotion)
+		}
+		if s.runners[i].PlayerID == 0 {
+			return fmt.Errorf("runner %d: %w", i, ErrOrientationPlayerID)
+		}
+		r, err := o.resolved(s.runners[i].PlayerID)
+		if err != nil {
+			return fmt.Errorf("runner %d: %w", i, err)
+		}
+		resolved[i] = &r
+		oriented = true
+	}
 	phase, ok := ballPhase(s.ball.Mode)
 	if !ok {
 		return fmt.Errorf("%w: ball mode %d", ErrIntegratedBody, s.ball.Mode)
 	}
+	model := IntegratedModelVersion
+	if oriented {
+		model = IntegratedModelVersionOriented
+	}
+	// Commit only after the full context (including orientation) validated.
+	for i := range resolved {
+		if resolved[i] != nil {
+			s.runners[i].Orientation = resolved[i]
+		}
+	}
 	s.integrated = &IntegratedState{
 		SnapshotVersion:    IntegratedSnapshotVersion,
-		ModelVersion:       IntegratedModelVersion,
+		ModelVersion:       model,
 		EventSchemaVersion: IntegratedEventSchemaVersion,
 		RulebookVersion:    IntegratedRulebookVersion,
 		Phase:              phase,
