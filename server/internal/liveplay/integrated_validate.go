@@ -167,7 +167,7 @@ func validateIntegratedState(st *IntegratedState, snap Snapshot, runners []Runne
 	if st.SnapshotVersion != IntegratedSnapshotVersion {
 		return fmt.Errorf("%w: snapshotVersion %d", ErrIntegratedVersion, st.SnapshotVersion)
 	}
-	if st.ModelVersion != IntegratedModelVersion && st.ModelVersion != IntegratedModelVersionOriented {
+	if st.ModelVersion != IntegratedModelVersion && st.ModelVersion != IntegratedModelVersionOriented && st.ModelVersion != IntegratedModelVersionBody {
 		return fmt.Errorf("%w: modelVersion %d", ErrIntegratedVersion, st.ModelVersion)
 	}
 	if st.EventSchemaVersion != IntegratedEventSchemaVersion {
@@ -241,7 +241,7 @@ func validateIntegratedState(st *IntegratedState, snap Snapshot, runners []Runne
 			return fmt.Errorf("runner %d: %w", i, err)
 		}
 	}
-	if anyOriented && st.ModelVersion != IntegratedModelVersionOriented {
+	if anyOriented && st.ModelVersion != IntegratedModelVersionOriented && st.ModelVersion != IntegratedModelVersionBody {
 		return fmt.Errorf("%w: modelVersion %d with orientation", ErrOrientationModel, st.ModelVersion)
 	}
 	if err := validateIntegratedEvents(snap); err != nil {

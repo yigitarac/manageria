@@ -36,6 +36,9 @@ const (
 	// facing/arrival physics is active for at least one runner. Imports accept 1 or
 	// 2 but require 2 whenever orientation exists.
 	IntegratedModelVersionOriented = 2
+	// IntegratedModelVersionBody is the model selected when the T-057 body-contact
+	// layer is globally enabled. Imports accept 1/2/3; active body state requires 3.
+	IntegratedModelVersionBody = 3
 	// IntegratedEventSchemaVersion is the version of FactEvent.
 	IntegratedEventSchemaVersion = 1
 	// IntegratedRulebookVersion names the explicit, LIMITED rule profile. It is a

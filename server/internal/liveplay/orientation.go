@@ -181,7 +181,9 @@ func (s *Sim) EnableOrientation(index int, state RunnerOrientation) error {
 		return err
 	}
 	r.Orientation = &resolved
-	s.integrated.ModelVersion = IntegratedModelVersionOriented
+	if s.integrated.ModelVersion != IntegratedModelVersionBody {
+		s.integrated.ModelVersion = IntegratedModelVersionOriented
+	}
 	return nil
 }
 

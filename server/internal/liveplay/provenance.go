@@ -223,6 +223,19 @@ func (r *ProvenanceRecorder) Records() []DecisionRecord {
 	return append([]DecisionRecord(nil), r.records...)
 }
 
+// detached returns an independent recorder copy (same capacity/records/overflow)
+// with NO shared record backing, used to stage an optional body step transactionally.
+func (r *ProvenanceRecorder) detached() *ProvenanceRecorder {
+	if r == nil {
+		return nil
+	}
+	return &ProvenanceRecorder{
+		capacity:   r.capacity,
+		records:    append([]DecisionRecord(nil), r.records...),
+		overflowed: r.overflowed,
+	}
+}
+
 // append adds one record if capacity remains, otherwise it flags overflow and
 // drops the record. It never grows past the capacity.
 func (r *ProvenanceRecorder) append(rec DecisionRecord) {
@@ -397,6 +410,11 @@ func BuildDecisionProvenance(in ProvenanceInput) (DecisionProvenance, error) {
 	if in.HorizonMS < start {
 		return DecisionProvenance{}, fmt.Errorf("%w: horizon %d before start %d", ErrProvenanceHorizon, in.HorizonMS, start)
 	}
+	// Surface an already-sticky body fault before any horizon loop (even a
+	// zero-length or ball-held window would otherwise skip it).
+	if in.Sim.body != nil && in.Sim.body.Fault != nil {
+		return DecisionProvenance{}, bodyFaultError(in.Sim.body.Fault)
+	}
 	rec, err := NewProvenanceRecorder(in.Capacity)
 	if err != nil {
 		return DecisionProvenance{}, err
@@ -409,6 +427,11 @@ func BuildDecisionProvenance(in ProvenanceInput) (DecisionProvenance, error) {
 	clone.SetProvenanceRecorder(rec)
 	for clone.ClockMS() < in.HorizonMS && clone.Ball().Mode != BallHeld {
 		clone.Step()
+		if clone.body != nil && clone.body.Fault != nil {
+			// A body-step fault leaves the clock unchanged; do not spin. Surface it
+			// without mutating or clearing the caller's source state.
+			return DecisionProvenance{}, bodyFaultError(clone.body.Fault)
+		}
 	}
 	return DecisionProvenance{
 		SchemaVersion: ProvenanceSchemaVersion,

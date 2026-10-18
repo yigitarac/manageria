@@ -390,7 +390,7 @@ func TestT056InvalidOrientationImportsAndClones(t *testing.T) {
 	}
 	mut := func(f func(*Snapshot)) Snapshot { s := deepCopySnapshot(t, baseCopy); f(&s); return s }
 	reject("model1+orientation", mut(func(s *Snapshot) { s.Integrated.ModelVersion = IntegratedModelVersion }))
-	reject("unknown model3", mut(func(s *Snapshot) { s.Integrated.ModelVersion = 3 }))
+	reject("unknown model99", mut(func(s *Snapshot) { s.Integrated.ModelVersion = 99 }))
 	reject("kinematic orientation", mut(func(s *Snapshot) { s.Runners[0].Motion = MotionKinematic }))
 	reject("non-unit facing", mut(func(s *Snapshot) { s.Runners[0].Orientation.FX = 2; s.Runners[0].Orientation.FY = 0 }))
 	reject("zero facing", mut(func(s *Snapshot) { s.Runners[0].Orientation.FX = 0; s.Runners[0].Orientation.FY = 0 }))

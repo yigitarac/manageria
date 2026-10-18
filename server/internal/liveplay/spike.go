@@ -166,6 +166,11 @@ type Runner struct {
 	// state copy deep-copies this pointer.
 	Orientation *RunnerOrientation `json:"orientation,omitempty"`
 
+	// Body is the optional T-057 hard-body parameters (nil disables). It is only
+	// active under a globally-enabled body-contact state; raw fixture fields alone
+	// never change physics. Every public state copy deep-copies this pointer.
+	Body *RunnerBody `json:"body,omitempty"`
+
 	// LocalPursuit opts a runner into the T-044 observation-driven local intent
 	// policy, INDEPENDENT of the legacy native-oracle Pursue flag. The native
 	// publisher always skips a local runner (no omniscient fallback); the local
@@ -306,6 +311,11 @@ type Sim struct {
 	// keeps the slot tie. Mirrored in Snapshot.Integrated.
 	integrated *IntegratedState
 
+	// body is the opt-in T-057 body-contact state (body.go). Nil by default, so
+	// the disabled path keeps the exact accepted arithmetic. Mirrored in
+	// Snapshot.BodyContacts.
+	body *BodyContactState
+
 	// Pre-step scratch (T-038): explicit pre-integration reference positions for
 	// the exact substep chords. Not serialized and reused every substep, so the
 	// live resolver never allocates per step.
@@ -409,6 +419,12 @@ func (s *Sim) Step() { s.step(true) }
 func (s *Sim) StepQuiet() { s.step(false) }
 
 func (s *Sim) step(record bool) {
+	if s.body != nil {
+		// Body-enabled mode routes through the checked transactional step; a fault
+		// is stored and exposed via StepError/Snapshot without advancing the clock.
+		_ = s.stepChecked(record)
+		return
+	}
 	if s.cfg.LivePass {
 		s.stepLive(record)
 		return
@@ -823,10 +839,15 @@ func (s *Sim) recordSample() {
 	})
 }
 
-// Run steps until clock reaches endMS (exclusive) or the ball is collected.
+// Run steps until clock reaches endMS (exclusive) or the ball is collected. When
+// body contacts are enabled it stops on a sticky fault so a correctly-nonadvancing
+// clock cannot spin a bounded horizon loop; the fault is exposed via StepError.
 func (s *Sim) Run(endMS int) {
 	for s.clock < endMS && s.ball.Mode != BallHeld {
 		s.Step()
+		if s.body != nil && s.body.Fault != nil {
+			return
+		}
 	}
 }
 
@@ -869,6 +890,10 @@ type Snapshot struct {
 	// by default, so a disabled snapshot keeps the exact old JSON key set and the
 	// slot tie semantics. Deep-copied on Snapshot/Resume so it is never aliased.
 	Integrated *IntegratedState `json:"integrated,omitempty"`
+
+	// BodyContacts is the opt-in T-057 body-contact state (body.go). Nil
+	// (omitted) by default. Deep-copied on Snapshot/Resume so it is never aliased.
+	BodyContacts *BodyContactState `json:"bodyContacts,omitempty"`
 }
 
 // Snapshot captures the current state.
@@ -892,6 +917,7 @@ func (s *Sim) Snapshot() Snapshot {
 		NextDecisionMS:   s.nextDecisionMS,
 		DecisionDirty:    s.decisionDirty,
 		Integrated:       cloneIntegrated(s.integrated),
+		BodyContacts:     cloneBodyState(s.body),
 	}
 }
 
@@ -922,6 +948,10 @@ func Resume(snap Snapshot) (*Sim, error) {
 	if err != nil {
 		return nil, err
 	}
+	body, err := resumeBodyState(snap, runners)
+	if err != nil {
+		return nil, err
+	}
 	return &Sim{
 		cfg:              snap.Cfg,
 		rnd:              r,
@@ -942,6 +972,7 @@ func Resume(snap Snapshot) (*Sim, error) {
 		decisionDirty:    snap.DecisionDirty,
 		lastDecisionMS:   -1,
 		integrated:       integrated,
+		body:             body,
 	}, nil
 }
 

@@ -246,7 +246,8 @@ func (r *Runner) desiredVelocity(p MotionParams, dt float64) (float64, float64) 
 
 // applyBoundedVelocity is the unchanged T-036 steps 2-4: decompose the needed
 // change into bounded longitudinal/lateral components, clamp to top speed and
-// advance the position.
+// advance the position. The nil-body arithmetic is preserved EXACTLY (no extra
+// term, no signed-zero change).
 func (r *Runner) applyBoundedVelocity(p MotionParams, desiredVXM, desiredVYM, dt float64) {
 	speed := math.Sqrt(r.VXM*r.VXM + r.VYM*r.VYM)
 
@@ -302,6 +303,72 @@ func (r *Runner) applyBoundedVelocity(p MotionParams, desiredVXM, desiredVYM, dt
 	r.Y += (r.VYM / PitchWidthM) * dt
 }
 
+// boundedVelocityChange applies the bounded longitudinal/lateral velocity change
+// for the BODY path only: it adds a separation acceleration to the goal delta
+// BEFORE projection and does NOT clamp to top speed (a collision impulse may
+// legitimately push a body above its own top speed). It does not advance position.
+func (r *Runner) boundedVelocityChange(p MotionParams, desiredVXM, desiredVYM, sepAX, sepAY, dt float64) {
+	speed := math.Sqrt(r.VXM*r.VXM + r.VYM*r.VYM)
+
+	if speed < 1e-9 {
+		ddx, ddy := desiredVXM-r.VXM+sepAX*dt, desiredVYM-r.VYM+sepAY*dt
+		dmag := math.Sqrt(ddx*ddx + ddy*ddy)
+		maxStep := p.AccelMPS2 * dt
+		if dmag > maxStep && dmag > 0 {
+			scale := maxStep / dmag
+			ddx *= scale
+			ddy *= scale
+		}
+		r.VXM += ddx
+		r.VYM += ddy
+	} else {
+		hx, hy := r.VXM/speed, r.VYM/speed
+		ddx, ddy := desiredVXM-r.VXM+sepAX*dt, desiredVYM-r.VYM+sepAY*dt
+		along := ddx*hx + ddy*hy
+		latx := ddx - along*hx
+		laty := ddy - along*hy
+
+		capAlong := p.AccelMPS2 * dt
+		if along < 0 {
+			capAlong = p.DecelMPS2 * dt
+		}
+		if along > capAlong {
+			along = capAlong
+		} else if along < -capAlong {
+			along = -capAlong
+		}
+
+		latMag := math.Sqrt(latx*latx + laty*laty)
+		capLat := p.LateralAccelMPS2 * dt
+		if latMag > capLat && latMag > 0 {
+			scale := capLat / latMag
+			latx *= scale
+			laty *= scale
+		}
+
+		r.VXM += along*hx + latx
+		r.VYM += along*hy + laty
+	}
+}
+
+// desiredVelocityFull returns the goal desired velocity for a runner, updating
+// facing once for an oriented runner. It does not advance position.
+func (r *Runner) desiredVelocityFull(dt float64) (float64, float64) {
+	if r.Orientation != nil {
+		return r.desiredVelocityOriented(dt)
+	}
+	return r.desiredVelocity(r.Params(), dt)
+}
+
+// steerBody computes the steering-updated (proposed) velocity for one body from
+// the pre-state, adding a separation acceleration and updating facing once. It
+// does NOT advance position and does NOT clamp to top speed: the swept body solver
+// advances the position and contact impulses may legitimately exceed the top speed.
+func (r *Runner) steerBody(dt, sepAX, sepAY float64) {
+	dvx, dvy := r.desiredVelocityFull(dt)
+	r.boundedVelocityChange(r.Params(), dvx, dvy, sepAX, sepAY, dt)
+}
+
 // integrateOriented is the T-056 oriented inertial step. It first turns the
 // persisted facing toward the intent direction under a speed-bounded, trig-free
 // chord (using the PRE-step own speed for the envelope), then computes the
@@ -309,6 +376,15 @@ func (r *Runner) applyBoundedVelocity(p MotionParams, desiredVXM, desiredVYM, dt
 // facing-alignment backward share, and finally applies the unchanged bounded
 // velocity change. Facing persists at rest and is independent of velocity.
 func (r *Runner) integrateOriented(dt float64) {
+	dvx, dvy := r.desiredVelocityOriented(dt)
+	r.applyBoundedVelocity(r.Params(), dvx, dvy, dt)
+}
+
+// desiredVelocityOriented turns the facing once toward the intent (bounded chord,
+// PRE-step speed envelope) and returns the arrival/braking/alignment desired
+// velocity. It does not advance position and is shared by the T056 integration and
+// the T057 body steering path.
+func (r *Runner) desiredVelocityOriented(dt float64) (float64, float64) {
 	o := r.Orientation
 	p := r.Params()
 
@@ -361,8 +437,7 @@ func (r *Runner) integrateOriented(dt float64) {
 			desiredVXM, desiredVYM = ux*want, uy*want
 		}
 	}
-
-	r.applyBoundedVelocity(p, desiredVXM, desiredVYM, dt)
+	return desiredVXM, desiredVYM
 }
 
 // clampToTopSpeed scales the velocity down if it exceeded the top speed.

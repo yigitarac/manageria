@@ -119,13 +119,36 @@ const traceScriptedNote = "The initial release is a scripted fixture action; eve
 
 // BuildTrace advances the clip to its horizon (or until the ball is controlled),
 // then merges the integer-clock sample frames with exact event knots into one
-// interpolation timeline. A trace begins at the sim's CURRENT clock, so a
-// resumed tail starts at the resume clock: historical events before it are
-// filtered out and only events associated with a captured knot are listed.
+// interpolation timeline. It is the default (unchecked) convenience: a selected
+// body model (the positions-only trace lacks body-impact knots) or a body-step
+// fault yields a ZERO Trace rather than a false schema1 success. Callers of the
+// feature path should use BuildTraceChecked.
 func BuildTrace(in ClipInput) Trace {
+	tr, err := buildTrace(in)
+	if err != nil {
+		return Trace{}
+	}
+	return tr
+}
+
+// BuildTraceChecked is BuildTrace with an explicit error: it rejects an active
+// body model3 (the trace cannot certify piecewise body paths) and any body-step
+// fault, without mutating the source simulation.
+func BuildTraceChecked(in ClipInput) (Trace, error) { return buildTrace(in) }
+
+func buildTrace(in ClipInput) (Trace, error) {
 	sim := in.Sim
+	if sim.body != nil && sim.body.Fault != nil {
+		return Trace{}, bodyFaultError(sim.body.Fault)
+	}
+	if sim.integrated != nil && sim.integrated.ModelVersion == IntegratedModelVersionBody {
+		return Trace{}, fmt.Errorf("liveplay: trace does not support the selected body model3: %w", ErrBodyVersion)
+	}
 	startClock := sim.ClockMS()
 	frames := captureFrames(sim, in.HorizonMS)
+	if err := sim.StepError(); err != nil {
+		return Trace{}, err
+	}
 	byClock := make(map[int]TracePoint, len(frames))
 	for _, f := range frames {
 		byClock[int(f.TMS)] = f
@@ -191,7 +214,7 @@ func BuildTrace(in ClipInput) Trace {
 		EventCount:    len(traceEvents),
 		Events:        traceEvents,
 		Points:        points,
-	}
+	}, nil
 }
 
 // captureFrames records every participant's position at every integer clock from
@@ -201,6 +224,9 @@ func captureFrames(sim *Sim, horizonMS int) []TracePoint {
 	frames := []TracePoint{frameAt(sim)}
 	for sim.ClockMS() < horizonMS && sim.Ball().Mode != BallHeld {
 		sim.Step()
+		if sim.body != nil && sim.body.Fault != nil {
+			break // a body-step fault leaves the clock unchanged; stop, do not spin
+		}
 		frames = append(frames, frameAt(sim))
 	}
 	return frames
@@ -421,6 +447,9 @@ func findPartialErrorSeed() (uint64, error) {
 		})
 		for sim.ClockMS() < horizonMS && sim.Ball().Mode != BallHeld {
 			sim.Step()
+			if err := sim.StepError(); err != nil {
+				return 0, fmt.Errorf("seed %d step: %w", seed, err)
+			}
 		}
 		if countEventKind(sim, PassEventDeflect) == 0 {
 			continue
